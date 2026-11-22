@@ -81,3 +81,30 @@ describe('ui-segmentado', () => {
     expect(radios().every(radio => radio.getAttribute('aria-checked') === 'false')).toBe(true);
   });
 });
+
+// Codex (pasada final): el indicador se vuelve a medir cuando cambia el ancho de una OPCIÓN (una cuenta que crece, una
+// fuente que carga), no solo el de la pista.
+describe('ui-segmentado · observa la pista y cada opción', () => {
+  const real = globalThis.ResizeObserver;
+  const observados: Element[] = [];
+
+  beforeEach(() => {
+    observados.length = 0;
+    globalThis.ResizeObserver = class {
+      observe(elemento: Element) { observados.push(elemento); }
+      unobserve() { /* sin uso en la prueba */ }
+      disconnect() { /* sin uso en la prueba */ }
+    } as unknown as typeof ResizeObserver;
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+  });
+
+  afterEach(() => (globalThis.ResizeObserver = real));
+
+  it('observa la pista y los cuatro segmentos', async () => {
+    const fixture = TestBed.createComponent(Host);
+    await fixture.whenStable();
+    const raiz = fixture.nativeElement as HTMLElement;
+    expect(observados).toContain(raiz.querySelector('.ui-segmentado__pista'));
+    for (const radio of raiz.querySelectorAll('[role="radio"]')) expect(observados).toContain(radio);
+  });
+});

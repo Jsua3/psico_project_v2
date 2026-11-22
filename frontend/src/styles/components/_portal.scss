@@ -93,6 +93,16 @@
   line-height: var(--ds-type-h3-line);
 }
 
+// Casillas y opciones nativas sueltas (selección de filas en Usuarios, listas del editor): las mismas de `ui-check`,
+// con el acento de la piel y 20 px, en vez del gris del sistema. `:where` deja la especificidad en cero: cualquier
+// regla de un componente (un interruptor dibujado, una casilla con `appearance: none`) sigue mandando. Cubre también
+// las capas del CDK (diálogos y hojas), que viven fuera de `.portal` con sus mismos materiales.
+:where(.portal, .ui-overlay-materiales) :where(input:is([type='checkbox'], [type='radio']):not(.ui-switch, [role='switch'])) {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  accent-color: var(--ds-primary);
+}
+
 // Números alineados en columna (tablas, cifras de reportes).
 .portal :is(table, .p-numeros) {
   font-variant-numeric: tabular-nums;

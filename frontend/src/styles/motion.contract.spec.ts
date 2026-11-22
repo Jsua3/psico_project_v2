@@ -33,7 +33,7 @@ describe('movimiento: botones y páginas', () => {
 describe('movimiento: hover sin desplazamiento en el portal', () => {
   const files: Record<string, string> = {
     shell: source('../app/shared/layout/shell.component.ts'),
-    quickActions: source('../app/features/dashboard/quick-actions.component.ts'),
+    // B5a retiró `quick-actions.component.ts` (el Inicio ya no tiene accesos rápidos); el hover del Inicio lo cubre `dashboard`.
     // F7: la clase y sus estilos viven en archivos distintos; el contrato mira los dos.
     trace: source('../app/features/simulator/instructor-trace.component.ts') + source('../app/features/simulator/instructor-trace.component.scss'),
     grupos: source('../app/features/grupos/grupo-list.component.ts') + source('../app/features/grupos/grupo-list.component.scss'),
@@ -42,13 +42,11 @@ describe('movimiento: hover sin desplazamiento en el portal', () => {
 
   it('ninguna tarjeta ni fila se mueve en hover', () => {
     expect(files['shell']).not.toContain('transform: translate(-1px, -1px);');
-    expect(files['quickActions']).not.toContain('transform: translate(-1px, -1px);');
     expect(files['trace']).not.toContain('transform: translate(-2px, -2px);');
     expect(files['grupos']).not.toContain('.group-card:hover { transform: translateY(-1px);');
   });
 
   it('el foco de teclado de las tarjetas no comparte regla con el hover', () => {
-    expect(files['quickActions']).not.toMatch(/\.quick-action-card:hover,\s*\.quick-action-card:focus-visible/);
     expect(files['trace']).not.toMatch(/\.attempt-card:hover,\s*\.attempt-card:focus-visible/);
     expect(files['trace']).not.toMatch(/\.review-summary-card--action:hover,\s*\.review-summary-card--action:focus-visible/);
   });

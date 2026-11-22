@@ -1,4 +1,4 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 
 import { AuthService } from '../../core/auth/auth.service';
 
@@ -33,6 +33,15 @@ export class NavBadgesService {
   private readonly registro = signal<Registro>({ dueno: null, cuentas: {} });
 
   private readonly persona = computed(() => this.auth.currentUser()?.id ?? null);
+
+  constructor() {
+    // Al cerrar sesión el registro se VACÍA, no solo se oculta: si la misma persona vuelve a entrar sin recargar, no
+    // deben reaparecer pendientes de la sesión anterior (quizá ya resueltos) hasta que una pantalla los actualice
+    // (Codex, pasada final). Observer con un efecto: lo único que escucha es la sesión.
+    effect(() => {
+      if (this.persona() === null) untracked(() => this.registro.set({ dueno: null, cuentas: {} }));
+    });
+  }
 
   /** Pendientes por id de destino (`NavItem.id`). Vacío si no hay sesión o si las escribió otra persona. */
   readonly cuentas = computed<Record<string, number>>(() => {

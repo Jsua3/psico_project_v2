@@ -147,6 +147,8 @@ const CONTRACTS: Contract[] = [
   { method: 'deleteCharacter', call: s => s.deleteCharacter(9, 2), verb: 'DELETE', url: `${A}/9/characters/2` },
   { method: 'updateBrief', call: s => s.updateBrief(9, body('ficha')), verb: 'PUT', url: `${A}/9/brief`, body: body('ficha') },
   { method: 'reorderNodes', call: s => s.reorderNodes(9, [2, 1]), verb: 'PATCH', url: `${A}/9/nodes/reorder`, body: { order: [2, 1] } },
+  // RK-1 (R0): el caso adopta una rúbrica propia (copia de la versión elegida o armada desde las competencias).
+  { method: 'adoptRubric', call: s => s.adoptRubric(9, { rubricId: 4 }), verb: 'POST', url: `${A}/9/rubric`, body: { rubricId: 4 } },
 
   // ── reglas del modelo: hitos, nivel de riesgo y finales ─────────────────────────────────────────────
   { method: 'updateMilestones', call: s => s.updateMilestones(9, [{ key: 'h1', label: 'H', description: '', decisive: true }]), verb: 'PUT',
@@ -348,13 +350,13 @@ describe('SimulationService contrato HTTP', () => {
 
     expect(publicMethods.filter(name => !documented.has(name))).toEqual([]);
     expect([...documented].filter(name => !publicMethods.includes(name))).toEqual([]);
-    expect(publicMethods).toHaveLength(90);
+    expect(publicMethods).toHaveLength(91);
   });
 
   it('cada método vive en una sola API y cada rol tiene el tamaño esperado', () => {
     const [player, authoring, instructor] = ROLE_CLASSES.map(publicMethodsOf);
-    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(90);
-    expect([player.length, authoring.length, instructor.length]).toEqual([26, 58, 6]);
+    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(91);
+    expect([player.length, authoring.length, instructor.length]).toEqual([26, 59, 6]);
     expect(instructor).toEqual(['recentAttempts', 'listAttempts', 'attemptTrace', 'rubric', 'replaceAttempt', 'saveRubric']);
   });
 

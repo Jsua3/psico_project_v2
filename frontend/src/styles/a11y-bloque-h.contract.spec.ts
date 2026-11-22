@@ -74,22 +74,24 @@ describe('bloque H: login (contraste)', () => {
 
 describe('bloque H: 404 pública (rediseño Metafrónesis 2026-11-20)', () => {
   const ts = source('../app/features/public/not-found.component.ts');
+  const estado = source('../app/shared/layout/pagina-estado/pagina-estado.component.ts');
 
-  it('sigue al tema en su contenedor y su texto secundario y su enlace llegan a 4,5:1 en los dos modos', () => {
-    // La tarjeta es .pub-vidrio (--l-vidrio: superficie-1 al 72 % en oscuro y al 80 % en claro, con la luz de arriba)
-    // sobre el resplandor de marca de la página (acento al 20 %).
+  it('sigue al tema en su contenedor y su texto secundario y su acción llegan a 4,5:1 en los dos modos', () => {
+    // B3 pasó la 404 a la plantilla común de estados (`app-pagina-estado`): ya no hay tarjeta de vidrio ni enlace
+    // subrayado; el texto va directo sobre la página (con el resplandor de marca, acento al 20 %) y la salida es un
+    // `ui-button`, que tiene su propio contrato de contraste.
     expect(ts).toContain('<div class="perdida publico" [attr.data-skin]="tema.piel()">');
-    expect(ts).toMatch(/\.perdida__texto \{[^}]*color: var\(--ds-text-2\);/);
-    expect(ts).toMatch(/\.perdida__enlace \{[^}]*color: var\(--l-acento-tinta\);[^}]*text-decoration: underline;/);
-    const vidrio = (superficie: string, alfa: number, texto1: string, luz: number, acento: string, pagina: string) =>
-      blend(texto1, luz, blend(superficie, alfa, blend(acento, 0.2, pagina)));
-    const oscuro = vidrio('#151B2E', 0.72, '#E8ECF8', 0.05, '#B69CFF', '#0E1322');
-    const claro = vidrio('#FFFFFF', 0.8, '#14202E', 0.035, '#5B3FD1', '#F5F7FA');
+    expect(ts).toContain('<app-pagina-estado tipo="no-encontrada"');
+    expect(ts).toMatch(/<a ui-button routerLink="\/">Volver a la portada<\/a>/);
+    expect(estado).toMatch(/p \{[^}]*color: var\(--ds-text-2\);/);
+    const pagina = (acento: string, fondo: string) => blend(acento, 0.2, fondo);
+    const oscuro = pagina('#B69CFF', '#0E1322');
+    const claro = pagina('#5B3FD1', '#F5F7FA');
     expect(contrastRatio('#A9B3CC', oscuro)).toBeGreaterThanOrEqual(4.5);
-    expect(contrastRatio('#C9B3FF', oscuro)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#E8ECF8', oscuro)).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio('#C9B3FF', oscuro)).toBeGreaterThanOrEqual(3); // anillo de foco de la piel juego
     expect(contrastRatio('#4A5A6A', claro)).toBeGreaterThanOrEqual(4.5);
-    expect(contrastRatio('#5B3FD1', claro)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#14202E', claro)).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio('#004876', claro)).toBeGreaterThanOrEqual(3); // anillo de foco de la piel portal
   });
 });

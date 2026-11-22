@@ -210,6 +210,16 @@ class AutofocusDialog {}
 })
 class FirstEnabledDialog {}
 
+// Codex (pasada final): un control oculto pasa los selectores, pero no recibe el foco; se salta y se sigue buscando.
+@Component({
+  imports: [UiDialogFrame],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<ui-dialog-frame title="Con ocultos">
+    <input type="hidden" class="oculto" /><div hidden><input class="plegado" /></div><input class="visible" />
+  </ui-dialog-frame>`,
+})
+class HiddenCandidatesDialog {}
+
 describe('UiDialog con salida animada y opciones (revisión de F2)', () => {
   const realMatchMedia = window.matchMedia;
   const settle = async () => {
@@ -279,6 +289,16 @@ describe('UiDialog con salida animada y opciones (revisión de F2)', () => {
     await settle();
     expect(document.activeElement?.classList).toContain('segundo');
     closed = firstValueFrom(ref.closed);
+    ref.close();
+    await closed;
+  });
+
+  it('el foco inicial salta los controles ocultos (type="hidden" o dentro de [hidden]) y llega al primero visible', async () => {
+    const ref = TestBed.inject(UiDialog).open(HiddenCandidatesDialog, {});
+    await settle();
+    await settle();
+    expect(document.activeElement?.classList).toContain('visible');
+    const closed = firstValueFrom(ref.closed);
     ref.close();
     await closed;
   });

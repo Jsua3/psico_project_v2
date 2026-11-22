@@ -70,10 +70,32 @@ describe('ui-archivo', () => {
     expect(fixture.componentInstance.recibidos).toHaveLength(1);
 
     await soltar(new File(['a'], 'foto.png', { type: 'image/png' }));
-    expect(fixture.componentInstance.recibidos).toHaveLength(1);
     const error = root().querySelector('.ui-archivo__mensaje--error');
     expect(error?.textContent?.trim()).toBe('Ese archivo no es del formato pedido. Formato .xlsx.');
     expect(entrada().getAttribute('aria-invalid')).toBe('true');
+  });
+
+  // Codex (pasada final): válido → inválido no puede dejar viva la lista anterior, que se importaría en silencio.
+  it('soltar uno inválido después de uno válido suelta también el anterior y emite null', async () => {
+    await soltar(xlsx());
+    await soltar(new File(['a'], 'foto.png', { type: 'image/png' }));
+    expect(fixture.componentInstance.recibidos.map(archivo => archivo?.name ?? null)).toEqual(['estudiantes 2026-1.xlsx', null]);
+    expect(root().querySelector('.ui-archivo__elegido')).toBeNull();
+    expect(root().querySelector('.ui-archivo__mensaje--error')).not.toBeNull();
+  });
+
+  // Codex (pasada final): tras soltar, el control nativo queda vacío; así elegir otra vez el mismo archivo con el diálogo
+  // dispara `change` y reemplaza al soltado.
+  it('soltar un archivo vacía el control nativo para que volver a elegir con el diálogo cuente', async () => {
+    // Un `input type="file"` solo admite que se le escriba '': se espía el setter para ver que la zona lo vació.
+    const vaciar = vi.spyOn(HTMLInputElement.prototype, 'value', 'set');
+    try {
+      await soltar(xlsx());
+      expect(vaciar.mock.contexts.some(contexto => contexto === entrada())).toBe(true);
+      expect(vaciar).toHaveBeenCalledWith('');
+    } finally {
+      vaciar.mockRestore();
+    }
   });
 
   it('«Quitar» emite null, limpia el control y devuelve el foco al control', async () => {

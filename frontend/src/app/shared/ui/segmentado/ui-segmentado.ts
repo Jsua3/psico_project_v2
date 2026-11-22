@@ -1,5 +1,5 @@
 import {
-  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, afterRenderEffect, computed, inject, input,
+  ChangeDetectionStrategy, Component, ElementRef, afterRenderEffect, computed, input,
   model, signal, viewChild, viewChildren,
 } from '@angular/core';
 
@@ -69,13 +69,17 @@ export class UiSegmentado {
   constructor() {
     // Lleva el indicador a la opción elegida cada vez que cambian el valor o las opciones.
     afterRenderEffect({ write: () => this.medir(this.valor(), this.segmentos()) });
-    const destroyRef = inject(DestroyRef);
-    afterNextRender(() => {
-      // Un cambio de tamaño (texto más grande, giro del teléfono) mueve los segmentos: se vuelve a medir.
+    // Un cambio de tamaño mueve los segmentos: se vuelve a medir. Se observan la pista (giro del teléfono, columna que
+    // se estrecha) Y cada opción: una cuenta que pasa de 9 a 10 o una fuente que termina de cargar ensancha una opción
+    // sin cambiar el ancho de una pista ya limitada, y el indicador quedaría corto o corrido (Codex, pasada final).
+    // Se rehace al cambiar las opciones, para observar también las nuevas.
+    afterRenderEffect(onCleanup => {
+      const segmentos = this.segmentos();
       if (typeof ResizeObserver === 'undefined') return;
       const observador = new ResizeObserver(() => this.medir(this.valor(), this.segmentos()));
       observador.observe(this.pista().nativeElement);
-      destroyRef.onDestroy(() => observador.disconnect());
+      for (const segmento of segmentos) observador.observe(segmento.nativeElement);
+      onCleanup(() => observador.disconnect());
     });
   }
 

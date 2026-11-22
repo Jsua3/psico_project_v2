@@ -62,7 +62,10 @@
   font-size: var(--ds-type-body-s-size);
   line-height: var(--ds-type-body-s-line);
 
-  th {
+  // Solo la cabecera de columnas es pegajosa y lleva el fondo hundido. La cabecera de FILA (`<th scope="row">`, la celda
+  // principal: el nombre de la persona, el título del caso) es una celda más: si heredara ese fondo se vería una franja
+  // más clara solo detrás del nombre (pasada final: Usuarios y Reportes del grupo).
+  thead th {
     position: sticky;
     inset-block-start: 0;
     z-index: var(--ds-z-elevado);
@@ -75,13 +78,22 @@
     white-space: nowrap;
   }
 
-  td {
+  td,
+  tbody th {
     padding: var(--_cell-y) var(--_cell-x);
     border-block-end: 1px solid var(--ds-border);
     vertical-align: middle;
   }
 
-  tbody tr:last-child td {
+  // La cabecera de fila se lee como el dato principal: tinta primaria y peso de título, sobre el fondo de su fila.
+  tbody th {
+    background: transparent;
+    color: var(--ds-text-1);
+    font-weight: var(--ds-type-h3-weight);
+    text-align: start;
+  }
+
+  tbody tr:last-child :is(td, th) {
     border-block-end: 0;
   }
 }

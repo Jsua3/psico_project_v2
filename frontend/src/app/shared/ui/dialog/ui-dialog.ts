@@ -47,11 +47,14 @@ function focusByPriority(pane: HTMLElement | null): void {
   // Si el contenido ya movió el foco por su cuenta, se respeta.
   if (document.activeElement !== container && pane.contains(document.activeElement)) return;
   for (const selector of AUTOFOCUS_PRIORITY) {
-    const target = [...pane.querySelectorAll<HTMLElement>(selector)]
-      .find(element => !element.matches(':disabled') && !element.closest('[inert], [aria-hidden="true"]'));
-    if (target) {
+    // Se prueban los candidatos en orden hasta que uno ACEPTE el foco. Los ocultos a la vista (`type="hidden"`, dentro
+    // de `[hidden]`) se saltan de entrada; uno con `display: none` heredado pasa el filtro, pero `focus()` no lo mueve
+    // y entonces se sigue con el siguiente en vez de quedarse sin foco inicial.
+    for (const target of pane.querySelectorAll<HTMLElement>(selector)) {
+      if (target.matches(':disabled, input[type="hidden"]')) continue;
+      if (target.closest('[inert], [aria-hidden="true"], [hidden]')) continue;
       target.focus();
-      return;
+      if (document.activeElement === target) return;
     }
   }
 }

@@ -138,7 +138,13 @@ export class UiArchivo {
     this.encima.set(false);
     const archivo = evento.dataTransfer?.files?.[0] ?? null;
     if (!archivo) return;
+    // El control nativo se vacía en los dos casos: si guardara el archivo elegido antes con el diálogo, volver a elegir
+    // ese mismo archivo no dispararía `change` y la zona se quedaría con el soltado.
+    this.entrada().nativeElement.value = '';
     if (!archivoAceptado(archivo, this.acepta())) {
+      // Rechazar un reemplazo también suelta el archivo anterior: quien usa la zona no debe poder importar en silencio
+      // la lista de antes mientras el campo muestra un error sobre la nueva.
+      this.tomar(null);
       this.errorPropio.set(`Ese archivo no es del formato pedido. ${this.textoFormato()}.`);
       return;
     }

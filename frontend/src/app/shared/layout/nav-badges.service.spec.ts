@@ -72,6 +72,16 @@ describe('NavBadgesService', () => {
     expect(insignias.cuentas()).toEqual({});
   });
 
+  // Codex (pasada final): cerrar sesión y volver a entrar con la misma persona, sin recargar, no revive las cuentas.
+  it('al cerrar sesión se vacía el registro: la misma persona vuelve a entrar sin pendientes viejos', () => {
+    insignias.fijar('invitaciones', 3);
+    currentUser.set(null);
+    TestBed.tick();
+    currentUser.set(persona(1));
+    TestBed.tick();
+    expect(insignias.cuentas()).toEqual({});
+  });
+
   it('el texto visible se abrevia a «99+» y el accesible dice cuántos pendientes hay', () => {
     expect(textoInsignia(7)).toBe('7');
     expect(textoInsignia(100)).toBe('99+');
