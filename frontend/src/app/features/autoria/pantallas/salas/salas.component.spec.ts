@@ -9,7 +9,7 @@ import { universidad } from '../../testing/universidad';
 import { rutasDePrueba } from '../../testing/rutas';
 import { BibliotecaService } from '../../modelo/biblioteca.service';
 import type { Escenario } from '../../modelo/escenario';
-import { SalasComponent } from './salas.component';
+import { SalasComponent, conArticulo } from './salas.component';
 
 
 const GENERACION_ENCENDIDA = { enabled: true, remainingToday: 5, inProgress: null };
@@ -223,5 +223,14 @@ describe('SalasComponent', () => {
     ver.click();
     fixture.detectChanges();
     expect(raiz.querySelector('#vista-sala')).toBeNull();
+  });
+});
+
+describe('RF-05 · CU-04 crear un caso: el nombre por defecto concuerda con el lugar', () => {
+  it('«la universidad», «el hospital», «la comisaría de familia», «la casa»', () => {
+    expect(conArticulo('Universidad')).toBe('la universidad');
+    expect(conArticulo('Hospital')).toBe('el hospital');
+    expect(conArticulo('Comisaría de familia')).toBe('la comisaría de familia');
+    expect(conArticulo('Casa')).toBe('la casa');
   });
 });

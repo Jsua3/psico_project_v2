@@ -52,6 +52,8 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
       :host { inset-block-end: 0.5rem; }
       .barra { gap: 0.5rem; padding-inline: 0.5rem; grid-template-columns: auto minmax(0, 1fr) auto; }
       .rotulo { display: none; }
+      /* En el teléfono «Paso N de M» no cabe junto a dos botones: quedan las marcas a la vista y el texto para el lector. */
+      .cuenta { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); }
     }
     @media (prefers-reduced-motion: reduce) { .marca { transition: none; } }
   `,

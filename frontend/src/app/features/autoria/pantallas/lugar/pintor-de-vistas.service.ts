@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, Injector, inject } from '@angular/core';
 
 import { planDeSala, rutasDelPlan } from '../../../simulator/sala/composicion';
 import type { ManifiestoDePiezas, SalaPorPiezas } from '../../../simulator/sala/catalogo';
@@ -21,7 +21,8 @@ export type SalaDeBiblioteca = Sala & { estructura?: SalaPorPiezas['estructura']
  */
 @Injectable({ providedIn: 'root' })
 export class PintorDeVistas {
-  private readonly api = inject(AutoriaApiService);
+  /** La API se pide solo al componer: las salas con fondo dibujado (casi todas) no la necesitan. */
+  private readonly injector = inject(Injector);
   private readonly vistas = new Map<string, Promise<string | null>>();
   private readonly imagenes = new Map<string, Promise<HTMLImageElement>>();
 
@@ -42,7 +43,7 @@ export class PintorDeVistas {
     const lienzo = typeof document === 'undefined' ? null : document.createElement('canvas');
     const ctx = lienzo?.getContext('2d', { willReadFrequently: true }) ?? null;
     if (!lienzo || !ctx || !sala.estructura) return null;
-    const manifiesto = await this.api.manifiestoDePiezas();
+    const manifiesto = await this.injector.get(AutoriaApiService).manifiestoDePiezas();
     // Las puertas de la biblioteca traen su muro y su posición: el plan las coloca igual que el juego.
     const porPiezas = { encuadre: sala.encuadre, estructura: sala.estructura, puertas: sala.puertas } as unknown as SalaPorPiezas;
     const plan = planDeSala(porPiezas, manifiesto);
