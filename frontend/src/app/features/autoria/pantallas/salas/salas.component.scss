@@ -143,6 +143,12 @@
 }
 @media (max-width: 40rem) {
   .crear { gap: 1rem; }
+  // Las ideas, en un carrusel: la siguiente asoma por el borde (dice que hay más) y las salas quedan a un pulgar.
+  .ideas {
+    grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 85%;
+    overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding-block-end: 0.25rem;
+  }
+  .idea { scroll-snap-align: start; }
   // Dos salas por fila: una por fila hacía la página de 3.400 px.
   .salas { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
   .ver { padding-inline: 0.125rem; }
