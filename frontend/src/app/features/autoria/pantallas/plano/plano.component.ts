@@ -199,6 +199,7 @@ const PUERTA_GROSOR = 14;
     @media (max-width: 40rem) {
       .plano-caso__titulo h1 { font-size: var(--autoria-texto-24); line-height: 2rem; }
       .plano-caso__vacio { flex-direction: column; align-items: flex-start; padding: 1.25rem; }
+      .plano-caso__vacio-texto h2 { font-size: var(--autoria-texto-20); line-height: 1.75rem; }
     }
     @media (forced-colors: active) { .plano-caso__vacio { border: 1px solid CanvasText; } }
 
