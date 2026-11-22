@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, afterRenderEffect, computed, input, signal, viewChild } from '@angular/core';
 
 import { rutaSpriteKit } from '../../modelo/biblioteca.service';
 import type { CasoBorrador, Escena } from '../../modelo/caso';
@@ -24,7 +24,7 @@ interface Actor { clave: string; nombre: string; x: number; y: number; fila: num
     <figure class="camara" [attr.aria-label]="'Vista de la sala ' + (sala()?.nombre ?? '') + ' con ' + actores().length + ' personajes'">
       <div class="camara__visor">
         @if (sala(); as s) {
-          <div class="camara__cuadro" [style.--ancho-sala]="anchoSala()" [style.aspect-ratio]="anchoSala() + ' / 528'">
+          <div #cuadro class="camara__cuadro" [style.--ancho-sala]="anchoSala()" [style.aspect-ratio]="anchoSala() + ' / 528'">
             <div class="camara__mundo" [style.transform]="transformacion()">
             @if (s.fondo) {
               <app-sala-vista class="camara__sala" [caso]="caso()" [salaId]="s.id" />
@@ -48,7 +48,7 @@ interface Actor { clave: string; nombre: string; x: number; y: number; fila: num
             <!-- El globo va FUERA del mundo que se escala: conserva su tamaño de letra y se acota al cuadro (antes, con la
                  cámara a ×2, salía al doble y se cortaba en el borde; medido el 2026-11-22). -->
             @if (globo(); as g) {
-              <span class="globo" [class.globo--izquierda]="g.izquierda" [style.left.%]="g.x" [style.top.%]="g.y">
+              <span #burbuja class="globo" [class.globo--izquierda]="g.izquierda" [style.left.px]="posicionGlobo().x" [style.top.px]="posicionGlobo().y">
                 <strong>{{ g.nombre }}</strong> {{ textoGlobo() }}
               </span>
             }
@@ -103,12 +103,11 @@ interface Actor { clave: string; nombre: string; x: number; y: number; fila: num
       animation: aro-entra var(--ds-dur-base) var(--ds-spring-soft);
     }
     .globo {
-      position: absolute; z-index: var(--autoria-capa-3); max-inline-size: 15rem; padding: 0.3125rem 0.5rem; translate: -1rem -100%;
+      position: absolute; z-index: var(--autoria-capa-3); max-inline-size: min(15rem, 100%); max-block-size: 100%; box-sizing: border-box; overflow: auto; overflow-wrap: anywhere; padding: 0.3125rem 0.5rem;
       border-radius: 0.5rem 0.5rem 0.5rem 0.125rem; background: var(--l-superficie); color: var(--ds-text-1);
       box-shadow: 0 0 0 1px var(--l-filo-fuerte), var(--l-sombra); font-size: var(--autoria-texto-14); line-height: 1.25rem;
-      animation: globo-entra var(--ds-dur-base) var(--ds-ease-out);
     }
-    .globo--izquierda { translate: calc(-100% + 1rem) -100%; border-radius: 0.5rem 0.5rem 0.125rem 0.5rem; }
+    .globo--izquierda { border-radius: 0.5rem 0.5rem 0.125rem 0.5rem; }
     .globo strong { color: var(--ds-primary); }
     .camara__sin { margin: 0; padding: 2rem 1rem; color: var(--ds-surface-1); font-size: var(--autoria-texto-14); text-align: center; }
     .camara__pie {
@@ -119,7 +118,6 @@ interface Actor { clave: string; nombre: string; x: number; y: number; fila: num
     /* El piloto de la cámara: un cuadrito de 2 px de pixel, quieto (nada infinito). */
     .rec { inline-size: 0.5rem; block-size: 0.5rem; background: var(--ds-danger); box-shadow: 0 0 0 2px color-mix(in oklab, var(--ds-danger) 25%, transparent); }
     @keyframes aro-entra { from { opacity: 0; scale: 0.6; } }
-    @keyframes globo-entra { from { opacity: 0; translate: -1rem calc(-100% + 0.25rem); } }
     /* En el teléfono el pie dice solo qué cámara es: las cifras ya están en el Inspector. */
     @media (max-width: 29.999rem) { .camara__dato { display: none; } }
     @media (prefers-reduced-motion: reduce) { .aro, .globo { animation: none; } .camara__mundo { transition: none; } }
@@ -132,6 +130,30 @@ export class CamaraEscenaComponent {
   readonly miniatura = input<string | null>(null);
   /** La línea que se está escribiendo: su personaje es quien habla. */
   readonly lineaEnfocada = input<string | null>(null);
+
+  private readonly cuadro = viewChild<ElementRef<HTMLElement>>('cuadro');
+  private readonly burbuja = viewChild<ElementRef<HTMLElement>>('burbuja');
+  protected readonly posicionGlobo = signal({ x: 0, y: 0 });
+
+  constructor() {
+    afterRenderEffect((onCleanup) => {
+      const cuadro = this.cuadro()?.nativeElement;
+      const burbuja = this.burbuja()?.nativeElement;
+      const globo = this.globo();
+      this.textoGlobo();
+      if (!cuadro || !burbuja || !globo) return;
+      const medir = () => {
+        const posicion = ubicarGlobo(cuadro.clientWidth, cuadro.clientHeight, burbuja.offsetWidth, burbuja.offsetHeight, globo);
+        this.posicionGlobo.set(posicion);
+      };
+      medir();
+      if (typeof ResizeObserver === 'undefined') return;
+      const observador = new ResizeObserver(medir);
+      observador.observe(cuadro);
+      observador.observe(burbuja);
+      onCleanup(() => observador.disconnect());
+    });
+  }
 
   protected readonly salaEntera = signal(false);
   protected alternarSala(): void { this.salaEntera.update((valor) => !valor); }
@@ -155,8 +177,9 @@ export class CamaraEscenaComponent {
     if (!h) return null;
     const { ox, oy, escala } = this.encuadre();
     const x = Math.max(6, Math.min(94, escala * (h.x / this.anchoMedio() * 100 - ox)));
-    const y = Math.max(24, Math.min(100, escala * ((h.cabeza - 4) / 264 * 100 - oy)));
-    return { nombre: h.nombre, x, y, izquierda: x > 60 };
+    const cabeza = escala * ((h.cabeza - 4) / 264 * 100 - oy);
+    const pies = escala * ((h.pies + 4) / 264 * 100 - oy);
+    return { nombre: h.nombre, x, cabeza, pies, izquierda: x > 60 };
   });
 
   protected readonly anchoSala = computed(() => this.sala()?.estructura?.ancho ?? 960);
@@ -192,4 +215,14 @@ export class CamaraEscenaComponent {
     const t = this.lineaActual()?.texto.trim() ?? '';
     return t ? `«${t.length > 90 ? t.slice(0, 88) + '…' : t}»` : '(sin escribir)';
   });
+}
+
+/** Sitúa el globo arriba si cabe; si no, debajo, y limita ambos ejes al cuadro. */
+export function ubicarGlobo(ancho: number, alto: number, anchoGlobo: number, altoGlobo: number,
+  ancla: { x: number; cabeza: number; pies: number; izquierda: boolean }): { x: number; y: number } {
+  const limitar = (n: number, maximo: number) => Math.max(0, Math.min(Math.max(0, maximo), n));
+  const x = ancho * ancla.x / 100 + (ancla.izquierda ? 16 - anchoGlobo : -16);
+  const arriba = alto * ancla.cabeza / 100 - altoGlobo;
+  const y = arriba >= 0 ? arriba : alto * ancla.pies / 100;
+  return { x: limitar(x, ancho - anchoGlobo), y: limitar(y, alto - altoGlobo) };
 }

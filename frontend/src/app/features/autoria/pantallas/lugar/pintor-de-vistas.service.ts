@@ -26,23 +26,26 @@ export type SalaDeBiblioteca = Sala & { estructura?: SalaPorPiezas['estructura']
 export class PintorDeVistas {
   /** La API se pide solo al componer: las salas con fondo dibujado (casi todas) no la necesitan. */
   private readonly injector = inject(Injector);
-  private readonly vistas = new Map<string, Promise<string | null>>();
+  private readonly vistas = new Map<string, { contenido: string; promesa: Promise<string | null> }>();
   private readonly imagenes = new Map<string, Promise<HTMLImageElement>>();
 
   /** La imagen de una sala: su fondo, o el cuarto compuesto por piezas. Una por sala y por sesión. */
   vista(lugarId: string, sala: SalaDeBiblioteca, completa = false): Promise<string | null> {
-    if (sala.fondo) return Promise.resolve(rutaArte(lugarId, sala.fondo) || null);
-    if (!sala.estructura) return Promise.resolve(null);
-    const clave = JSON.stringify([lugarId, sala, completa]);
-    let vista = this.vistas.get(clave);
-    if (!vista) {
-      vista = this.componer(lugarId, sala, completa).catch(() => null).then((resultado) => {
-        if (!resultado) this.vistas.delete(clave);
-        return resultado;
-      });
-      this.vistas.set(clave, vista);
+    const identidad = JSON.stringify([lugarId, sala.id, completa]);
+    const contenido = JSON.stringify(sala);
+    const anterior = this.vistas.get(identidad);
+    if (anterior?.contenido === contenido) return anterior.promesa;
+    if (sala.fondo || !sala.estructura) {
+      this.vistas.delete(identidad);
+      return Promise.resolve(sala.fondo ? rutaArte(lugarId, sala.fondo) || null : null);
     }
-    return vista;
+    const entrada = { contenido, promesa: Promise.resolve(null as string | null) };
+    entrada.promesa = this.componer(lugarId, sala, completa).catch(() => null).then((resultado) => {
+      if (!resultado && this.vistas.get(identidad) === entrada) this.vistas.delete(identidad);
+      return resultado;
+    });
+    this.vistas.set(identidad, entrada);
+    return entrada.promesa;
   }
 
   private async componer(lugarId: string, sala: SalaDeBiblioteca, completa: boolean): Promise<string | null> {
@@ -61,7 +64,7 @@ export class PintorDeVistas {
     lienzo.height = plan.alto;
     ctx.putImageData(new ImageData(new Uint8ClampedArray(cuarto.rgba), plan.ancho, plan.alto), 0, 0);
     await this.ponerMuebles(ctx, lugarId, sala, manifiesto);
-    if (completa) return await new Promise<string | null>((listo) => lienzo.toBlob((b) => listo(b ? URL.createObjectURL(b) : null), 'image/png'));
+    if (completa) return imagenAutocontenida(lienzo);
     // El techo vacío (la franja oscura sobre el muro) se leía como una banda negra en la tarjeta y en el panel: se busca
     // dónde empieza el cuarto de verdad y se encuadra desde ahí, ya en 16:9.
     const { x, y, ancho, alto } = encuadre(ctx, plan.ancho, plan.alto);
@@ -69,7 +72,7 @@ export class PintorDeVistas {
     salida.width = ancho;
     salida.height = alto;
     salida.getContext('2d')?.drawImage(lienzo, x, y, ancho, alto, 0, 0, ancho, alto);
-    return await new Promise<string | null>((listo) => salida.toBlob((b) => listo(b ? URL.createObjectURL(b) : null), 'image/png'));
+    return imagenAutocontenida(salida);
   }
 
   /** Los muebles van encima del cuarto, de atrás hacia adelante; cada uno en su primer cuadro y apoyado en su punto. */
@@ -105,6 +108,17 @@ export class PintorDeVistas {
     }
     return img;
   }
+}
+
+/** Los consumidores conservan la imagen sin un contrato de liberación: una URL de datos evita invalidarlos y se libera con ellos. */
+export function imagenAutocontenida(lienzo: HTMLCanvasElement): Promise<string | null> {
+  return new Promise((listo) => lienzo.toBlob((blob) => {
+    if (!blob) { listo(null); return; }
+    const lector = new FileReader();
+    lector.onload = () => listo(typeof lector.result === 'string' ? lector.result : null);
+    lector.onerror = () => listo(null);
+    lector.readAsDataURL(blob);
+  }, 'image/png'));
 }
 
 /** De una imagen del navegador al búfer RGBA que espera el pintor del juego. */
