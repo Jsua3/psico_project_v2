@@ -3,6 +3,9 @@ import { ChangeDetectionStrategy, Component, Injector, afterNextRender, computed
 import { UiProgress } from '../../../../shared/ui/progress/ui-progress';
 import { CasoStore } from '../../estado/caso.store';
 import { AutoAltoDirective } from '../../marco/auto-alto.directive';
+import {
+  type Comando, EstudioHerramientaComponent, EstudioRanuraDirective, EstudioSeccionComponent, injectComandos,
+} from '../../marco/estudio';
 import { injectLlevar } from '../../marco/llevar';
 import { ProgresoDelCaso } from '../../marco/progreso.service';
 import type { CasoBorrador, Hito } from '../../modelo/caso';
@@ -39,103 +42,115 @@ function finalesQueNombran(caso: CasoBorrador, clave: string): string[] {
  * (`store.editarRespuesta` con `conHito`), así que el caso queda igual por cualquiera de los dos caminos.
  *
  * Los pasos sin respuesta van primero, en el orden en que se ven al entrar: la lista no se reordena mientras la docente
- * marca (una fila que salta bajo el puntero hace perder el sitio). En dos columnas desde 80rem, ocho a once pasos caben en
- * menos de dos pantallas.
+ * marca (una fila que salta bajo el puntero hace perder el sitio).
+ *
+ * Disposición del estudio (EDITOR-PRO.md): los pasos son filas densas de un solo panel (no tarjetas), «Agregar un paso» es
+ * una herramienta de la barra, y el Inspector lleva la cobertura, los pasos sin respuesta y los que deciden el final, cada
+ * uno a un clic. La paleta (Ctrl+K) salta a cualquier paso.
  *
  * Patrón: contenedor (Facade del store) con piezas de presentación (`app-fila-de-paso`, `app-selector-de-respuestas`);
  * qué está abierto se lleva como un estado único (State): un selector, una edición o una confirmación a la vez.
  */
 @Component({
   selector: 'app-evaluacion',
-  imports: [UiProgress, AutoAltoDirective, PestanasEvaluacionComponent, FilaDePasoComponent],
+  imports: [
+    UiProgress, AutoAltoDirective, PestanasEvaluacionComponent, FilaDePasoComponent, EstudioRanuraDirective, EstudioSeccionComponent,
+    EstudioHerramientaComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (store.caso(); as caso) {
-      <div class="pagina evaluacion">
-        <div class="cabecera">
-          <div class="cabecera__texto">
-            <h1>Pasos profesionales</h1>
-            <p class="texto-secundario">Lo que el estudiante tiene que hacer en el caso. Marca qué respuestas cumplen cada paso: es lo mismo que marcarlo en la ficha de la respuesta.</p>
-          </div>
-          <app-pestanas-evaluacion actual="pasos" />
-        </div>
-
-        <div class="cobertura" data-accion="hitos-del-caso">
-          @if (pasos().length) {
-            <p class="cobertura__texto"><strong>{{ cubiertos() }} de {{ pasos().length }} pasos</strong> tienen al menos una respuesta que los cumple.</p>
-            <ui-progress class="cobertura__barra" label="Pasos con alguna respuesta" [value]="cubiertos()" [max]="pasos().length" />
-          } @else {
-            <p class="cobertura__texto">Este caso todavía no tiene pasos profesionales.</p>
-          }
-          @if (!store.soloLectura() && !agregando()) {
-            <button type="button" class="boton cobertura__agregar" id="agregar-paso" (click)="abrirAgregar()">Agregar un paso</button>
-          }
-        </div>
-
-        @if (agregando()) {
-          <form class="nuevo" (submit)="$event.preventDefault(); agregarPaso()" aria-labelledby="nuevo-titulo">
-            <p class="nuevo__titulo" id="nuevo-titulo">Paso nuevo</p>
-            <label class="etiqueta" for="nuevo-nombre">Nombre del paso</label>
-            <input id="nuevo-nombre" class="campo" type="text" autocomplete="off" [value]="nombreNuevo()" (input)="nombreNuevo.set($any($event.target).value)" />
-            <label class="etiqueta" for="nuevo-descripcion">Qué se espera que haga el estudiante</label>
-            <textarea autoAlto id="nuevo-descripcion" class="campo" rows="2" [value]="descripcionNueva()" (input)="descripcionNueva.set($any($event.target).value)"></textarea>
-            @if (errorNuevo()) { <p class="error" role="alert">{{ errorNuevo() }}</p> }
-            <div class="nuevo__acciones">
-              <button type="submit" class="boton boton-primario">Agregar el paso</button>
-              <button type="button" class="boton" (click)="cerrarAgregar()">Cancelar</button>
+      <div class="lienzo">
+        <div class="hoja evaluacion">
+          <div class="cabecera">
+            <div class="cabecera__titulos">
+              <p class="sobretitulo">Etapa 4 · Evaluación</p>
+              <h1>Pasos profesionales</h1>
+              <p class="bajada">Lo que el estudiante tiene que hacer en el caso. Marca qué respuestas cumplen cada paso: es lo mismo que marcarlo en la ficha de la respuesta.</p>
             </div>
-          </form>
-        }
+            <app-pestanas-evaluacion actual="pasos" />
+          </div>
 
-        <p role="status" class="solo-lector">{{ anuncio() }}</p>
+          @if (agregando()) {
+            <form class="nuevo" (submit)="$event.preventDefault(); agregarPaso()" aria-labelledby="nuevo-titulo">
+              <p class="nuevo__titulo" id="nuevo-titulo">Paso nuevo</p>
+              <label class="etiqueta" for="nuevo-nombre">Nombre del paso</label>
+              <input id="nuevo-nombre" class="campo" type="text" autocomplete="off" [value]="nombreNuevo()" (input)="nombreNuevo.set($any($event.target).value)" />
+              <label class="etiqueta" for="nuevo-descripcion">Qué se espera que haga el estudiante</label>
+              <textarea autoAlto id="nuevo-descripcion" class="campo" rows="2" [value]="descripcionNueva()" (input)="descripcionNueva.set($any($event.target).value)"></textarea>
+              @if (errorNuevo()) { <p class="error" role="alert">{{ errorNuevo() }}</p> }
+              <div class="nuevo__acciones">
+                <button type="submit" class="boton boton-primario">Agregar el paso</button>
+                <button type="button" class="boton boton-texto" (click)="cerrarAgregar()">Cancelar</button>
+              </div>
+            </form>
+          }
 
-        <div class="lista">
-          @for (p of pasos(); track p.hito.clave) {
-            <app-fila-de-paso [class.abierta]="abierto() === p.hito.clave || editando() === p.hito.clave || borrando() === p.hito.clave" [paso]="p" [escenas]="escenas()" [soloLectura]="store.soloLectura()"
-                              [abierto]="abierto() === p.hito.clave" [editando]="editando() === p.hito.clave"
-                              [borrando]="borrando() === p.hito.clave" [finalesQueLoNombran]="borrando() === p.hito.clave ? nombranA(caso, p.hito.clave) : []"
-                              (cambiar)="cambiar(p.hito, $event)" (marcar)="marcar(p.hito, $event)" (quitar)="quitar(p.hito, $event)"
-                              (irA)="irA($event)" (alternar)="alternar(p.hito.clave)" (pedirEdicion)="editar(p.hito.clave)"
-                              (pedirBorrado)="pedirBorrado(p.hito.clave)" (borrar)="borrar(p)" (terminar)="terminar(p.hito.clave)" />
+          <p role="status" class="solo-lector">{{ anuncio() }}</p>
+
+          @if (pasos().length) {
+            <div class="lista">
+              @for (p of pasos(); track p.hito.clave) {
+                <app-fila-de-paso [class.abierta]="abierto() === p.hito.clave || editando() === p.hito.clave || borrando() === p.hito.clave" [paso]="p" [escenas]="escenas()" [soloLectura]="store.soloLectura()"
+                                  [abierto]="abierto() === p.hito.clave" [editando]="editando() === p.hito.clave"
+                                  [borrando]="borrando() === p.hito.clave" [finalesQueLoNombran]="borrando() === p.hito.clave ? nombranA(caso, p.hito.clave) : []"
+                                  (cambiar)="cambiar(p.hito, $event)" (marcar)="marcar(p.hito, $event)" (quitar)="quitar(p.hito, $event)"
+                                  (irA)="irA($event)" (alternar)="alternar(p.hito.clave)" (pedirEdicion)="editar(p.hito.clave)"
+                                  (pedirBorrado)="pedirBorrado(p.hito.clave)" (borrar)="borrar(p)" (terminar)="terminar(p.hito.clave)" />
+              }
+            </div>
           }
         </div>
       </div>
+
+      <ng-template estudioRanura="herramientas">
+        @if (!store.soloLectura() && !agregando()) {
+          <button type="button" id="agregar-paso" estudioHerramienta="Agregar un paso" (click)="abrirAgregar()">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
+          </button>
+        }
+      </ng-template>
+
+      <!-- Inspector: la cobertura y, debajo, los pasos que todavía nadie cumple y los que deciden el final, cada uno a un clic. -->
+      <ng-template estudioRanura="inspector">
+        <app-estudio-seccion titulo="Cobertura" [resumen]="cubiertos() + ' de ' + pasos().length">
+          <div class="cobertura" data-accion="hitos-del-caso">
+            @if (pasos().length) {
+              <p class="cobertura__texto"><strong>{{ cubiertos() }} de {{ pasos().length }} pasos</strong> tienen al menos una respuesta que los cumple.</p>
+              <ui-progress class="cobertura__barra" label="Pasos con alguna respuesta" [value]="cubiertos()" [max]="pasos().length" />
+            } @else {
+              <p class="cobertura__texto">Este caso todavía no tiene pasos profesionales.</p>
+            }
+          </div>
+        </app-estudio-seccion>
+        @if (sinRespuesta().length) {
+          <app-estudio-seccion titulo="Sin respuesta" [resumen]="sinRespuesta().length + ''">
+            <ul class="saltos">
+              @for (p of sinRespuesta(); track p.hito.clave) {
+                <li><button type="button" class="salto" (click)="irAlPaso(p.hito.clave)"><span class="salto__marca" aria-hidden="true"></span>{{ p.hito.nombre }}</button></li>
+              }
+            </ul>
+          </app-estudio-seccion>
+        }
+        <app-estudio-seccion titulo="Deciden el final" [resumen]="decisivos().length + ''">
+          @if (decisivos().length) {
+            <ul class="saltos">
+              @for (p of decisivos(); track p.hito.clave) {
+                <li><button type="button" class="salto" (click)="irAlPaso(p.hito.clave)"><span class="salto__marca salto__marca--final" aria-hidden="true"></span>{{ p.hito.nombre }}</button></li>
+              }
+            </ul>
+          } @else {
+            <p class="nota">Ningún paso decide el final. Enciende «Decide el final» en los que el estudiante tiene que dar sí o sí.</p>
+          }
+        </app-estudio-seccion>
+      </ng-template>
+
+      <ng-template estudioRanura="estado">
+        <span class="est-dato">{{ cubiertos() }} de {{ pasos().length }} pasos con respuesta</span>
+      </ng-template>
     }
   `,
-  styles: `
-    :host { display: block; min-inline-size: 0; }
-    .evaluacion { display: flex; flex-direction: column; gap: 1rem; }
-    .cabecera { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 0.75rem 1.5rem; }
-    .cabecera__texto { flex: 1 1 28rem; min-inline-size: 0; }
-    .cabecera h1 { margin: 0; font-size: var(--autoria-texto-32); line-height: 2.5rem; }
-    .cabecera p { margin: 0.25rem 0 0; max-inline-size: var(--l-ancho-lectura); font-size: var(--autoria-texto-16); line-height: 1.5rem; }
-    /* La cobertura en una franja: la frase, la barra y «Agregar un paso» en un renglón cuando cabe. */
-    .cobertura {
-      display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; padding: 0.75rem 1rem;
-      border-radius: var(--l-radio-tarjeta); background: var(--l-superficie-hundida); box-shadow: inset 0 0 0 1px var(--l-filo);
-    }
-    .cobertura__texto { flex: 1 1 18rem; margin: 0; font-size: var(--autoria-texto-16); line-height: 1.5rem; }
-    .cobertura__barra { flex: 1 1 12rem; max-inline-size: 20rem; }
-    .cobertura__agregar { flex: none; }
-    .nuevo {
-      display: flex; flex-direction: column; gap: 0.375rem; max-inline-size: 40rem; padding: 0.875rem 1rem;
-      border-radius: var(--l-radio-tarjeta); background: var(--l-superficie); box-shadow: inset 0 0 0 2px var(--ds-primary);
-    }
-    .nuevo__titulo { margin: 0; font-weight: 800; font-size: var(--autoria-texto-18); }
-    .nuevo__acciones { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-block-start: 0.25rem; }
-    .etiqueta { font-weight: 700; font-size: var(--autoria-texto-14); }
-    .campo { inline-size: 100%; box-sizing: border-box; font: inherit; font-size: var(--autoria-texto-16); line-height: 1.5; }
-    textarea.campo { resize: none; }
-    .error { margin: 0; color: var(--peligro); font-weight: 700; }
-    /* Una columna hasta 80rem; desde ahí dos (cada fila sigue siendo legible a ~36rem). */
-    /* Las dos filas de un renglón miden lo mismo (stretch): sin huecos escalonados entre tarjetas. */
-    .lista { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.625rem; align-items: stretch; }
-    /* Con un paso abierto (selector, edición o confirmación) su vecino no se estira a su alto. */
-    .lista:has(> .abierta) { align-items: start; }
-    @media (min-width: 80rem) { .lista { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    @media (max-width: 40rem) { .cabecera h1 { font-size: var(--autoria-texto-24); line-height: 2rem; } }
-    @media (forced-colors: active) { .cobertura, .nuevo { border: 1px solid CanvasText; } }
-  `,
+  styleUrl: './evaluacion.component.scss',
 })
 export class EvaluacionComponent {
   protected readonly store = inject(CasoStore);
@@ -197,6 +212,25 @@ export class EvaluacionComponent {
     });
     return vistas.sort((a, b) => a.rango - b.rango || a.i - b.i).map((v) => v.vista);
   });
+
+  protected readonly sinRespuesta = computed(() => this.pasos().filter((p) => p.respuestas.length === 0));
+  protected readonly decisivos = computed(() => this.pasos().filter((p) => p.hito.decisivo));
+
+  constructor() {
+    injectComandos((): Comando[] => [
+      ...(this.store.soloLectura() ? [] : [{ id: 'eval:agregar-paso', grupo: 'Pasos profesionales', titulo: 'Agregar un paso', ejecutar: () => this.abrirAgregar() }]),
+      ...this.pasos().map((p) => ({
+        id: `eval:paso:${p.hito.clave}`, grupo: 'Pasos profesionales', titulo: p.hito.nombre,
+        detalle: p.respuestas.length ? `${p.respuestas.length} ${p.respuestas.length === 1 ? 'respuesta' : 'respuestas'}` : 'Sin respuesta',
+        ejecutar: () => this.irAlPaso(p.hito.clave),
+      })),
+    ]);
+  }
+
+  /** Lleva a un paso de la lista (desde el Inspector o la paleta): lo desplaza a la vista y le da el foco. */
+  protected irAlPaso(clave: string): void {
+    this.enfocar(`hito-${clave}`);
+  }
 
   protected readonly cubiertos = computed(() => this.pasos().filter((p) => p.respuestas.length > 0).length);
 
