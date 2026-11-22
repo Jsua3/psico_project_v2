@@ -1,6 +1,10 @@
 import {
   ChangeDetectionStrategy, Component, Injector, afterNextRender, computed, inject, input, linkedSignal, signal, untracked,
 } from '@angular/core';
+import { EstudioSeccionComponent } from '../../marco/estudio/estudio-seccion.component';
+import { EstudioRanuraDirective } from '../../marco/estudio/estudio.service';
+import { injectMiniaturasDeSalas } from '../../marco/estudio/miniaturas-de-salas';
+import { CamaraEscenaComponent } from './camara-escena.component';
 import { Router, RouterLink } from '@angular/router';
 
 import { UiDialog } from '../../../../shared/ui/dialog/ui-dialog';
@@ -38,7 +42,7 @@ const INTENSIDADES: IntensidadEscena[] = ['LOW', 'MEDIUM', 'HIGH'];
   selector: 'app-guion',
   imports: [
     AutoAltoDirective, ComentariosComponent, GuiaDeRedaccionComponent, LineaComponent, ObjetivoPistasComponent, RespuestaComponent,
-    RouterLink, UiMenu, VistaEstudianteComponent,
+    RouterLink, UiMenu, VistaEstudianteComponent, CamaraEscenaComponent, EstudioRanuraDirective, EstudioSeccionComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '(keydown)': 'alTeclear($event)' },
@@ -61,6 +65,11 @@ export class GuionComponent {
 
   protected readonly anuncio = signal('');
   protected readonly lineaVista = signal<string | null>(null);
+  /** La imagen de cada sala (las por piezas, compuestas con el pintor del juego), para la cámara. */
+  private readonly miniaturas = injectMiniaturasDeSalas();
+  protected miniaturaDe(e: { salaId: string | null }): string | null {
+    return e.salaId ? this.miniaturas().get(e.salaId) ?? null : null;
+  }
   protected readonly pendiente = signal<string | null>(null);
   protected readonly creada = signal<{ respuestaId: string; escenaId: string; titulo: string } | null>(null);
   protected readonly verTodo = signal(false);

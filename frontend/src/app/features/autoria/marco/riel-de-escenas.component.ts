@@ -9,6 +9,7 @@ import { escenasAlcanzables } from '../modelo/hitos';
 import { estaVacia } from '../modelo/pendientes';
 import type { EstadoEtapa } from '../modelo/progreso';
 import { RutasAutoria } from '../rutas';
+import { injectMiniaturasDeSalas } from './estudio/miniaturas-de-salas';
 import { injectLlevar } from './llevar';
 import { ProgresoDelCaso } from './progreso.service';
 
@@ -280,6 +281,7 @@ export class RielDeEscenasComponent {
   private readonly store = inject(CasoStore);
   private readonly router = inject(Router);
   protected readonly llevar = injectLlevar();
+  private readonly miniaturas = injectMiniaturasDeSalas();
 
   /** La última escena cuyo guion se abrió: a ella vuelve «Guion» desde «Caminos» (y Alt+M). */
   private readonly ultimaEscena = signal<string | null>(null);
@@ -304,7 +306,7 @@ export class RielDeEscenasComponent {
       if (n) partes.push(n === 1 ? '1 por corregir' : `${n} por corregir`);
       return {
         escena, numero: i + 1, estado, textoEstado, pendientes: n, inicio, ia,
-        miniatura: fondo ? rutaArte(caso.lugarId, fondo) || null : null,
+        miniatura: (escena.salaId && this.miniaturas().get(escena.salaId)) || (fondo ? rutaArte(caso.lugarId, fondo) || null : null),
         etiqueta: `Escena ${i + 1}, ${escena.titulo}: ${partes.join(', ')}`,
       };
     });

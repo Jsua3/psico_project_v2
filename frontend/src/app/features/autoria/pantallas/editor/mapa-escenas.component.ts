@@ -61,6 +61,8 @@ export class MapaEscenasComponent {
   readonly avisos = input<Aviso[]>([]);
   /** Escena elegida desde fuera (por ejemplo, «Llévame ahí»). */
   readonly elegidaInicial = input<string | null>(null);
+  /** La imagen de cada sala (fondo dibujado o cuarto compuesto por piezas), por id de sala; la da el contenedor. */
+  readonly miniaturas = input<ReadonlyMap<string, string | null>>(new Map());
 
   readonly abrirGuion = output<string>();
   readonly abrirSala = output<string>();
@@ -199,6 +201,9 @@ export class MapaEscenasComponent {
   // ── Datos de la tarjeta ───────────────────────────────────────────────────
 
   protected miniatura(e: Escena): string | null {
+    if (!e.salaId) return null;
+    const compuesta = this.miniaturas().get(e.salaId);
+    if (compuesta) return compuesta;
     const fondo = this.caso().salas.find((s) => s.id === e.salaId)?.fondo;
     return fondo ? rutaArte(this.caso().lugarId, fondo) || null : null;
   }

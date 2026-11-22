@@ -16,74 +16,12 @@
           <ui-menu class="cabecera__mas" iconOnly label="Más acciones de la escena" [items]="accionesEscena()"
                    (itemSelected)="alElegirEnEscena($event, e, cabecera)" />
         </div>
-        <div class="cabecera__datos">
-          @if (e.salaId) {
-            <a class="ficha-sala" [routerLink]="rutas.a('/editor/sala', e.salaId)" [attr.aria-label]="'Abrir sala: ' + nombreSala(e.salaId)">
-              <span class="ficha-sala__rotulo">Sala</span>{{ nombreSala(e.salaId) }}<span aria-hidden="true" class="ficha-sala__flecha">›</span>
-            </a>
-          } @else {
-            <span class="ficha-sala ficha-sala--sin">Sin sala</span>
-          }
-          <fieldset class="segmentos intensidad" data-accion="intensidad-escena">
-            <legend class="segmentos__rotulo">Intensidad</legend>
-            @for (i of intensidades; track i) {
-              <label class="segmento" [class.segmento--alta]="i === 'HIGH'">
-                <input type="radio" [name]="'intensidad-' + e.id" [value]="i" [checked]="e.intensidad === i" (change)="cambiarIntensidad(e, i)" />
-                {{ nombreIntensidad[i] }}
-              </label>
-            }
-          </fieldset>
-        </div>
-        @if (lleganDesde(e); as desde) {
-          <p class="cabecera__nota">Llegan aquí desde: {{ desde }}</p>
-        }
-        @if (e.intensidad === 'HIGH') {
-          <div class="campo-aviso">
-            <label for="aviso-escena" class="etiqueta">Aviso para el estudiante</label>
-            <textarea autoAlto id="aviso-escena" class="campo" rows="1" [value]="e.advertencia ?? ''" aria-describedby="aviso-escena-ayuda"
-                      [attr.aria-invalid]="e.advertencia?.trim() ? null : 'true'"
-                      (change)="store.editarEscena(e.id, { advertencia: $any($event.target).value.trim() || null })"></textarea>
-            <p id="aviso-escena-ayuda" class="cabecera__nota">
-              @if (e.advertencia?.trim()) { Lo lee antes de empezar la escena, porque su intensidad es alta. }
-              @else { Una escena de intensidad alta necesita un aviso para el estudiante. }
-            </p>
-          </div>
-        }
-        @if (e.marcaIa) {
-          <div class="cabecera__ia">
-            <span class="pildora">Sugerido por la IA</span>
-            <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-            <button type="button" class="boton" (click)="aceptarEscena(e)">Aceptar toda la escena ({{ plural(store.partesIaDeEscena(e.id), 'parte', 'partes') }})</button>
-          </div>
-        }
       </header>
 
-      <!-- 2 · Antes de decidir: plegado si está vacío, con su resumen a la vista. -->
-      <section class="plegable" aria-labelledby="antes-titulo">
-        <h2 class="plegable__titulo">
-          <button type="button" id="antes-titulo" class="plegable__boton" [attr.aria-expanded]="antesAbierto()" aria-controls="antes-cuerpo"
-                  (click)="antesAbierto.set(!antesAbierto())">
-            <span class="plegable__nombre">Antes de decidir</span>
-            <span class="plegable__resumen">{{ resumenAntes() }}</span>
-            <span class="plegable__chevron" aria-hidden="true"></span>
-          </button>
-        </h2>
-        @if (antesAbierto()) {
-          <div id="antes-cuerpo" class="plegable__cuerpo">
-            <app-objetivo-pistas [escena]="e" />
-            <div class="recursos" data-accion="recursos-de-apoyo">
-              <label for="recursos-escena" class="etiqueta">Recursos de apoyo para el estudiante</label>
-              <textarea autoAlto id="recursos-escena" class="campo" rows="2" aria-describedby="recursos-escena-ayuda"
-                        [value]="(e.recursosApoyo ?? []).join('\n')" (change)="cambiarRecursos(e, $any($event.target))"></textarea>
-              <p id="recursos-escena-ayuda" class="nota">Uno por línea: a quién puede acudir la persona o qué línea de atención llamar. Al menos una escena del caso tiene que traer uno para poder enviarlo a revisión.</p>
-            </div>
-          </div>
-        } @else {
-          @for (ancla of ['recursos-escena', 'pistas-escena', 'objetivo-escena']; track ancla) {
-            <span class="ancla-plegada" [id]="ancla" tabindex="-1" (focus)="abrirPlegado('antes', ancla)"></span>
-          }
-        }
-      </section>
+      <!-- La cámara: el cuarto con su elenco y un globo sobre quien dice la línea que se escribe (EDITOR-PRO.md §3). -->
+      <app-camara-escena [caso]="store.caso()!" [escena]="e" [miniatura]="miniaturaDe(e)" [lineaEnfocada]="lineaVista()" />
+
+
 
       <!-- 3 · Lo que dicen los personajes: filas de libreto, no tarjetas. -->
       <section class="bloque" aria-labelledby="lh">
@@ -189,20 +127,99 @@
       </nav>
     </div>
 
-    <!-- La vista del estudiante: mini simulación en la piel del juego, junto al libreto (se pega arriba al desplazar). -->
-    <aside class="guion__vista" aria-labelledby="vista-titulo" data-accion="vista-del-estudiante">
-      <app-vista-estudiante [escena]="e" [personajes]="personajes()" [lineaEnfocada]="lineaVista()" />
-      @if (nodoParaProbar(); as nodo) {
-        <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-        <a class="boton boton-secundario" [attr.href]="rutaEnsayo(nodo)" target="_blank" rel="noopener" data-accion="probar" aria-keyshortcuts="Alt+P"
-           aria-label="Probar desde aquí, en el juego (se abre en otra pestaña)" (click)="probar($event, nodo)">Probar desde aquí ↗</a>
-      } @else {
-        <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-        <button type="button" class="boton" aria-disabled="true" aria-describedby="probar-aviso" data-accion="probar">Probar desde aquí ↗</button>
-        <span id="probar-aviso" class="nota">Guarda la escena para probarla.</span>
-      }
-    </aside>
   </div>
+
+  <!-- El Inspector de la escena (EDITOR-PRO.md §1): sus propiedades, lo que lee antes de decidir y cómo la verá el estudiante.
+       Sin estudio alrededor (una prueba, el teléfono) va aquí mismo, después del libreto. -->
+  <ng-template estudioRanura="inspector">
+    <div class="insp">
+      <app-estudio-seccion titulo="Escena" [resumen]="nombreSala(e.salaId) || 'Sin sala'">
+        <div class="insp__escena">
+        <div class="cabecera__datos">
+            @if (e.salaId) {
+              <a class="ficha-sala" [routerLink]="rutas.a('/editor/sala', e.salaId)" [attr.aria-label]="'Abrir sala: ' + nombreSala(e.salaId)">
+                <span class="ficha-sala__rotulo">Sala</span>{{ nombreSala(e.salaId) }}<span aria-hidden="true" class="ficha-sala__flecha">›</span>
+              </a>
+            } @else {
+              <span class="ficha-sala ficha-sala--sin">Sin sala</span>
+            }
+            <fieldset class="segmentos intensidad" data-accion="intensidad-escena">
+              <legend class="segmentos__rotulo">Intensidad</legend>
+              @for (i of intensidades; track i) {
+                <label class="segmento" [class.segmento--alta]="i === 'HIGH'">
+                  <input type="radio" [name]="'intensidad-' + e.id" [value]="i" [checked]="e.intensidad === i" (change)="cambiarIntensidad(e, i)" />
+                  {{ nombreIntensidad[i] }}
+                </label>
+              }
+            </fieldset>
+          </div>
+          @if (lleganDesde(e); as desde) {
+            <p class="cabecera__nota">Llegan aquí desde: {{ desde }}</p>
+          }
+          @if (e.intensidad === 'HIGH') {
+            <div class="campo-aviso">
+              <label for="aviso-escena" class="etiqueta">Aviso para el estudiante</label>
+              <textarea autoAlto id="aviso-escena" class="campo" rows="1" [value]="e.advertencia ?? ''" aria-describedby="aviso-escena-ayuda"
+                        [attr.aria-invalid]="e.advertencia?.trim() ? null : 'true'"
+                        (change)="store.editarEscena(e.id, { advertencia: $any($event.target).value.trim() || null })"></textarea>
+              <p id="aviso-escena-ayuda" class="cabecera__nota">
+                @if (e.advertencia?.trim()) { Lo lee antes de empezar la escena, porque su intensidad es alta. }
+                @else { Una escena de intensidad alta necesita un aviso para el estudiante. }
+              </p>
+            </div>
+          }
+          @if (e.marcaIa) {
+            <div class="cabecera__ia">
+              <span class="pildora">Sugerido por la IA</span>
+              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+              <button type="button" class="boton" (click)="aceptarEscena(e)">Aceptar toda la escena ({{ plural(store.partesIaDeEscena(e.id), 'parte', 'partes') }})</button>
+            </div>
+          }
+        </div>
+      </app-estudio-seccion>
+      <!-- 2 · Antes de decidir: plegado si está vacío, con su resumen a la vista. -->
+      <section class="plegable" aria-labelledby="antes-titulo">
+        <h2 class="plegable__titulo">
+          <button type="button" id="antes-titulo" class="plegable__boton" [attr.aria-expanded]="antesAbierto()" aria-controls="antes-cuerpo"
+                  (click)="antesAbierto.set(!antesAbierto())">
+            <span class="plegable__nombre">Antes de decidir</span>
+            <span class="plegable__resumen">{{ resumenAntes() }}</span>
+            <span class="plegable__chevron" aria-hidden="true"></span>
+          </button>
+        </h2>
+        @if (antesAbierto()) {
+          <div id="antes-cuerpo" class="plegable__cuerpo">
+            <app-objetivo-pistas [escena]="e" />
+            <div class="recursos" data-accion="recursos-de-apoyo">
+              <label for="recursos-escena" class="etiqueta">Recursos de apoyo para el estudiante</label>
+              <textarea autoAlto id="recursos-escena" class="campo" rows="2" aria-describedby="recursos-escena-ayuda"
+                        [value]="(e.recursosApoyo ?? []).join('\n')" (change)="cambiarRecursos(e, $any($event.target))"></textarea>
+              <p id="recursos-escena-ayuda" class="nota">Uno por línea: a quién puede acudir la persona o qué línea de atención llamar. Al menos una escena del caso tiene que traer uno para poder enviarlo a revisión.</p>
+            </div>
+          </div>
+        } @else {
+          @for (ancla of ['recursos-escena', 'pistas-escena', 'objetivo-escena']; track ancla) {
+            <span class="ancla-plegada" [id]="ancla" tabindex="-1" (focus)="abrirPlegado('antes', ancla)"></span>
+          }
+        }
+      </section>
+      <app-estudio-seccion titulo="Vista previa" resumen="Como en el juego">
+        <!-- La vista del estudiante: mini simulación en la piel del juego, junto al libreto (se pega arriba al desplazar). -->
+        <aside class="guion__vista" aria-labelledby="vista-titulo" data-accion="vista-del-estudiante">
+          <app-vista-estudiante [escena]="e" [personajes]="personajes()" [lineaEnfocada]="lineaVista()" />
+          @if (nodoParaProbar(); as nodo) {
+                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                <a class="boton boton-secundario" [attr.href]="rutaEnsayo(nodo)" target="_blank" rel="noopener" data-accion="probar" aria-keyshortcuts="Alt+P"
+                   aria-label="Probar desde aquí, en el juego (se abre en otra pestaña)" (click)="probar($event, nodo)">Probar desde aquí ↗</a>
+          } @else {
+                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                <button type="button" class="boton" aria-disabled="true" aria-describedby="probar-aviso" data-accion="probar">Probar desde aquí ↗</button>
+                <span id="probar-aviso" class="nota">Guarda la escena para probarla.</span>
+          }
+        </aside>
+      </app-estudio-seccion>
+    </div>
+  </ng-template>
 } @else {
   <div class="pagina">
     <h1>Esta escena no está en el caso</h1>

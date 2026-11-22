@@ -4,6 +4,7 @@ import { Router, RouterLink } from '@angular/router';
 import { CasoStore } from '../../estado/caso.store';
 import { EstudioSeccionComponent } from '../../marco/estudio/estudio-seccion.component';
 import { EstudioRanuraDirective } from '../../marco/estudio/estudio.service';
+import { injectMiniaturasDeSalas } from '../../marco/estudio/miniaturas-de-salas';
 import { rutaArte } from '../../modelo/biblioteca.service';
 import { ProgresoDelCaso } from '../../marco/progreso.service';
 import { revisarCaminos, type Aviso } from '../../modelo/caminos';
@@ -140,7 +141,7 @@ import { RutasAutoria } from '../../rutas';
         <div class="zona-mapa">
           <app-mapa-escenas #mapa [caso]="caso" [avisos]="avisosMapa()" [elegidaInicial]="irA()" [soloLectura]="store.soloLectura()"
                             (seleccion)="elegida.set($event)" (abrirGuion)="abrirGuion($event)" (abrirSala)="abrirSala($event)"
-                            (accion)="accion($event)" (agregar)="agregarEscena()" (ordenar)="ordenar()" />
+                            (accion)="accion($event)" (agregar)="agregarEscena()" (ordenar)="ordenar()" [miniaturas]="miniaturas()" />
 
           @if (conectando(); as origen) {
             <div class="tarjeta dialogo" role="dialog" aria-labelledby="cct" aria-modal="false">
@@ -369,7 +370,11 @@ export class EditorComponent {
 
   protected readonly nombreIntensidad = NOMBRE_INTENSIDAD;
 
+  /** La imagen de cada sala (las por piezas, compuestas con el pintor del juego). */
+  protected readonly miniaturas = injectMiniaturasDeSalas();
+
   protected miniatura(e: Escena): string | null {
+    if (e.salaId && this.miniaturas().get(e.salaId)) return this.miniaturas().get(e.salaId)!;
     const caso = this.store.caso();
     const fondo = caso?.salas.find((s) => s.id === e.salaId)?.fondo;
     return caso && fondo ? rutaArte(caso.lugarId, fondo) || null : null;

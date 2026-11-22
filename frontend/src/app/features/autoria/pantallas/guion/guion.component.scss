@@ -7,32 +7,21 @@
   min-inline-size: 0;
 }
 
-// Libreto a la izquierda (texto de 72 caracteres como mucho, se lee sin mover la cabeza) y la vista del estudiante a la
-// derecha. Por debajo de 64rem, una sola columna: la vista va después del libreto.
+// El lienzo de la escena (EDITOR-PRO.md §3): la cámara arriba y el libreto debajo, en una columna de lectura (72 caracteres).
+// Las propiedades de la escena viven en el Inspector del estudio; sin estudio (pruebas, teléfono) van después del libreto.
 .guion {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 1.5rem;
-  padding: 1.25rem 1rem 2.5rem;
+  gap: 1.25rem;
+  padding: 1rem 1rem 2.5rem;
   min-inline-size: 0;
 }
 
 @media (min-width: 64rem) {
   .guion {
-    grid-template-columns: minmax(0, 72ch) clamp(18rem, 26vw, 25rem);
+    grid-template-columns: minmax(0, 76ch);
     justify-content: center;
-    align-items: start;
-    padding: 1.5rem 1.5rem 3rem;
-  }
-
-  // La zona central es la que se desplaza (marco de E0): la vista se queda arriba mientras se lee el libreto y, si es más
-  // alta que lo que queda de pantalla, se desplaza por dentro.
-  .guion__vista {
-    position: sticky;
-    inset-block-start: 0;
-    max-block-size: calc(100dvh - var(--alto-barra, 4.5rem) - 2rem);
-    overflow: auto;
-    overscroll-behavior: contain;
+    padding: 1.25rem 1.5rem 3rem;
   }
 }
 
@@ -46,12 +35,61 @@
 .guion__vista {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.625rem;
   min-inline-size: 0;
 
   > .boton {
     align-self: stretch;
+    justify-content: center;
   }
+}
+
+// El Inspector: secciones compactas con filo inferior, sin tarjetas apiladas; texto de interfaz de 14 px.
+.insp {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  font-size: var(--autoria-texto-14);
+
+  .plegable {
+    border: 0;
+    border-block-end: 1px solid var(--l-filo);
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .plegable__titulo { font-size: var(--autoria-texto-14); }
+
+  .plegable__boton {
+    min-block-size: 2.25rem;
+    padding-inline: 0.75rem;
+    color: var(--ds-text-2);
+  }
+
+  .plegable__nombre { flex: none; font-variant-caps: all-small-caps; letter-spacing: 0.06em; }
+  .plegable__resumen { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--autoria-texto-14); }
+
+  .plegable__cuerpo { padding: 0.25rem 0.75rem 0.875rem; }
+  // La intensidad en una fila de tres; su nombre, encima (la leyenda queda para el lector: no se lee dos veces).
+  .segmentos { display: flex; inline-size: 100%; }
+  .segmentos::before {
+    content: 'Intensidad' / '';
+    flex-basis: 100%;
+    padding: 0.125rem 0.5rem 0.25rem;
+    color: var(--ds-text-2);
+    font-weight: 700;
+  }
+  .segmentos__rotulo { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .segmento { flex: 1; justify-content: center; }
+}
+
+.insp__escena {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  min-inline-size: 0;
+
+  .cabecera__datos { flex-direction: column; align-items: stretch; }
 }
 
 h2 {
@@ -431,24 +469,61 @@ textarea.campo {
   flex-direction: column;
 }
 
-// Las líneas son filas de un libreto, separadas por un filo, no tarjetas apiladas.
+// El libreto es una pista de líneas, como una línea de tiempo: un riel a la izquierda y una muesca cuadrada (de píxel)
+// por línea, en el orden en que se dicen. La línea enfocada enciende su muesca: es la que habla en la cámara.
 .lineas {
-  border: 1px solid var(--linea);
-  border-radius: var(--radio-tarjeta);
-  background: var(--superficie);
+  position: relative;
+  gap: 0.25rem;
+  padding-inline-start: 1.5rem;
+  counter-reset: linea;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset-block: 0.75rem;
+    inset-inline-start: 0.5rem;
+    inline-size: 2px;
+    background: var(--l-filo-fuerte);
+  }
 }
 
 .linea {
-  padding: 0.75rem 1rem;
+  position: relative;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--l-filo);
+  border-radius: var(--radio-control);
+  background: var(--superficie);
+  counter-increment: linea;
+  transition: border-color var(--ds-dur-fast) var(--ds-ease-out), box-shadow var(--ds-dur-fast) var(--ds-ease-out);
 
-  & + & {
-    border-block-start: 1px solid var(--linea);
+  &::before {
+    content: counter(linea);
+    position: absolute;
+    inset-block-start: 0.875rem;
+    inset-inline-start: -1.4375rem;
+    display: grid;
+    place-items: center;
+    inline-size: 1.25rem;
+    block-size: 1.25rem;
+    border-radius: 0.25rem;
+    background: var(--l-superficie);
+    box-shadow: 0 0 0 2px var(--l-filo-fuerte);
+    color: var(--ds-text-2);
+    font-size: var(--autoria-texto-14);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  &:focus-within {
+    border-color: var(--ds-primary);
+    box-shadow: 0 0 0 3px var(--l-tinte);
+
+    &::before { background: var(--ds-primary); box-shadow: none; color: var(--ds-on-primary); }
   }
 
   &.marca-ia {
-    margin: 0.25rem;
-    padding: 0.5rem 0.75rem;
-    border-radius: var(--radio-control);
+    border-style: dashed;
   }
 }
 
@@ -584,6 +659,7 @@ button:active {
 
   .plegable__chevron,
   .cabecera__nombre,
+  .linea,
   .ficha-sala,
   .segmento,
   .pie__enlace {
