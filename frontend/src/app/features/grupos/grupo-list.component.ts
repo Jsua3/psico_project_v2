@@ -97,6 +97,8 @@ export class GrupoListComponent implements OnInit {
       const grupo = id ? grupos.find(g => String(g.id) === id) : grupos[0];
       if (!grupo) { this.grupoActivo.set(null); return; }
       if (untracked(this.grupoActivo)?.id !== grupo.id) untracked(() => this.gestionarGrupo(grupo));
+      // Mismo grupo con cifras nuevas (p. ej. tras invitar): el detalle toma la copia fresca de la lista.
+      else untracked(() => this.grupoActivo.set(grupo));
     });
   }
   nuevoGrupo(): void { this.cancelarEdicion(); this.abrirHoja('Nuevo grupo', this.formularioGrupo); }
@@ -537,10 +539,11 @@ export class GrupoListComponent implements OnInit {
       return;
     }
     const { email } = this.estudianteForm.value;
+    const destino = this.grupoSeleccionado()!;
     this.agregandoEstudiante.set(true);
     this.mensajeEstudiante.set('');
     this.mensajeEsError.set(false);
-    this.grupoService.agregarEstudiante(this.grupoSeleccionado()!, email!.trim().toLowerCase()).subscribe({
+    this.grupoService.agregarEstudiante(destino, email!.trim().toLowerCase()).subscribe({
       next: () => {
         // E2-10: el docente invita; la persona entra al grupo cuando acepta (su bandeja de invitaciones).
         // D-14: el servidor responde lo mismo exista o no la cuenta, así que el texto tampoco afirma que se envió.
@@ -549,7 +552,8 @@ export class GrupoListComponent implements OnInit {
         this.estudianteForm.reset();
         this.agregandoEstudiante.set(false);
         this.cargar(true);
-        this.cargarDetalle(this.grupoSeleccionado()!);
+        // Si ya se cambió de grupo mientras respondía el servidor, no se recarga el detalle de otro.
+        if (this.grupoActivo()?.id === destino) this.cargarDetalle(destino);
       },
       error: (err: HttpErrorResponse) => {
         this.mensajeEstudiante.set(mapAgregarEstudianteError(err));
