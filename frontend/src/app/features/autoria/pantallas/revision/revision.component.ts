@@ -95,10 +95,10 @@ export class RevisionComponent {
   constructor() {
     // En la paleta (Ctrl+K): cada problema por resolver, «Comprobar de nuevo» y «Enviar a Psicología».
     injectComandos((): Comando[] => this.store.soloLectura() ? [] : [
-      { id: 'revision:comprobar', grupo: 'Enviar a revisión', titulo: 'Comprobar de nuevo', ejecutar: () => void this.comprobar() },
-      ...(this.puedeEnviarAhora() ? [{ id: 'revision:enviar', grupo: 'Enviar a revisión', titulo: 'Enviar a Psicología', ejecutar: () => void this.enviar() }] : []),
+      { id: 'rev:comprobar', grupo: 'Enviar a revisión', titulo: 'Comprobar de nuevo', ejecutar: () => void this.comprobar() },
+      ...(this.puedeEnviarAhora() ? [{ id: 'rev:enviar', grupo: 'Enviar a revisión', titulo: 'Enviar a Psicología', ejecutar: () => void this.enviar() }] : []),
       ...this.etapas().flatMap((e) => e.problemas.map((p, i) => ({
-        id: `revision:problema:${e.etapa}:${i}`, grupo: 'Por resolver', titulo: p.mensaje, detalle: p.donde ?? e.nombre, ejecutar: () => void this.llevar(p),
+        id: `rev:problema:${e.etapa}:${i}`, grupo: 'Por resolver', titulo: p.mensaje, detalle: p.donde ?? e.nombre, ejecutar: () => void this.llevar(p),
       }))),
     ]);
     void this.comprobar();
