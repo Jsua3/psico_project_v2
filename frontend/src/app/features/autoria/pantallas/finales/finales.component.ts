@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 
 import { CasoStore } from '../../estado/caso.store';
 import { AutoAltoDirective } from '../../marco/auto-alto.directive';
+import { type Comando, EstudioRanuraDirective, EstudioSeccionComponent, injectComandos } from '../../marco/estudio';
 import { estadoDeCaminos, revisarCaminos } from '../../modelo/caminos';
 import type { ClaveFinalPlantilla, Final } from '../../modelo/caso';
 import { describirCondicion } from '../../modelo/condiciones';
@@ -23,12 +24,18 @@ import { VistaDelFinalComponent } from './vista-del-final.component';
  * que dice cuándo llegan (se abren de a uno para editar, con su vista al lado); un resumen de a qué finales llegan los
  * recorridos de ahora; y el aviso de caminos con su enlace a Caminos. Así cabe en dos pantallas a 1440 × 900.
  *
+ * Disposición del estudio (EDITOR-PRO.md): los finales en el lienzo; los recorridos y los pasos decisivos en el Inspector,
+ * con secciones plegables; «Agregar un final» y cada final en la paleta (Ctrl+K).
+ *
  * Patrón: contenedor (Facade del store) con piezas de presentación: la condición (`app-condicion-del-final`) y la vista
  * del estudiante (`app-vista-del-final`).
  */
 @Component({
   selector: 'app-finales',
-  imports: [RouterLink, AutoAltoDirective, PestanasEvaluacionComponent, CondicionDelFinalComponent, VistaDelFinalComponent],
+  imports: [
+    RouterLink, AutoAltoDirective, PestanasEvaluacionComponent, CondicionDelFinalComponent, VistaDelFinalComponent, EstudioRanuraDirective,
+    EstudioSeccionComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './finales.component.html',
   styleUrl: './finales.component.scss',
@@ -48,6 +55,24 @@ export class FinalesComponent {
   });
   protected readonly reglas = computed(() => reglasDePlantilla(this.store.caso()?.hitos.filter((h) => h.decisivo) ?? []));
   protected readonly hayDecisivos = computed(() => (this.store.caso()?.hitos ?? []).some((h) => h.decisivo));
+  protected readonly cuantosDecisivos = computed(() => (this.store.caso()?.hitos ?? []).filter((h) => h.decisivo).length);
+
+  constructor() {
+    // En la paleta (Ctrl+K): agregar un final (si son propios) y saltar a cualquiera de ellos.
+    injectComandos((): Comando[] => {
+      const caso = this.store.caso();
+      if (!caso) return [];
+      const propios = caso.modoFinales === 'propio';
+      const finales = propios ? caso.finales : this.plantilla();
+      return [
+        ...(propios && !this.store.soloLectura() ? [{ id: 'finales:agregar', grupo: 'Finales', titulo: 'Agregar un final', ejecutar: () => this.agregarFinal() }] : []),
+        ...finales.map((f, i) => ({
+          id: `finales:ir:${f.id}`, grupo: 'Finales', titulo: f.nombre || `Final ${i + 1}`,
+          ejecutar: () => document.getElementById(`final-${f.id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }),
+        })),
+      ];
+    });
+  }
   private readonly alcanzados = computed(() => {
     const caso = this.store.caso();
     return caso ? finalesAlcanzados(caso) : { finales: {}, omitido: false };

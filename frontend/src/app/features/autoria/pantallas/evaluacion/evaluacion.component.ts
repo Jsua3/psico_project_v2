@@ -61,7 +61,7 @@ function finalesQueNombran(caso: CasoBorrador, clave: string): string[] {
   template: `
     @if (store.caso(); as caso) {
       <div class="lienzo">
-        <div class="hoja evaluacion">
+        <div class="hoja hoja--ancha evaluacion">
           <div class="cabecera">
             <div class="cabecera__titulos">
               <p class="sobretitulo">Etapa 4 · Evaluación</p>

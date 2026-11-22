@@ -1,9 +1,11 @@
 @if (store.caso(); as caso) {
-  <div class="pagina finales">
+  <div class="lienzo">
+  <div class="hoja hoja--ancha finales">
     <div class="cabecera">
-      <div class="cabecera__texto">
+      <div class="cabecera__titulos">
+        <p class="sobretitulo">Etapa 4 · Evaluación</p>
         <h1>Finales del caso</h1>
-        <p class="texto-secundario">Lo que el estudiante lee al terminar. Si no haces nada, se calculan solos con los pasos que cumplió y las respuestas que eligió.</p>
+        <p class="bajada">Lo que el estudiante lee al terminar. Si no haces nada, se calculan solos con los pasos que cumplió y las respuestas que eligió.</p>
       </div>
       <app-pestanas-evaluacion actual="finales" />
     </div>
@@ -34,14 +36,6 @@
       </div>
     }
 
-    <!-- Con las respuestas de ahora, a qué finales llegan los recorridos; y los avisos de caminos con su enlace a Caminos. -->
-    <div class="recorridos">
-      <p class="recorridos__texto" role="status">{{ resumenRecorridos() }}</p>
-      @if (avisosDeCaminos()) {
-        <p class="recorridos__aviso"><span aria-hidden="true">▲</span> {{ estadoCaminos() }}
-          <a class="enlace" [routerLink]="rutas.a('/editor')" data-accion="revisar-caminos">Abrir Caminos</a></p>
-      }
-    </div>
     <p role="status" class="solo-lector">{{ anuncio() }}</p>
 
     @if (caso.modoFinales === 'propio') {
@@ -83,32 +77,15 @@
                 </div>
               </details>
               <span class="final__orden">
-                <button type="button" class="boton cuadrado" [attr.aria-label]="'Subir el final ' + f.nombre" [attr.aria-disabled]="primero" (click)="!primero && store.moverFinal(f.id, -1)">↑</button>
-                <button type="button" class="boton cuadrado" [attr.aria-label]="'Bajar el final ' + f.nombre" [attr.aria-disabled]="ultimo" (click)="!ultimo && store.moverFinal(f.id, 1)">↓</button>
+                <button type="button" class="icono-boton" [attr.aria-label]="'Subir el final ' + f.nombre" [attr.aria-disabled]="primero" (click)="!primero && store.moverFinal(f.id, -1)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 12.5v-9M4.5 7 8 3.5 11.5 7" /></svg></button>
+                <button type="button" class="icono-boton" [attr.aria-label]="'Bajar el final ' + f.nombre" [attr.aria-disabled]="ultimo" (click)="!ultimo && store.moverFinal(f.id, 1)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5v9M4.5 9 8 12.5 11.5 9" /></svg></button>
               </span>
             </li>
           }
         </ol>
-        <button type="button" class="boton agregar-final" id="agregar-final" (click)="agregarFinal()">Agregar un final</button>
+        <button type="button" class="accion-texto agregar-final" id="agregar-final" (click)="agregarFinal()">Agregar un final</button>
       </section>
     } @else {
-      <fieldset class="decisivos">
-        <legend class="decisivos__rotulo">Pasos que deciden el final</legend>
-        <p class="texto-secundario">El estudiante tiene que darlos sí o sí. Con ellos se arman los cuatro finales de abajo. También se eligen en <a class="enlace" [routerLink]="rutas.a('/editor/evaluacion')">Pasos profesionales</a>.</p>
-        <div class="decisivos__lista">
-          @for (h of caso.hitos; track h.clave) {
-            <label class="casilla">
-              <input type="checkbox" [checked]="h.decisivo" (change)="store.editarHito(h.clave, { decisivo: $any($event.target).checked })" />
-              {{ h.nombre }}
-            </label>
-          } @empty {
-            <p class="texto-secundario">Este caso todavía no tiene pasos profesionales.</p>
-          }
-        </div>
-        @if (!hayDecisivos()) {
-          <p class="sin-decisivos" role="note">Sin hitos decisivos, los finales no dependen de los pasos del caso. Marca al menos un hito como decisivo.</p>
-        }
-      </fieldset>
 
       <section aria-labelledby="fa" class="bloque">
         <div class="bloque__cabeza">
@@ -144,4 +121,44 @@
       </section>
     }
   </div>
+  </div>
+
+  <!-- Inspector: a qué finales llegan los recorridos de ahora y, en modo automático, los pasos que deciden el final. -->
+  <ng-template estudioRanura="inspector">
+    <app-estudio-seccion titulo="Recorridos" [resumen]="avisosDeCaminos() ? 'Con avisos' : null">
+      <!-- Con las respuestas de ahora, a qué finales llegan los recorridos; y los avisos de caminos con su enlace a Caminos. -->
+    <div class="recorridos">
+      <p class="recorridos__texto" role="status">{{ resumenRecorridos() }}</p>
+      @if (avisosDeCaminos()) {
+        <p class="recorridos__aviso"><span aria-hidden="true">▲</span> {{ estadoCaminos() }}
+          <a class="enlace" [routerLink]="rutas.a('/editor')" data-accion="revisar-caminos">Abrir Caminos</a></p>
+      }
+    </div>
+    </app-estudio-seccion>
+    @if (caso.modoFinales !== 'propio') {
+      <app-estudio-seccion titulo="Deciden el final" [resumen]="cuantosDecisivos() + ' de ' + caso.hitos.length">
+      <fieldset class="decisivos">
+        <legend class="decisivos__rotulo">Pasos que deciden el final</legend>
+        <p class="texto-secundario">El estudiante tiene que darlos sí o sí. Con ellos se arman los cuatro finales de abajo. También se eligen en <a class="enlace" [routerLink]="rutas.a('/editor/evaluacion')">Pasos profesionales</a>.</p>
+        <div class="decisivos__lista">
+          @for (h of caso.hitos; track h.clave) {
+            <label class="casilla">
+              <input type="checkbox" [checked]="h.decisivo" (change)="store.editarHito(h.clave, { decisivo: $any($event.target).checked })" />
+              {{ h.nombre }}
+            </label>
+          } @empty {
+            <p class="texto-secundario">Este caso todavía no tiene pasos profesionales.</p>
+          }
+        </div>
+        @if (!hayDecisivos()) {
+          <p class="sin-decisivos" role="note">Sin hitos decisivos, los finales no dependen de los pasos del caso. Marca al menos un hito como decisivo.</p>
+        }
+      </fieldset>
+      </app-estudio-seccion>
+    }
+  </ng-template>
+
+  <ng-template estudioRanura="estado">
+    <span class="est-dato">{{ caso.modoFinales === 'propio' ? caso.finales.length + ' finales propios' : '4 finales automáticos' }}</span>
+  </ng-template>
 }
