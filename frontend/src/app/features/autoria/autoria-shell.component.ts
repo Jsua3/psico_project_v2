@@ -4,7 +4,7 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
-import { filter, map } from 'rxjs';
+import { filter, map, scan } from 'rxjs';
 
 import { AuthService } from '../../core/auth/auth.service';
 import type { CanLeave } from '../../core/navigation/can-leave.guard';
@@ -32,7 +32,7 @@ import { injectComandosDelCaso } from './marco/estudio/comandos-del-caso';
 import { EstudioMarcoComponent } from './marco/estudio/estudio-marco.component';
 import { EstudioService } from './marco/estudio/estudio.service';
 import { ExploradorBibliotecaComponent } from './marco/estudio/explorador-biblioteca.component';
-import { RutasAutoria } from './rutas';
+import { RUTA_CASOS, RutasAutoria } from './rutas';
 
 const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', icon: 'logout', tone: 'danger' }];
 
@@ -64,15 +64,18 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
   template: `
     <a class="saltar" href="#main-content" (click)="saltar($event)">Saltar al contenido</a>
     <header ui-glass-bar label="Editor de casos" compactLabel="Editor de casos" [congelada]="ayudaAbierta()" #cabecera>
-      <!-- El logo es la salida del editor: «‹» delante y, al pasar el cursor o con el foco, la palabra se funde en «Volver a
-           casos» (pedido del usuario, 2026-11-22; antes había un botón aparte que desordenaba la barra). -->
-      <a class="modulo modulo-logo pulsable ds-motion" [routerLink]="rutas.a('/')" aria-label="Volver a Casos" title="Volver a Casos">
-        <svg class="logo-volver__flecha" viewBox="0 0 20 20" aria-hidden="true"><path d="m12 4-6 6 6 6" /></svg>
-        <span class="logo-volver">
-          <app-marca class="barra-marca" />
-          <span class="logo-volver__texto" aria-hidden="true">Volver a casos</span>
-        </span>
-      </a>
+      <!-- La marca y, junto a ella, el módulo «‹» para volver (pedido del usuario, 2026-11-22): una cápsula de vidrio que al
+           pasar el cursor o con el foco se expande y dice a dónde vuelve; desde el guion o una sala, al menú del que se vino
+           dentro del editor; desde una pantalla principal, a Casos. El nombre accesible es su propio texto. -->
+      <div class="modulo modulo-logo">
+        <span class="logo-marca"><app-marca class="barra-marca" /></span>
+        <a class="volver pulsable" [routerLink]="volver().ruta" data-accion="volver">
+          <span class="volver__capsula">
+            <svg class="volver__flecha" viewBox="0 0 20 20" aria-hidden="true"><path d="m12 4-6 6 6 6" /></svg>
+            <span class="volver__texto">{{ volver().texto }}</span>
+          </span>
+        </a>
+      </div>
       <!-- El módulo central es el «dónde estoy» del editor: el caso y su hilo de etapas. Nada de él se pliega al desplazarse
            (DG-6); lo que no cabe cede por ancho, con su nombre completo para el lector. -->
       <div class="modulo modulo-principal ds-motion">
@@ -334,6 +337,33 @@ export class AutoriaShellComponent implements CanLeave {
   private readonly direccion = toSignal(
     this.router.events.pipe(filter((e) => e instanceof NavigationEnd), map(() => this.router.url)), { initialValue: this.router.url },
   );
+  /** La dirección actual y la anterior: «volver» lleva al menú del que se vino, no solo al padre. */
+  private readonly trayecto = toSignal(
+    this.router.events.pipe(
+      filter((e) => e instanceof NavigationEnd),
+      map(() => this.router.url),
+      scan((antes: { actual: string; previa: string | null }, url: string) => ({ actual: url, previa: antes.actual }), { actual: this.router.url, previa: null }),
+    ),
+    { initialValue: { actual: this.router.url, previa: null } },
+  );
+  /**
+   * A dónde lleva el módulo «‹» de la barra. Desde el guion de una escena, a Caminos; desde una sala, al Plano o al guion si
+   * de ahí se vino (si no, a Caminos); desde cualquier pantalla principal del editor (y al crear un caso), a Casos.
+   */
+  protected readonly volver = computed<{ ruta: string; texto: string }>(() => {
+    const { actual, previa } = this.trayecto();
+    const limpia = (url: string | null): string => (url ?? '').split(/[?#]/)[0];
+    const aqui = limpia(actual);
+    const antes = limpia(previa);
+    const caminos = { ruta: this.rutas.a('/editor'), texto: 'Volver a Caminos' };
+    if (this.store.caso() && /\/editor\/escena\/[^/]+$/.test(aqui)) return caminos;
+    if (this.store.caso() && /\/editor\/sala\/[^/]+$/.test(aqui)) {
+      if (/\/editor\/plano$/.test(antes)) return { ruta: this.rutas.a('/editor/plano'), texto: 'Volver al Plano' };
+      if (/\/editor\/escena\/[^/]+$/.test(antes)) return { ruta: antes, texto: 'Volver al guion' };
+      return caminos;
+    }
+    return { ruta: RUTA_CASOS, texto: 'Volver a casos' };
+  });
   protected readonly progreso = inject(ProgresoDelCaso);
   protected readonly deshacer = inject(DeshacerBorrado);
   private readonly ia = inject(IaService);

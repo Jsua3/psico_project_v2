@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { of } from 'rxjs';
 
@@ -21,7 +21,7 @@ async function irA(url: string, iaEncendida = true) {
         { path: 'portal/casos/nuevo', children: rutasNuevoCaso },
         { path: 'portal/casos/:caseVersionId/editor', children: rutasEditorCaso },
         { path: 'portal/casos', children: [] },
-      ]),
+      ], withComponentInputBinding()),
       { provide: AuthoringApi, useValue: { ...servidor.api, assistantStatus: () => of({ enabled: iaEncendida, mode: iaEncendida ? 'connected' : 'disabled', remainingToday: 5 }) } },
       cuentaDePrueba,
     ],
@@ -36,7 +36,7 @@ async function irA(url: string, iaEncendida = true) {
     }
   };
   await listo();
-  return { raiz: harness.routeNativeElement as HTMLElement, listo };
+  return { raiz: harness.routeNativeElement as HTMLElement, listo, harness };
 }
 
 function desplazarA(y: number): void {
@@ -74,12 +74,12 @@ describe('Editor de casos: la barra de vidrio (tableros 45–51)', () => {
   // guardado, «Probar» y «Pendientes» junto a la cuenta, y el selector de tema.
   it('con un caso abierto, el módulo central trae «‹ Casos», el nombre del caso y su hilo; la cuenta, las herramientas, la ayuda y el menú', async () => {
     const { raiz } = await irA('/portal/casos/41/editor');
-    // Volver a Casos es el logo con su «‹» (pedido del usuario, 2026-11-22): ya no hay un botón aparte en el módulo central.
-    const logo = raiz.querySelector<HTMLAnchorElement>('header .modulo-logo')!;
-    expect(logo.getAttribute('href')).toBe('/portal/casos');
-    expect(logo.getAttribute('aria-label')).toBe('Volver a Casos');
-    expect(logo.querySelector('.logo-volver__flecha')).not.toBeNull();
-    expect(logo.querySelector('.logo-volver__texto')!.textContent).toBe('Volver a casos');
+    // «Volver» es un módulo propio junto a la marca (pedido del usuario, 2026-11-22): la marca no es un enlace.
+    const logo = raiz.querySelector<HTMLElement>('header .modulo-logo')!;
+    expect(logo.querySelector('app-marca')!.closest('a')).toBeNull();
+    const volver = logo.querySelector<HTMLAnchorElement>('a.volver')!;
+    expect(volver.getAttribute('href')).toBe('/portal/casos');
+    expect(volver.textContent!.trim()).toBe('Volver a casos');
     const central = raiz.querySelector('header .modulo-principal')!;
     expect(central.querySelector('a[href="/portal/casos"]')).toBeNull();
     expect(central.textContent).not.toContain('Mis casos');
@@ -228,5 +228,35 @@ describe('AutoriaShellComponent · «Probar» ya no es una pantalla del editor',
   it('/probar redirige a El caso', async () => {
     const { raiz } = await irA('/portal/casos/41/editor/probar');
     expect(raiz.querySelector('main h1')!.textContent).toContain('Escenas y caminos');
+  });
+});
+
+// req: pedido del usuario del 2026-11-22: «volver» es un módulo de la barra que lleva al menú anterior dentro del editor.
+describe('Editor de casos: el módulo «volver» de la barra', () => {
+  const volver = (harness: RouterTestingHarness) => (harness.routeNativeElement as HTMLElement).querySelector<HTMLAnchorElement>('header a.volver')!;
+
+  it('desde una pantalla principal vuelve a Casos y su nombre accesible es su propio texto', async () => {
+    const { harness } = await irA('/portal/casos/41/editor');
+    expect(volver(harness).getAttribute('href')).toBe('/portal/casos');
+    expect(volver(harness).textContent!.trim()).toBe('Volver a casos');
+    expect(volver(harness).hasAttribute('aria-label')).toBe(false);
+  });
+
+  it('desde el guion de una escena vuelve a Caminos', async () => {
+    const { harness, listo } = await irA('/portal/casos/41/editor');
+    const id = TestBed.inject(CasoStore).caso()!.escenas[0].id;
+    await harness.navigateByUrl(`/portal/casos/41/editor/escena/${id}`);
+    await listo();
+    expect(volver(harness).getAttribute('href')).toBe('/portal/casos/41/editor');
+    expect(volver(harness).textContent!.trim()).toBe('Volver a Caminos');
+  });
+
+  it('a una sala abierta desde el Plano, vuelve al Plano', async () => {
+    const { harness, listo } = await irA('/portal/casos/41/editor/plano');
+    const sala = TestBed.inject(CasoStore).caso()!.salas[0].id;
+    await harness.navigateByUrl(`/portal/casos/41/editor/sala/${sala}`);
+    await listo();
+    expect(volver(harness).getAttribute('href')).toBe('/portal/casos/41/editor/plano');
+    expect(volver(harness).textContent!.trim()).toBe('Volver al Plano');
   });
 });
