@@ -1,129 +1,109 @@
-<ui-page-header
-  eyebrow="Mi entrenamiento"
-  title="Tu entrenamiento psicosocial"
-  description="Retoma tus casos, revisa tu historial y mira cómo vas."
->
-  <a ui-button uiPageActions variant="primary" icon="videogame_asset" routerLink="/portal/jugar">Ir a la sala</a>
-  <a ui-button uiPageActions variant="secondary" icon="folder_open" routerLink="/portal/simulador">Ver casos y resultados</a>
-</ui-page-header>
+<!-- Banda de cabecera con los doodles suaves detrás (DISENO §2.8): solo aquí, nunca detrás de tarjetas ni de texto del caso. -->
+<div id="inicio-cabecera" class="sd-cabecera">
+  <app-doodles desde="#inicio-cabecera" hasta="#inicio-cabecera" intensidad="suave" [interactivo]="false" />
+  <ui-page-header [eyebrow]="copy.eyebrow" [title]="saludo()" [description]="descripcion()" />
+</div>
 
-<p class="ds-sr-only" role="status">{{ statusText() }}</p>
+<p class="ds-sr-only" role="status">{{ cargando() ? copy.cargando : '' }}</p>
 
-@if (pendingInvitations()) {
-  <ui-section class="sd-invitations" title="Invitaciones a grupos">
-    <ui-card class="sd-invitations__card">
-      <p class="sd-invitations__text">{{ invitationsText() }}</p>
-      <a ui-button variant="primary" routerLink="/portal/invitaciones">Ver invitaciones</a>
+<!-- Sin aceptar la invitación no se ven los casos del grupo (E2-10): por eso va arriba. -->
+@if (pendientes() > 0) {
+  <ui-card class="sd-invitacion" superficie="tinte">
+    <div class="sd-invitacion__texto">
+      <h2 class="sd-invitacion__titulo">{{ invitacionTitulo() }}</h2>
+      <p class="sd-invitacion__ayuda">{{ copy.invitaciones.ayuda }}</p>
+    </div>
+    <a ui-button variant="secondary" routerLink="/portal/invitaciones">{{ copy.invitaciones.accion }}</a>
+  </ui-card>
+}
+
+@if (cargando()) {
+  <div class="sd-cargando" aria-busy="true">
+    <ui-skeleton shape="card" />
+    <ui-skeleton shape="row" />
+    <ui-skeleton shape="row" />
+    <ui-skeleton shape="row" />
+  </div>
+} @else if (error()) {
+  <ui-error-state [message]="copy.error" (retry)="cargar()" />
+} @else if (siguiente(); as paso) {
+  <ui-section [title]="copy.paso.titulo">
+    <ui-card class="sd-protagonista" superficie="tinte">
+      <ui-portada-caso class="sd-protagonista__portada" tamano="heroe" [umbral]="true" [titulo]="paso.caso.title" [portada]="paso.caso.portada" />
+      <div class="sd-protagonista__contenido">
+        @if (estadoDelPaso(); as estado) {
+          <ui-badge class="sd-protagonista__estado" [tone]="estado.tono">{{ estado.etiqueta }}</ui-badge>
+        }
+        <h3 class="sd-protagonista__titulo">{{ paso.caso.title }}</h3>
+        <p class="sd-protagonista__contexto">{{ contexto() }}</p>
+        <div class="sd-protagonista__accion">
+          @switch (paso.tipo) {
+            @case ('continuar') {
+              <a ui-button size="lg" icon="play_arrow" [routerLink]="['/portal/simulador', paso.caso.caseVersionId]" [queryParams]="{ intento: 'continuar' }" [state]="umbral()">{{ copy.paso.continuar }}</a>
+            }
+            @case ('ficha') {
+              <a ui-button size="lg" [routerLink]="['/portal/simulador', paso.caso.caseVersionId, 'ficha']" [state]="umbral()">{{ copy.paso.ficha }}</a>
+            }
+            @case ('terminado') {
+              <!-- Todo terminado: no hay nada que empujar, así que la única acción es secundaria. -->
+              @if (paso.intento; as intento) {
+                <a ui-button variant="secondary" [routerLink]="['/portal/simulador', paso.caso.caseVersionId, 'cierre', intento.attemptId]">{{ copy.paso.recorrido }}</a>
+              }
+            }
+          }
+        </div>
+      </div>
     </ui-card>
+  </ui-section>
+} @else {
+  <ui-empty-state kind="first-use" figura="camila/bata" [title]="copy.sinCasos.titulo" [description]="copy.sinCasos.texto"
+    [actionLabel]="pendientes() > 0 ? copy.invitaciones.accion : null" (action)="abrirInvitaciones()" />
+}
+
+@if (!cargando() && !error() && filasVisibles().length) {
+  <ui-section [title]="copy.casos.titulo">
+    <ul class="sd-lista">
+      @for (fila of filasVisibles(); track fila.caso.caseVersionId) {
+        <li>
+          @if (fila.destino) {
+            <a ui-card class="sd-fila" [routerLink]="fila.destino" [queryParams]="fila.queryParams">
+              <ng-container *ngTemplateOutlet="contenidoFila; context: { $implicit: fila }" />
+            </a>
+          } @else {
+            <ui-card class="sd-fila sd-fila--quieta">
+              <ng-container *ngTemplateOutlet="contenidoFila; context: { $implicit: fila }" />
+            </ui-card>
+          }
+        </li>
+      }
+    </ul>
+    <a ui-button class="sd-ver-todos" variant="ghost" icon="arrow_forward" routerLink="/portal/simulador">{{ copy.casos.verTodos }}</a>
   </ui-section>
 }
 
-@switch (state()) {
-  @case ('loading') {
-    <div class="sd-loading" aria-busy="true">
-      <div class="sd-stats">
-        @for (bone of [1, 2, 3]; track bone) {
-          <ui-skeleton shape="stat" />
-        }
-      </div>
-      <div class="sd-charts">
-        @for (bone of [1, 2]; track bone) {
-          <ui-skeleton shape="chart" />
-        }
-      </div>
-      <ui-skeleton shape="row" />
-      <ui-skeleton shape="row" />
-    </div>
-  }
-  @case ('error') {
-    <ui-error-state
-      [kind]="errorKind()"
-      [status]="errorStatus()"
-      message="No pudimos cargar tu historial de intentos."
-      (retry)="loadHistory()"
-    />
-  }
-  @case ('empty') {
-    @let copy = firstUse();
-    <ui-empty-state kind="first-use" [title]="copy.title" [description]="copy.description" [actionLabel]="copy.action" (action)="goToLobby()" />
-  }
-  @case ('ready') {
-    @if (open(); as attempt) {
-      <ui-section title="Retoma tu caso">
-        <ui-card class="sd-continue">
-          <div class="sd-continue__text">
-            <p class="sd-continue__case">{{ attempt.caseTitle }}</p>
-            <p class="sd-continue__meta">
-              <ui-badge [tone]="attemptTone(attempt.status)">{{ statusLabel(attempt.status) }}</ui-badge>
-              <span>Lo empezaste el {{ formatDate(attempt.startedAt, true) }}</span>
-            </p>
-          </div>
-          <a ui-button variant="primary" icon="play_arrow" [routerLink]="['/portal/simulador', attempt.caseVersionId]">Continuar</a>
-        </ui-card>
-      </ui-section>
-    }
-
-    <ui-section title="Tu avance">
-      <div class="sd-stats">
-        <ui-card><ui-stat label="Casos asignados" [value]="assignedCases().value" [hint]="assignedCases().hint" /></ui-card>
-        <ui-card><ui-stat label="Intentos completados" [value]="completed()" hint="Sin contar los interrumpidos" /></ui-card>
-        <ui-card><ui-stat label="Tiempo activo" [value]="activeTime().value" [hint]="activeTime().hint" /></ui-card>
-      </div>
-    </ui-section>
-
-    <ui-section title="Tu evolución">
-      <div class="sd-charts">
-        <ui-card class="sd-chart">
-          <h3 class="sd-chart__title">Progreso por caso</h3>
-          <p class="sd-chart__sub">Intentos completados de los que empezaste</p>
-          <ul class="sd-bars">
-            @for (item of progress(); track item.title) {
-              <li class="sd-bar" [uiTooltip]="item.tooltip">
-                <span class="sd-bar__label">{{ item.title }}</span>
-                <span class="sd-bar__track" aria-hidden="true"><span class="sd-bar__fill" [style.--sd-ratio]="item.ratio"></span></span>
-                <span class="sd-bar__value">{{ item.completed }} de {{ item.total }}</span>
-              </li>
-            }
-          </ul>
-        </ui-card>
-
-        <ui-card class="sd-chart">
-          <h3 class="sd-chart__title">{{ draft.closingsTitle.text }}</h3>
-          <p class="sd-chart__sub">{{ draft.closingsSub.text }}</p>
-          @if (closings().length) {
-            <ul class="sd-closings">
-              @for (item of closings(); track item.attemptId) {
-                <li class="sd-closing">
-                  <span class="sd-closing__case">{{ item.caseTitle }}</span>&ngsp;
-                  <span class="sd-closing__date">{{ item.dateLabel }}</span>
-                </li>
-              }
-            </ul>
-          } @else {
-            <p class="sd-chart__empty">{{ draft.closingsEmpty.text }}</p>
-          }
-        </ui-card>
-      </div>
-    </ui-section>
-
-    <ui-section title="Tus últimos intentos">
-      <ui-table label="Tabla de tus últimos intentos" density="compact">
-        <table ui-table>
-          <thead>
-            <tr><th scope="col">Caso</th><th scope="col">Inicio</th><th scope="col">Estado</th></tr>
-          </thead>
-          <tbody>
-            @for (row of recent(); track row.attemptId) {
-              <tr uiRow>
-                <td class="sd-case">{{ row.caseTitle }}</td>
-                <td class="sd-nowrap">{{ formatDate(row.startedAt) }}</td>
-                <td class="sd-nowrap"><ui-badge [tone]="attemptTone(row.status)">{{ statusLabel(row.status) }}</ui-badge></td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </ui-table>
-      <p class="sd-more"><a ui-button variant="ghost" iconEnd="arrow_forward" routerLink="/portal/simulador">Ver todo el historial</a></p>
-    </ui-section>
-  }
+@if (!cargando() && !error() && cierres().length) {
+  <ui-section [title]="copy.cierres.titulo">
+    <ul class="sd-lista">
+      @for (cierre of cierres(); track cierre.attemptId) {
+        <li>
+          <ui-card class="sd-fila sd-fila--cierre">
+            <div class="sd-fila__texto">
+              <strong class="sd-fila__titulo">{{ cierre.caseTitle }}</strong>
+              <span class="sd-fila__meta">Intento del {{ cierre.dateLabel }}</span>
+            </div>
+            <a ui-button variant="ghost" size="sm" [routerLink]="['/portal/simulador', cierre.caseVersionId, 'cierre', cierre.attemptId]"
+              [attr.aria-label]="copy.cierres.accion + ' de ' + cierre.caseTitle">{{ copy.cierres.accion }}</a>
+          </ui-card>
+        </li>
+      }
+    </ul>
+  </ui-section>
 }
+
+<ng-template #contenidoFila let-fila>
+  <ui-portada-caso tamano="mini" [titulo]="fila.caso.title" [portada]="fila.caso.portada" />
+  <span class="sd-fila__texto">
+    <strong class="sd-fila__titulo">{{ fila.caso.title }}</strong>
+    <span class="sd-fila__meta">{{ fila.estado.etiqueta }}@if (fila.meta) { · {{ fila.meta }} }</span>
+  </span>
+</ng-template>

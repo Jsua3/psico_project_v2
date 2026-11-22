@@ -1,6 +1,6 @@
-import { StudentAttemptSummary } from '../../core/models/simulation.model';
+import { CatalogItem, StudentAttemptSummary } from '../../core/models/simulation.model';
 import {
-  attemptTone, caseProgress, firstUseCopy, formatActiveTime, formatDate, lastClosings, openAttempt,
+  attemptTone, caseProgress, firstUseCopy, formatActiveTime, formatDate, lastClosings, openAttempt, siguientePaso,
 } from './student-dashboard.util';
 
 function attempt(partial: Partial<StudentAttemptSummary>): StudentAttemptSummary {
@@ -34,9 +34,9 @@ describe('student-dashboard.util', () => {
       attemptId: `a${index}`, caseTitle: `Caso ${index}`, startedAt: `2026-09-${String(10 + index).padStart(2, '0')}T10:00:00Z`,
     }));
     expect(lastClosings(history)).toEqual([
-      { attemptId: 'a4', caseTitle: 'Caso 4', dateLabel: formatDate('2026-09-14T10:00:00Z') },
-      { attemptId: 'a3', caseTitle: 'Caso 3', dateLabel: formatDate('2026-09-13T10:00:00Z') },
-      { attemptId: 'a2', caseTitle: 'Caso 2', dateLabel: formatDate('2026-09-12T10:00:00Z') },
+      { attemptId: 'a4', caseVersionId: 1, caseTitle: 'Caso 4', dateLabel: formatDate('2026-09-14T10:00:00Z') },
+      { attemptId: 'a3', caseVersionId: 1, caseTitle: 'Caso 3', dateLabel: formatDate('2026-09-13T10:00:00Z') },
+      { attemptId: 'a2', caseVersionId: 1, caseTitle: 'Caso 2', dateLabel: formatDate('2026-09-12T10:00:00Z') },
     ]);
     expect(lastClosings([])).toEqual([]);
   });
@@ -92,5 +92,41 @@ describe('student-dashboard.util', () => {
       description: 'Entra a la sala para ver los casos disponibles y elegir uno.',
       action: 'Ir a la sala',
     });
+  });
+});
+
+describe('siguientePaso', () => {
+  const caso = (id: number, extra: Partial<CatalogItem> = {}): CatalogItem => ({
+    caseVersionId: id, code: `C${id}`, title: `Caso ${id}`, description: '', order: id, unlocked: true, completed: false, locked: false, ...extra,
+  });
+
+  it('sin casos asignados no hay paso', () => {
+    expect(siguientePaso([], [])).toBeNull();
+  });
+
+  it('lo abierto se continúa antes que cualquier caso nuevo, y gana el intento más reciente', () => {
+    const paso = siguientePaso([caso(1), caso(2)], [
+      attempt({ attemptId: 'viejo', caseVersionId: 1, status: 'PAUSED', startedAt: '2026-09-01T10:00:00Z' }),
+      attempt({ attemptId: 'nuevo', caseVersionId: 2, status: 'IN_PROGRESS', startedAt: '2026-09-02T10:00:00Z' }),
+    ]);
+    expect(paso).toMatchObject({ tipo: 'continuar', caso: { caseVersionId: 2 }, intento: { attemptId: 'nuevo' } });
+  });
+
+  it('sin nada abierto, la ficha del primer caso desbloqueado en el orden del catálogo', () => {
+    const paso = siguientePaso([caso(2), caso(1, { completed: true }), caso(3, { unlocked: false })], [attempt({ caseVersionId: 1 })]);
+    expect(paso).toMatchObject({ tipo: 'ficha', caso: { caseVersionId: 2 } });
+  });
+
+  it('si lo que falta aún no abre, espera; no empuja a un caso bloqueado', () => {
+    const paso = siguientePaso([caso(1, { completed: true }), caso(2, { unlocked: false })], [attempt({ caseVersionId: 1 })]);
+    expect(paso).toMatchObject({ tipo: 'espera', caso: { caseVersionId: 2 } });
+  });
+
+  it('con todo terminado, el último recorrido y ninguna acción de empezar', () => {
+    const paso = siguientePaso([caso(1, { completed: true }), caso(2, { completed: true })], [
+      attempt({ attemptId: 'a1', caseVersionId: 1, startedAt: '2026-09-01T10:00:00Z' }),
+      attempt({ attemptId: 'a2', caseVersionId: 2, startedAt: '2026-09-03T10:00:00Z' }),
+    ]);
+    expect(paso).toMatchObject({ tipo: 'terminado', caso: { caseVersionId: 2 }, intento: { attemptId: 'a2' } });
   });
 });

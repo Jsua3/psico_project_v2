@@ -1,273 +1,128 @@
-import { provideZonelessChangeDetection } from '@angular/core';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
-import { Observable, Subject, of, throwError } from 'rxjs';
+import { provideZonelessChangeDetection, signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
+import { of, throwError } from 'rxjs';
 
-import { Invitation, InvitationsApi } from '../../core/api/invitations.api';
+import { CaseAccessCache } from '../../core/api/case-access.cache';
+import { InvitationsApi } from '../../core/api/invitations.api';
 import { SimulationService } from '../../core/api/simulation.service';
-import { SimulationCaseSummary, StudentAttemptSummary } from '../../core/models/simulation.model';
+import { AuthService } from '../../core/auth/auth.service';
+import { CatalogItem, StudentAttemptSummary } from '../../core/models/simulation.model';
+import { NavBadgesService } from '../../shared/layout/nav-badges.service';
 import { StudentDashboardComponent } from './student-dashboard.component';
-import { formatDate } from './student-dashboard.util';
 
-function attempt(partial: Partial<StudentAttemptSummary>): StudentAttemptSummary {
-  return {
-    attemptId: 'a', caseVersionId: 1, caseTitle: 'Caso', status: 'COMPLETED',
-    totalDurationSeconds: null,
-    activeDurationSeconds: null, startedAt: '2026-09-01T10:00:00Z', endedAt: null,
-    ...partial,
-  };
-}
+const caso = (id: number, extra: Partial<CatalogItem> = {}): CatalogItem => ({
+  caseVersionId: id, code: `C${id}`, title: `Caso ${id}`, description: '', order: id, unlocked: true, completed: false, locked: false, escenas: 8, ...extra,
+});
+const intento = (extra: Partial<StudentAttemptSummary> = {}): StudentAttemptSummary => ({
+  attemptId: 'a', caseVersionId: 1, caseTitle: 'Caso 1', status: 'PAUSED', totalDurationSeconds: null, activeDurationSeconds: null, startedAt: '2026-09-01T10:00:00Z', endedAt: null, ...extra,
+});
 
-function caseSummary(id: number): SimulationCaseSummary {
-  return { caseVersionId: id, code: `C${id}`, title: `Caso ${id}`, description: '', semanticVersion: '1.0.0', nodeCount: 1, status: 'PUBLISHED' };
-}
-
-const httpFailure = () => throwError(() => ({ status: 500 }));
-
-interface Api {
-  attemptHistory: () => Observable<StudentAttemptSummary[]>;
-  listCases: () => Observable<SimulationCaseSummary[]>;
-  invitations: () => Observable<Invitation[]>;
-}
-
-function invitation(groupId: number, status: Invitation['status']): Invitation {
-  return { id: groupId, groupId, groupName: `Grupo ${groupId}`, teacherName: 'Paula Docente', invitedAt: '2026-10-10T15:00:00Z', status };
-}
-
-/**
- * Panel del estudiante (plan visual F5-1), en DOM: cada cifra una vez, una sola señal de carga, error y vacío por
- * bloque con `ui-error-state`/`ui-empty-state` (uiDataState), «Continuar» solo para el intento abierto y gráficos con
- * estado sin datos, globo y tabla accesible. Recoge las garantías del estudiante que vivían en dashboard.component.spec
- * («Sin datos» y no un cero falso; interrumpido ≠ completado; un solo «Continuar»).
- */
-// req: RNF-04, RNF-004, BLOQUE-H, RQ-NEG-008
-describe('StudentDashboardComponent', () => {
-  let fixture: ComponentFixture<StudentDashboardComponent>;
-  const host = () => fixture.nativeElement as HTMLElement;
-  const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-  /** Lo que se lee de un elemento: sin lo decorativo (aria-hidden, p. ej. la ligadura del icono). */
-  const spoken = (el: Element) => {
-    const copy = el.cloneNode(true) as Element;
-    copy.querySelectorAll('[aria-hidden="true"]').forEach(node => node.remove());
-    return text(copy);
-  };
-  const stat = (label: string) => [...host().querySelectorAll('ui-stat')]
-    .find(el => text(el.querySelector('.ui-stat__label')) === label);
-  const statValue = (label: string) => text(stat(label)?.querySelector('.ui-stat__value') ?? null);
-  const actions = (name: RegExp) => [...host().querySelectorAll('a, button')].filter(el => name.test(spoken(el)));
-
-  /** `stable: false` para las pruebas con relojes falsos: whenStable esperaría a un temporizador que no avanza. */
-  async function render(api: Partial<Api>, { stable = true } = {}) {
-    const service: Api = { attemptHistory: () => of([]), listCases: () => of([]), invitations: () => of([]), ...api };
-    TestBed.configureTestingModule({
-      providers: [
-        provideZonelessChangeDetection(), provideRouter([]), { provide: SimulationService, useValue: service },
-        { provide: InvitationsApi, useValue: { list: service.invitations } },
-      ],
-    });
-    fixture = TestBed.createComponent(StudentDashboardComponent);
-    if (stable) await fixture.whenStable();
-    else fixture.detectChanges();
+describe('Inicio del estudiante', () => {
+  interface Opciones {
+    historial?: StudentAttemptSummary[] | null;
+    catalogo?: CatalogItem[];
+    invitadas?: number;
+    escena?: string | null;
+    sinNombre?: boolean;
   }
 
-  afterEach(() => vi.useRealTimers());
-
-  // E2-10 (C5, decisión 22): un estudiante invitado no ve los casos del grupo hasta aceptar; el panel se lo dice.
-  // req: SIEP-RF-04, D-14
-  it('con invitaciones pendientes: un aviso que dice cuántas y lleva a la bandeja', async () => {
-    await render({ invitations: () => of([invitation(1, 'INVITED'), invitation(2, 'INVITED'), invitation(3, 'ACTIVE')]) });
-    const notice = host().querySelector('.sd-invitations');
-    expect(notice).not.toBeNull();
-    expect(text(notice)).toContain('Tienes 2 invitaciones a grupos sin responder');
-    expect(actions(/^Ver invitaciones$/)[0]?.getAttribute('href')).toBe('/portal/invitaciones');
-  });
-
-  it('sin invitaciones pendientes, o si no cargan, no hay aviso (no es un error del panel)', async () => {
-    await render({ invitations: () => of([invitation(3, 'ACTIVE')]) });
-    expect(host().querySelector('.sd-invitations')).toBeNull();
-    TestBed.resetTestingModule();
-    await render({ invitations: httpFailure as () => Observable<Invitation[]> });
-    expect(host().querySelector('.sd-invitations')).toBeNull();
-    expect(host().querySelector('ui-error-state')).toBeNull();
-  });
-
-  it('un h1 con las dos acciones de la página: «Ir a la sala» y «Ver casos y resultados»', async () => {
-    await render({ attemptHistory: () => of([attempt({})]) });
-    expect(host().querySelectorAll('h1')).toHaveLength(1);
-    expect(text(host().querySelector('h1'))).toBe('Tu entrenamiento psicosocial');
-    expect(actions(/^Ir a la sala$/)[0]?.getAttribute('href')).toBe('/portal/jugar');
-    expect(actions(/^Ver casos y resultados$/)[0]?.getAttribute('href')).toBe('/portal/simulador');
-  });
-
-  it('cada cifra aparece UNA vez (sin la tarjeta de estado que repetía cuatro de seis) y el 0 se muestra como 0', async () => {
-    await render({
-      attemptHistory: () => of([attempt({ status: 'SAFE_EXITED' })]),
-      listCases: () => of([caseSummary(1)]),
+  async function render({ historial = [intento()], catalogo = [caso(1)], invitadas = 1, escena = 'La sala de espera', sinNombre = false }: Opciones = {}) {
+    const fijar = vi.fn();
+    const getActiveAttempt = vi.fn(() => of(escena ? { currentNode: { title: escena } } : null));
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter([]),
+        { provide: AuthService, useValue: { currentUser: signal({ id: 1, nombre: sinNombre ? '' : 'Ana Pérez' }) } },
+        { provide: NavBadgesService, useValue: { fijar } },
+        {
+          provide: CaseAccessCache,
+          useValue: { acceso: () => null, guardandoAcceso: () => (fuente: unknown) => fuente, intentoAbierto: () => undefined, guardandoIntentoAbierto: () => (fuente: unknown) => fuente },
+        },
+        { provide: SimulationService, useValue: { getCatalog: () => of(catalogo), attemptHistory: () => (historial === null ? throwError(() => ({})) : of(historial)), getActiveAttempt } },
+        { provide: InvitationsApi, useValue: { list: () => of(Array.from({ length: invitadas }, () => ({ status: 'INVITED' }))) } },
+      ],
     });
-    const labels = [...host().querySelectorAll('.ui-stat__label')].map(text);
-    expect(labels).toEqual(['Casos asignados', 'Intentos completados', 'Tiempo activo']);
-    expect(new Set(labels).size).toBe(labels.length);
-    expect(statValue('Casos asignados')).toBe('1');
-    expect(statValue('Intentos completados')).toBe('0');
-    expect(statValue('Tiempo activo')).toBe('Sin datos');
-  });
-
-  it('cuenta como completados solo los COMPLETED; el interrumpido no se rotula como finalizado', async () => {
-    await render({
-      attemptHistory: () => of([
-        attempt({ attemptId: 'ok', caseTitle: 'Caso A', status: 'COMPLETED', activeDurationSeconds: 600 }),
-        attempt({ attemptId: 'cut', caseTitle: 'Caso B', status: 'SAFE_EXITED' }),
-      ]),
-    });
-    expect(statValue('Intentos completados')).toBe('1');
-    expect(statValue('Tiempo activo')).toBe('10 min');
-    const states = [...host().querySelectorAll('tbody tr')].map(row => text(row.querySelector('ui-badge')));
-    expect(states).toEqual(['Finalizado', 'Cerrado con salida segura']);
-  });
-
-  it('una sola señal de carga: esqueleto con aria-busy y el estado leído, sin franja ni «Cargando…» repetidos', async () => {
-    vi.useFakeTimers();
-    const history = new Subject<StudentAttemptSummary[]>();
-    await render({ attemptHistory: () => history }, { stable: false });
-    await vi.advanceTimersByTimeAsync(200);
-    fixture.detectChanges();
-    const busy = host().querySelectorAll('[aria-busy="true"]');
-    expect(busy).toHaveLength(1);
-    expect(busy[0].querySelectorAll('ui-skeleton').length).toBeGreaterThan(0);
-    expect(text(host().querySelector('[role="status"].ds-sr-only'))).toBe('Cargando tu avance…');
-    expect(host().textContent).not.toMatch(/Cargando métricas/);
-    expect(actions(/^Continuar$/)).toHaveLength(0);
-
-    history.next([attempt({})]);
-    history.complete();
-    await vi.advanceTimersByTimeAsync(400);
-    fixture.detectChanges();
-    expect(host().querySelectorAll('[aria-busy="true"]')).toHaveLength(0);
-    expect(text(host().querySelector('[role="status"].ds-sr-only'))).toBe('');
-  });
-
-  it('si falla el historial: UN error con «Reintentar» que recarga solo el historial, y ninguna cifra en 0', async () => {
-    let calls = 0;
-    const listCases = vi.fn(() => of([caseSummary(1)]));
-    await render({
-      attemptHistory: () => (++calls === 1 ? httpFailure() : of([attempt({ status: 'COMPLETED' })])),
-      listCases,
-    });
-    const errors = host().querySelectorAll('ui-error-state');
-    expect(errors).toHaveLength(1);
-    expect(text(errors[0])).toContain('No pudimos cargar tu historial de intentos.');
-    expect(host().querySelectorAll('ui-stat')).toHaveLength(0);
-    expect(host().querySelector('ui-empty-state')).toBeNull();
-
-    (errors[0].querySelector('button') as HTMLButtonElement).click();
+    const fixture = TestBed.createComponent(StudentDashboardComponent);
     await fixture.whenStable();
-    expect(calls).toBe(2);
-    expect(listCases).toHaveBeenCalledTimes(1);
-    expect(host().querySelector('ui-error-state')).toBeNull();
-    expect(statValue('Intentos completados')).toBe('1');
+    fixture.detectChanges();
+    return { host: fixture.nativeElement as HTMLElement, fijar, getActiveAttempt };
+  }
+
+  it('con un intento en pausa hay UNA sola primaria, dice dónde se retoma y no hay tarjetas de cifras', async () => {
+    const { host, fijar, getActiveAttempt } = await render();
+    expect(host.querySelector('h1')?.textContent).toContain('Hola, Ana');
+    const primarias = Array.from(host.querySelectorAll('.ui-button--primary'));
+    expect(primarias).toHaveLength(1);
+    expect(primarias[0].textContent).toContain('Continuar');
+    expect(host.textContent).toContain('En pausa');
+    expect(host.textContent).toContain('Retomas en La sala de espera.');
+    expect(getActiveAttempt).toHaveBeenCalledWith(1);
+    expect(host.querySelector('ui-stat')).toBeNull();
+    expect(host.textContent).not.toContain('Tiempo activo');
+    expect(host.textContent).not.toContain('Intentos completados');
+    expect(fijar).toHaveBeenCalledWith('invitaciones', 1);
   });
 
-  it('si solo falla el catálogo, solo «Casos asignados» pierde el dato', async () => {
-    await render({ attemptHistory: () => of([attempt({ status: 'COMPLETED' })]), listCases: httpFailure });
-    expect(host().querySelector('ui-error-state')).toBeNull();
-    expect(statValue('Casos asignados')).toBe('Sin datos');
-    expect(text(stat('Casos asignados')!.querySelector('.ui-stat__hint'))).toBe('No se pudo cargar');
-    expect(statValue('Intentos completados')).toBe('1');
+  it('si la escena no se conoce, la línea es genérica y nunca dice «null»', async () => {
+    const { host } = await render({ escena: null });
+    expect(host.textContent).toContain('Retomas donde lo dejaste.');
+    expect(host.textContent).not.toContain('null');
   });
 
-  it('primer uso: UN estado vacío con la sala como acción; ningún gráfico, cifra ni tabla vacíos', async () => {
-    await render({ attemptHistory: () => of([]), listCases: () => of([caseSummary(1), caseSummary(2)]) });
-    const empty = host().querySelectorAll('ui-empty-state');
-    expect(empty).toHaveLength(1);
-    expect(text(empty[0])).toContain('Aún no has empezado ningún caso');
-    expect(text(empty[0])).toContain('Tienes 2 casos disponibles.');
-    expect(spoken(empty[0].querySelector('button')!)).toBe('Ir a la sala');
-    expect(host().querySelectorAll('ui-stat, table, svg, .sd-chart')).toHaveLength(0);
+  it('sin intentos ofrece la ficha del primer caso desbloqueado, con el número de escenas', async () => {
+    const { host } = await render({ historial: [], invitadas: 0 });
+    expect(host.textContent).toContain('Ver ficha del caso');
+    expect(host.textContent).toContain('Sin empezar · 8 escenas');
+    expect(host.textContent).toContain('Tu siguiente caso está listo.');
+    expect(host.querySelector('.sd-invitacion')).toBeNull();
   });
 
-  it('sin casos asignados (F5-5): el vacío lo dice y no ofrece una acción que no lleva a nada', async () => {
-    await render({ attemptHistory: () => of([]), listCases: () => of([]) });
-    const empty = host().querySelector('ui-empty-state')!;
-    expect(text(empty)).toContain('Aún no tienes casos asignados');
-    expect(empty.querySelector('button')).toBeNull();
-  });
-
-  it('intento abierto: UNA tarjeta «Continuar» que lleva al caso y dice si está en pausa, sin porcentaje inventado', async () => {
-    await render({
-      attemptHistory: () => of([
-        attempt({ attemptId: 'p', caseVersionId: 7, caseTitle: 'Caso en pausa', status: 'PAUSED' }),
-        attempt({ attemptId: 'done', status: 'COMPLETED' }),
-      ]),
+  it('el caso del siguiente paso no se repite en la lista; el resto dice su estado en palabras', async () => {
+    const { host } = await render({
+      catalogo: [caso(1), caso(2, { unlocked: false, locked: true })],
+      historial: [],
+      invitadas: 0,
     });
-    const continuar = actions(/^Continuar$/);
-    expect(continuar).toHaveLength(1);
-    expect(continuar[0].getAttribute('href')).toBe('/portal/simulador/7');
-    const card = continuar[0].closest('.sd-continue')!;
-    expect(text(card)).toContain('Caso en pausa');
-    expect(text(card.querySelector('ui-badge'))).toBe('En pausa (reanudable)');
-    expect(text(card)).not.toMatch(/%/);
-    expect(host().querySelector('[aria-label="Progreso de entrenamiento"]')).toBeNull();
+    const filas = host.querySelectorAll('.sd-fila');
+    expect(filas).toHaveLength(1);
+    expect(filas[0].textContent).toContain('Caso 2');
+    expect(filas[0].textContent).toContain('Bloqueado');
+    expect(filas[0].textContent).toContain('Se abre al terminar «Caso 1»');
+    // Un caso bloqueado no es un enlace.
+    expect(filas[0].tagName).not.toBe('A');
   });
 
-  it('sin intento abierto no hay «Continuar»', async () => {
-    await render({ attemptHistory: () => of([attempt({ status: 'COMPLETED' }), attempt({ status: 'SAFE_EXITED' })]) });
-    expect(actions(/^Continuar$/)).toHaveLength(0);
-  });
-
-  it('hay dos tarjetas, sin puntaje ni decisiones por clase: el progreso por caso y los últimos cierres', async () => {
-    await render({ attemptHistory: () => of([attempt({ status: 'IN_PROGRESS' })]) });
-    const charts = [...host().querySelectorAll('.sd-chart')];
-    expect(charts.map(chart => text(chart.querySelector('h3')))).toEqual(['Progreso por caso', 'Tus últimos cierres']);
-    expect(charts[0].querySelector('.sd-chart__empty')).toBeNull();
-    expect(text(charts[1].querySelector('.sd-chart__empty'))).toBe('Aún sin cierres: aparecerán cuando completes un caso.');
-    expect(host().querySelector('svg')).toBeNull();
-    expect(text(host())).not.toMatch(/puntaje|estrés|desempeño|\d+\s?%|Adecuadas|Riesgosas|Prohibidas/i);
-  });
-
-  it('con datos: cada barra tiene su cuenta y los tres últimos cierres llevan caso y fecha, sin números sueltos', async () => {
-    await render({
-      attemptHistory: () => of([
-        attempt({ attemptId: '1', caseTitle: 'Violencia familiar y tentativa de feminicidio', startedAt: '2026-09-01T10:00:00Z' }),
-        attempt({ attemptId: '2', caseTitle: 'Violencia familiar y tentativa de feminicidio', status: 'SAFE_EXITED', startedAt: '2026-09-02T10:00:00Z' }),
-      ]),
+  it('con todo terminado no hay primaria: solo «Ver tu recorrido» como acción secundaria, y los cierres', async () => {
+    const { host } = await render({
+      catalogo: [caso(1, { completed: true })],
+      historial: [intento({ status: 'COMPLETED', attemptId: 'fin' })],
+      invitadas: 0,
     });
-    const [progress, closings] = [...host().querySelectorAll('.sd-chart')];
-    // Título entero en el DOM (lo recorta el CSS, no el código) y la cuenta en el globo.
-    expect(text(progress.querySelector('.sd-bar__label'))).toBe('Violencia familiar y tentativa de feminicidio');
-    expect(text(progress.querySelector('.sd-bar__value'))).toBe('1 de 2');
-    expect([...closings.querySelectorAll('.sd-closing')].map(text)).toEqual([
-      `Violencia familiar y tentativa de feminicidio ${formatDate('2026-09-01T10:00:00Z')}`,
-    ]);
+    expect(host.textContent).toContain('Terminaste los casos asignados.');
+    expect(host.querySelector('.ui-button--primary')).toBeNull();
+    expect(host.querySelector('a[href="/portal/simulador/1/cierre/fin"]')).not.toBeNull();
+    expect(host.textContent).toContain('Tus cierres');
   });
 
-  it('al pasar el ratón por una barra aparece su globo con el dato exacto', async () => {
-    await render({
-      attemptHistory: () => of([
-        attempt({ attemptId: '1', caseTitle: 'Caso A', startedAt: '2026-09-01T10:00:00Z' }),
-        attempt({ attemptId: '2', caseTitle: 'Caso A', status: 'SAFE_EXITED', startedAt: '2026-09-02T10:00:00Z' }),
-      ]),
-    });
-    vi.useFakeTimers();
-    // El globo visible es el panel del overlay (las descripciones de AriaDescriber también llevan role="tooltip").
-    const tooltip = () => text(document.querySelector('ui-tooltip-panel'));
-    host().querySelector('.sd-bar')!.dispatchEvent(new MouseEvent('mouseenter'));
-    await vi.advanceTimersByTimeAsync(450);
-    expect(tooltip()).toBe('Caso A: 1 de 2 intentos completados');
+  it('sin casos asignados muestra el vacío y, con invitaciones, la acción para verlas', async () => {
+    const { host } = await render({ historial: [], catalogo: [], invitadas: 2 });
+    expect(host.textContent).toContain('Aún no tienes casos asignados');
+    expect(host.textContent).toContain('Tienes 2 invitaciones a grupos');
+    const router = TestBed.inject(Router);
+    const navegar = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    (host.querySelector('ui-empty-state button') as HTMLButtonElement).click();
+    expect(navegar).toHaveBeenCalledWith(['/portal/invitaciones']);
   });
 
-  it('el historial reciente va en una tabla con nombre, estados humanizados y el enlace al historial completo', async () => {
-    await render({ attemptHistory: () => of([attempt({ status: 'PAUSED', caseTitle: 'Caso A' })]) });
-    const table = host().querySelector('ui-table')!;
-    expect(table.querySelector('[role="region"]')?.getAttribute('aria-label')).toBe('Tabla de tus últimos intentos');
-    expect([...table.querySelectorAll('th')].map(text)).toEqual(['Caso', 'Inicio', 'Estado']);
-    expect(text(table.querySelector('tbody ui-badge'))).toBe('En pausa (reanudable)');
-    expect(table.querySelector('tbody')!.textContent).not.toMatch(/PAUSED|IN_PROGRESS/);
-    expect(actions(/^Ver todo el historial$/)[0]?.getAttribute('href')).toBe('/portal/simulador');
+  it('sin nombre en la sesión el título no inventa uno', async () => {
+    const { host } = await render({ sinNombre: true });
+    expect(host.querySelector('h1')?.textContent).toContain('Tu entrenamiento');
   });
 
-  // Los estilos en línea los vigila ui:lint (inlineStyleAttr); las barras usan [style.--var], que sí vale (GUIA).
-  it('sin restos de la identidad «pixel» del panel anterior (VD-3)', async () => {
-    await render({ attemptHistory: () => of([attempt({})]) });
-    expect(host().querySelectorAll('.pixel-card, .pixel-panel, .pixel-badge, .pixel-progress')).toHaveLength(0);
+  it('muestra el error con «Reintentar» si no puede conocer el acceso', async () => {
+    const { host } = await render({ historial: null });
+    expect(host.querySelector('ui-error-state')).not.toBeNull();
   });
 });

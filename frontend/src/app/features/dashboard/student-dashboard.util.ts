@@ -1,4 +1,4 @@
-import { StudentAttemptSummary } from '../../core/models/simulation.model';
+import { CatalogItem, StudentAttemptSummary } from '../../core/models/simulation.model';
 import { UiBadgeTone } from '../../shared/ui/badge/ui-badge';
 import { plural } from '../../shared/ui/labels';
 import { NO_DATA_LABEL, completedAttemptCount } from './dashboard-metrics.util';
@@ -35,6 +35,7 @@ export function attemptTone(status: string): UiBadgeTone {
 
 /** Un cierre reciente: el caso y la fecha en que empezó el intento, sin cifras. */
 export interface ClosingEntry {
+  caseVersionId: number;
   attemptId: string;
   caseTitle: string;
   dateLabel: string;
@@ -46,7 +47,7 @@ export function lastClosings(history: readonly StudentAttemptSummary[]): Closing
     .filter(attempt => attempt.status === 'COMPLETED')
     .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
     .slice(0, MAX_CLOSINGS)
-    .map(attempt => ({ attemptId: attempt.attemptId, caseTitle: attempt.caseTitle, dateLabel: formatDate(attempt.startedAt) }));
+    .map(attempt => ({ attemptId: attempt.attemptId, caseVersionId: attempt.caseVersionId, caseTitle: attempt.caseTitle, dateLabel: formatDate(attempt.startedAt) }));
 }
 
 /** Completados frente al total por caso (máximo cinco); el interrumpido no cuenta como completado. */
@@ -100,4 +101,43 @@ export function firstUseCopy(casesCount: number | null): FirstUseCopy {
       : `Tienes ${plural(casesCount, 'caso disponible', 'casos disponibles')}. Entra a la sala y elige una puerta para empezar.`,
     action: 'Ir a la sala',
   };
+}
+
+/**
+ * Lo que Inicio propone hacer ahora (DISENO §4.1). Hay un solo paso, en este orden de prioridad:
+ * continuar lo abierto, abrir la ficha del siguiente caso, esperar a que abra un caso que aún no está disponible
+ * o, si todo está terminado, volver a mirar el último recorrido. `null`: no hay casos asignados.
+ */
+export type SiguientePaso =
+  | { tipo: 'continuar'; caso: CatalogItem; intento: StudentAttemptSummary }
+  | { tipo: 'ficha'; caso: CatalogItem }
+  | { tipo: 'espera'; caso: CatalogItem }
+  | { tipo: 'terminado'; caso: CatalogItem; intento: StudentAttemptSummary | null };
+
+function termino(historial: readonly StudentAttemptSummary[], caso: CatalogItem): boolean {
+  return historial.some(intento => intento.caseVersionId === caso.caseVersionId && intento.status === 'COMPLETED');
+}
+
+/**
+ * El siguiente paso respeta el orden del catálogo (el desbloqueo es lineal) y nunca ofrece reemplazar un intento: lo
+ * abierto se continúa. Si hay varios intentos abiertos, gana el más reciente.
+ */
+export function siguientePaso(catalogo: readonly CatalogItem[], historial: readonly StudentAttemptSummary[]): SiguientePaso | null {
+  const ordenado = [...catalogo].sort((a, b) => a.order - b.order);
+  if (!ordenado.length) return null;
+  const abiertos = historial
+    .filter(intento => (intento.status === 'IN_PROGRESS' || intento.status === 'PAUSED') && ordenado.some(caso => caso.caseVersionId === intento.caseVersionId))
+    .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+  if (abiertos.length) {
+    return { tipo: 'continuar', caso: ordenado.find(caso => caso.caseVersionId === abiertos[0].caseVersionId)!, intento: abiertos[0] };
+  }
+  const pendientes = ordenado.filter(caso => !caso.completed && !termino(historial, caso));
+  const disponible = pendientes.find(caso => caso.unlocked);
+  if (disponible) return { tipo: 'ficha', caso: disponible };
+  if (pendientes.length) return { tipo: 'espera', caso: pendientes[0] };
+  const ultimo = historial
+    .filter(intento => intento.status === 'COMPLETED' && ordenado.some(caso => caso.caseVersionId === intento.caseVersionId))
+    .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())[0] ?? null;
+  const caso = ultimo ? ordenado.find(entrada => entrada.caseVersionId === ultimo.caseVersionId)! : ordenado[ordenado.length - 1];
+  return { tipo: 'terminado', caso, intento: ultimo };
 }

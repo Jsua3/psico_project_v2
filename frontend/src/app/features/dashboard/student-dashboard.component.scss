@@ -1,36 +1,30 @@
-// Panel del estudiante (plan visual F5-1): piel portal, solo tokens --ds-*, superficies con borde y sin sombras
-// duras, puntos de color ni bordes punteados (VD-3). Gráficos en SVG y HTML con los colores de estado de la piel;
-// el valor de cada barra entra como variable (`[style.--sd-ratio]`) y el relleno escala con transform.
-
-// minmax(0, 1fr): sin él, la tabla impone su ancho mínimo a la columna y la página desborda en un teléfono (la
-// tabla ya se desplaza dentro de ui-table).
+// Inicio del estudiante (DISENO §4.1): una página de lectura corta, centrada, con UN protagonista. El mismo ancho y
+// ritmo de la maquetación del portal (.p-pagina); el canal lateral ya lo pone el <main> del armazón.
 :host {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
   gap: var(--ds-space-6);
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: var(--l-ancho-pagina);
+  margin-inline: auto;
   color: var(--ds-text-1);
 }
 
-.sd-loading {
-  display: grid;
-  gap: var(--ds-space-5);
+// Los doodles son fijos y llegan hasta aquí por los ids: la cabecera se pone por encima para que el texto nunca quede detrás.
+.sd-cabecera {
+  position: relative;
+  z-index: var(--ds-z-base);
+  min-inline-size: 0;
 }
 
-.sd-stats {
+.sd-cargando {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
   gap: var(--ds-space-4);
 }
 
-.sd-charts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
-  gap: var(--ds-space-4);
-}
-
-// ── Continuar ───────────────────────────────────────────────────────────────────────────────────────────────────
-.sd-continue,
-.sd-invitations__card {
+// ── Invitaciones pendientes ───────────────────────────────────────────────────────────────────────────────────
+.sd-invitacion {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -38,155 +32,121 @@
   gap: var(--ds-space-4);
 }
 
-// E2-10: aviso de invitaciones a grupos sin responder (el anfitrión de ui-section queda en bloque).
-.sd-invitations__text {
-  flex: 1 1 18rem;
-  min-width: 0;
-  margin: 0;
+.sd-invitacion__texto {
+  flex: 1 1 16rem;
+  min-inline-size: 0;
 }
 
-.sd-continue__text {
-  display: grid;
-  gap: var(--ds-space-2);
-  min-width: 0;
-}
-
-.sd-continue__case {
+.sd-invitacion__titulo {
   margin: 0;
   font-size: var(--ds-type-h3-size);
   line-height: var(--ds-type-h3-line);
   font-weight: var(--ds-type-h3-weight);
 }
 
-.sd-continue__meta {
+.sd-invitacion__ayuda {
+  margin: var(--ds-space-1) 0 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+// ── Siguiente paso (el protagonista) ──────────────────────────────────────────────────────────────────────────
+// Dos columnas cuando caben; en el teléfono la portada va arriba y el texto debajo. `min-inline-size: 0` deja que la
+// portada (que se encoge con su contenedor) nunca ensanche la página.
+.sd-protagonista {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  gap: var(--ds-space-5) var(--ds-space-6);
+}
+
+.sd-protagonista__portada {
+  flex: 0 1 30rem;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+.sd-protagonista__contenido {
+  display: grid;
+  flex: 1 1 18rem;
+  justify-items: start;
   gap: var(--ds-space-3);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.sd-protagonista__titulo {
+  margin: 0;
+  font-size: var(--ds-type-h2-size);
+  line-height: var(--ds-type-h2-line);
+  font-weight: var(--ds-type-h2-weight);
+}
+
+.sd-protagonista__contexto {
   margin: 0;
   color: var(--ds-text-2);
-  font-size: var(--ds-type-body-s-size);
-  line-height: var(--ds-type-body-s-line);
+  font-size: var(--ds-type-lead-size);
 }
 
-// ── Gráficos ────────────────────────────────────────────────────────────────────────────────────────────────────
-.sd-chart {
+.sd-protagonista__accion {
+  margin-block-start: var(--ds-space-2);
+}
+
+// Sin acción (todo terminado y sin intento que mostrar) el hueco no deja un margen suelto.
+.sd-protagonista__accion:empty {
+  display: none;
+}
+
+// ── Listas de casos y de cierres ──────────────────────────────────────────────────────────────────────────────
+.sd-lista {
   display: grid;
-  align-content: start;
-  gap: var(--ds-space-3);
-  min-width: 0;
-}
-
-.sd-chart__title {
-  margin: 0;
-  font-size: var(--ds-type-body-size);
-  line-height: var(--ds-type-body-line);
-  font-weight: var(--ds-type-h3-weight);
-}
-
-.sd-chart__sub,
-.sd-chart__empty {
-  margin: 0;
-  color: var(--ds-text-2);
-  font-size: var(--ds-type-body-s-size);
-  line-height: var(--ds-type-body-s-line);
-}
-
-.sd-chart__empty {
-  padding-block: var(--ds-space-5);
-}
-
-.sd-bars,
-.sd-closings {
-  display: grid;
-  // Una sola columna que SÍ puede encogerse: sin esto el título de un caso largo, que no parte, ensancha la lista
-  // más allá de la tarjeta (7 px de desborde horizontal a 390 px).
-  grid-template-columns: minmax(0, 1fr);
   gap: var(--ds-space-3);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.sd-bar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas:
-    'label value'
-    'track track';
-  gap: var(--ds-space-1) var(--ds-space-3);
-  font-size: var(--ds-type-body-s-size);
-  line-height: var(--ds-type-body-s-line);
-}
-
-.sd-bar__label {
-  grid-area: label;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sd-bar__value {
-  grid-area: value;
-  color: var(--ds-text-2);
-  font-variant-numeric: tabular-nums;
-}
-
-.sd-bar__track {
-  grid-area: track;
-  height: 0.5rem;
-  border-radius: var(--ds-radius-pill);
-  background: var(--ds-surface-2);
-  overflow: hidden;
-}
-
-.sd-bar__fill {
-  display: block;
-  height: 100%;
-  background: var(--ds-primary);
-  transform: scaleX(var(--sd-ratio, 0));
-  transform-origin: left center;
-}
-
-// Últimos cierres: el caso (que se recorta) y su fecha, sin cifras.
-.sd-closing {
-  min-width: 0;
+.sd-fila {
   display: flex;
-  justify-content: space-between;
-  gap: var(--ds-space-3);
+  align-items: center;
+  gap: var(--ds-space-4);
+  min-block-size: var(--ds-target-min-strict);
+  min-inline-size: 0;
+  padding: var(--ds-space-3) var(--ds-space-4);
+  overflow-wrap: anywhere;
+}
+
+.sd-fila__texto {
+  display: grid;
+  flex: 1 1 auto;
+  gap: var(--ds-space-1);
+  min-inline-size: 0;
+}
+
+.sd-fila__titulo {
+  font-weight: var(--ds-type-h3-weight);
+}
+
+.sd-fila__meta {
+  color: var(--ds-text-2);
   font-size: var(--ds-type-body-s-size);
   line-height: var(--ds-type-body-s-line);
 }
 
-.sd-closing__case {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sd-closing__date {
-  flex: none;
+// Un caso bloqueado no lleva a ningún lado: se lee un poco más callado, pero conserva el contraste AA.
+.sd-fila--quieta .sd-fila__titulo {
   color: var(--ds-text-2);
 }
 
-// Con colores forzados los fondos desaparecen: el relleno se dibuja con el color del texto del sistema.
-@media (forced-colors: active) {
-  .sd-bar__fill {
-    background: CanvasText;
+.sd-ver-todos {
+  justify-self: start;
+  margin-block-start: var(--ds-space-3);
+}
+
+// En el teléfono la acción de un cierre baja a su propia línea, para no apretar el título.
+@media (max-width: 30rem) {
+  .sd-fila--cierre {
+    flex-wrap: wrap;
   }
-}
-
-// ── Historial reciente ──────────────────────────────────────────────────────────────────────────────────────────
-// En un teléfono la fecha y el estado no se parten letra a letra: la tabla se desplaza dentro de ui-table.
-.sd-nowrap {
-  white-space: nowrap;
-}
-
-.sd-case {
-  min-width: 10rem;
-}
-
-.sd-more {
-  margin: var(--ds-space-3) 0 0;
 }
