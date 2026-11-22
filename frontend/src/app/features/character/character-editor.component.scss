@@ -223,7 +223,9 @@
 
 // Una sola vista conserva los píxeles enteros y deja espacio para las opciones.
 .ce-grid { grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); }
-.ce-stage { position: sticky; top: var(--l-alto-barra, 6rem); box-shadow: var(--l-sombra-trabajo); }
+.ce-vista { display: grid; justify-items: center; gap: var(--ds-space-3); min-width: 0; position: sticky; top: var(--l-alto-barra, 6rem); }
+.ce-vista .ce-stage { justify-self: stretch; }
+.ce-stage { box-shadow: var(--l-sombra-trabajo); }
 .ce-preview { display: flex; align-items: center; justify-content: center; gap: var(--ds-space-3); }
 .ce-turn {
   min-width: var(--ds-target-min); min-height: var(--ds-target-min);
@@ -245,15 +247,18 @@
   padding: var(--ds-space-2) var(--ds-space-3); border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-lg); background: var(--ds-surface-1); box-shadow: var(--l-sombra-trabajo);
 }
-:host { padding-bottom: 7rem; }
+// Lo último (la nota de «Personalizado», «Sin bata / Con bata») nunca queda bajo la barra fija: se reserva su alto
+// (barra de dos filas de botones a lo sumo + su margen inferior + aire).
+:host { padding-bottom: calc(8rem + env(safe-area-inset-bottom)); }
+.ce-sin-cambios { color: var(--ds-text-2); font-size: var(--ds-type-body-s-size); }
 @media (max-width: 67.5rem) {
   .ce-grid { grid-template-columns: minmax(0, 1fr); }
-  .ce-stage { position: static; }
+  .ce-vista { position: static; }
 }
 // La navegación inferior vive hasta 63.999rem (glass-bar): el pie se sube sobre ella en todo ese intervalo.
 @media (max-width: 63.999rem) {
   .ce-footer { bottom: calc(var(--asb-alto-modulo-inferior, 4.5rem) + env(safe-area-inset-bottom)); }
-  :host { padding-bottom: 6rem; }
+  :host { padding-bottom: calc(var(--asb-alto-modulo-inferior, 4.5rem) + 9rem + env(safe-area-inset-bottom)); }
 }
 @media (max-width: 40rem) {
   .ce-stage { padding: var(--ds-space-3); gap: var(--ds-space-2); }
@@ -270,6 +275,7 @@
   .ce-summary { display: none; }
   .ce-actions { gap: var(--ds-space-1); }
   .ce-dirty:empty { display: none; }
+  .ce-footer--quieto { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .ce-option { transition: none; }

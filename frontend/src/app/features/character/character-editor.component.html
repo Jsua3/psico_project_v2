@@ -16,6 +16,9 @@
   }
 } @else {
   <div class="ce-grid">
+    <!-- La vista previa es una ventana al juego (piel «game», oscura en los dos temas, como el umbral); el control de
+         movimiento queda debajo, en la piel del portal, para leerse igual en claro y en oscuro. -->
+    <div class="ce-vista">
     <section class="ce-stage" data-skin="game" aria-label="Vista previa del personaje">
       <div class="ce-preview">
         <button class="ce-turn" type="button" aria-label="Girar a la izquierda" (click)="girar(-1)"><span aria-hidden="true">←</span></button>
@@ -26,16 +29,11 @@
         </figure>
         <button class="ce-turn" type="button" aria-label="Girar a la derecha" (click)="girar(1)"><span aria-hidden="true">→</span></button>
       </div>
-      <fieldset class="ce-group ce-group--inline">
-        <legend>Movimiento</legend>
-        <div class="ce-opts">
-          <label class="ce-option"><input type="radio" class="ce-radio" name="ce-motion" [checked]="motion() === 'idle'" (change)="motion.set('idle')" /><span>Reposo</span></label>
-          <label class="ce-option"><input type="radio" class="ce-radio" name="ce-motion" [checked]="motion() === 'walk'" (change)="motion.set('walk')" /><span>Caminata</span></label>
-        </div>
-      </fieldset>
       <p class="ce-help">Así te verán en el simulador. No afecta tu evaluación.</p>
       <p class="ds-sr-only">{{ summary() }}</p>
     </section>
+    <ui-segmentado etiqueta="Movimiento" [opciones]="movimientos" [valor]="motion()" (valorChange)="elegirMovimiento($event)" />
+    </div>
     <ui-card class="ce-panel">
       <fieldset class="ce-group">
         <legend>Elige tu personaje</legend>
@@ -43,13 +41,13 @@
           @for (member of cast(); track member.id) {
             <label class="ce-option ce-option--figure">
               <input type="radio" class="ce-radio" name="ce-elenco" [checked]="isElenco(member.id)" (change)="selectElenco(member.id)" />
-              <app-kit-figure [visual]="member.visual" [scale]="1" />
+              <app-kit-figure [visual]="member.visual" [scale]="2" />
               <span>{{ member.label }}</span>
             </label>
           }
           <label class="ce-option ce-option--figure">
             <input type="radio" class="ce-radio" name="ce-elenco" [checked]="!!custom()" (change)="selectPersonalizado()" />
-            <app-kit-figure [visual]="customVisual()" [scale]="1" />
+            <app-kit-figure [visual]="customVisual()" [scale]="2" />
             <span>Personalizado</span>
           </label>
         </div>
@@ -133,8 +131,10 @@
   </div>
 }
 
-<footer class="ce-footer">
-  <p class="ce-dirty" role="status">@if (dirty()) {<ui-badge tone="warning">Cambios sin guardar</ui-badge>}</p>
+<!-- En el móvil la barra solo aparece con cambios sin guardar (o con un destino al que volver): así no se apilan dos franjas
+     sobre el elenco. A la izquierda, el estado en palabras (role=status lo anuncia al cambiar). -->
+<footer class="ce-footer" [class.ce-footer--quieto]="!dirty() && !destino()">
+  <p class="ce-dirty" role="status">@if (dirty()) {<ui-badge tone="warning">Cambios sin guardar</ui-badge>} @else {<span class="ce-sin-cambios">Sin cambios</span>}</p>
   <div class="ce-actions">
     <button ui-button type="button" variant="ghost" (click)="restablecer()">Restablecer</button>
     @if (destino()) {

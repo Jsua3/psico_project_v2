@@ -79,7 +79,8 @@ describe('CharacterEditorComponent', () => {
     expect(radios).toHaveLength(13);
     expect(new Set(radios.map(item => item.name)).size).toBe(1);
     expect(radios.filter(item => item.checked)).toHaveLength(1);
-    expect(host().querySelector('[role="radio"], [role="radiogroup"]')).toBeNull();
+    // El elenco y las opciones son radios nativos; el único radiogroup con ARIA es el segmentado de Movimiento (C5).
+    expect(host().querySelector('.ce-panel')!.querySelector('[role="radio"], [role="radiogroup"]')).toBeNull();
 
     radio('Elige tu personaje', DAVID).click();
     await fixture.whenStable();
@@ -99,14 +100,14 @@ describe('CharacterEditorComponent', () => {
 
   it('«Cambios sin guardar» se ve tras un cambio y desaparece al guardar', async () => {
     await render();
-    expect(status()).toBe('');
+    expect(status()).toBe('Sin cambios');
     radio('Elige tu personaje', DAVID).click();
     await fixture.whenStable();
     expect(status()).toBe('Cambios sin guardar');
 
     button('Guardar').click();
     await fixture.whenStable();
-    expect(status()).toBe('');
+    expect(status()).toBe('Sin cambios');
     expect(success).toHaveBeenCalledWith('Personaje guardado.');
   });
 

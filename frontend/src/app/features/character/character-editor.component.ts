@@ -13,6 +13,7 @@ import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { loadingPhase } from '../../shared/ui/skeleton/loading-phase';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { UiTooltip } from '../../shared/ui/tooltip/ui-tooltip';
+import { UiSegmento, UiSegmentado } from '../../shared/ui/segmentado/ui-segmentado';
 import { CanLeave } from '../../core/navigation/can-leave.guard';
 import { AvatarStore } from './avatar.store';
 import { avatarSummary, chooseElenco, choosePersonalizado, toggleAccessory, withBata, withCustom } from './character-editor.util';
@@ -41,7 +42,7 @@ import { confirmLeaveEditor } from './leave-editor';
  */
 @Component({
   selector: 'app-character-editor',
-  imports: [KitFigureComponent, UiBadge, UiButton, UiCard, UiErrorState, UiPageHeader, UiSkeleton, UiTooltip],
+  imports: [KitFigureComponent, UiBadge, UiButton, UiCard, UiErrorState, UiPageHeader, UiSegmentado, UiSkeleton, UiTooltip],
   templateUrl: './character-editor.component.html',
   styleUrl: './character-editor.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -61,6 +62,11 @@ export class CharacterEditorComponent implements CanLeave {
   readonly bundle = this.kit.bundle;
   readonly loadError = signal(false);
   readonly motion = signal<'idle' | 'walk'>('idle');
+  /** Reposo / Caminata con el segmentado común (DISENO C5), no dos opciones sueltas (pasada final, observación del líder). */
+  protected readonly movimientos: readonly UiSegmento[] = [{ valor: 'idle', etiqueta: 'Reposo' }, { valor: 'walk', etiqueta: 'Caminata' }];
+  protected elegirMovimiento(valor: string): void {
+    this.motion.set(valor === 'walk' ? 'walk' : 'idle');
+  }
   readonly viewIndex = signal(0);
   // Solo se admiten destinos conocidos del portal, para no navegar a una URL arbitraria.
   readonly destino = computed(() => {
