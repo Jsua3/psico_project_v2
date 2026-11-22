@@ -219,4 +219,65 @@ describe('MapaEscenasComponent', () => {
     expect(menuitems()).toEqual([]);
     expect(raiz.querySelector('[role="status"]')!.textContent).toContain('Primero elige una escena en el mapa.');
   });
+
+  // req: EDITOR.md §7.3 E1, criterios 5 y 7
+  it('E1 · una sala sin fondo dibujado no deja una imagen con src vacío en el globo', async () => {
+    const { fixture, caso, raiz } = await montar();
+    fixture.componentRef.setInput('caso', { ...caso, salas: caso.salas.map((s) => ({ ...s, fondo: '' })) });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    nodo(raiz, 0).dispatchEvent(new MouseEvent('mouseenter'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const vista = raiz.querySelector('[role="tooltip"]')!;
+    expect(vista).not.toBeNull();
+    expect(vista.querySelector('img')).toBeNull();
+    expect([...raiz.querySelectorAll('img')].every((i) => !!i.getAttribute('src'))).toBe(true);
+  });
+
+  it('E1 · el menú «Acciones» lleva la piel de quien lo abre (oscuro en oscuro), sin tocar body', async () => {
+    const contenedor = document.createElement('section');
+    contenedor.setAttribute('data-skin', 'game');
+    document.body.appendChild(contenedor);
+    const { fixture, raiz } = await montar();
+    contenedor.appendChild(raiz);
+    nodo(raiz, 0).dispatchEvent(new KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(document.querySelector('.cdk-overlay-container [role="menu"]')!.getAttribute('data-skin')).toBe('game');
+    expect(menuitems()).toContain('Marcar como final');
+    contenedor.remove();
+    expect(document.body.hasAttribute('data-skin')).toBe(false);
+  });
+
+  it('E1 · los números de las tarjetas son los del orden de la historia (los del riel)', async () => {
+    const { fixture, caso, raiz } = await montar();
+    // La segunda escena del arreglo es el inicio: el número sigue a la historia, no al arreglo.
+    const volver = { id: 'r2', texto: 'Volver', clase: 'RECOMMENDED' as const, razon: '', efectos: {}, retroalimentacion: '', destinoId: caso.escenas[0].id, marcaIa: false };
+    fixture.componentRef.setInput('caso', {
+      ...caso, inicioId: caso.escenas[1].id,
+      escenas: [{ ...caso.escenas[0], respuestas: [] }, { ...caso.escenas[1], respuestas: [volver] }],
+    });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(nodo(raiz, 0).querySelector('.numero')!.textContent).toBe('2');
+    expect(nodo(raiz, 1).querySelector('.numero')!.textContent).toBe('1');
+  });
+
+  it('E1 · «Teclas del mapa» abre la ayuda en un globo y Esc lo pliega; la ayuda sigue describiendo el mapa', async () => {
+    const { fixture, raiz } = await montar();
+    const boton = raiz.querySelector<HTMLButtonElement>('button[aria-label="Teclas del mapa"]')!;
+    const ayuda = raiz.querySelector<HTMLElement>('#mapa-ayuda')!;
+    expect(ayuda.hidden).toBe(true);
+    expect(raiz.querySelector('.plano')!.getAttribute('aria-describedby')).toBe('mapa-ayuda');
+    boton.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(boton.getAttribute('aria-expanded')).toBe('true');
+    expect(ayuda.hidden).toBe(false);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(ayuda.hidden).toBe(true);
+  });
 });

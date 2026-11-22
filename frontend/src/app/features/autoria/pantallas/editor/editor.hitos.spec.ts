@@ -48,15 +48,26 @@ describe('EditorComponent · hitos del caso e intensidad de las escenas', () => 
     expect(valorarFila.textContent).toContain('Decide el final'); // el catálogo trae «Valorar el riesgo» como decisivo
   });
 
-  it('un hito que ninguna respuesta marca avisa que es inalcanzable, con «Llévame ahí», también en «Por resolver»', async () => {
-    const { raiz, caso } = await montar();
+  // E1: el aviso del hito sale cuando ya es algo por corregir (no quedan escenas por escribir y algún hito está marcado).
+  // La lista «Por resolver» del lateral se fue a la hoja «Pendientes» del marco (E0), que tiene su propia prueba.
+  it('un hito que ninguna respuesta marca avisa que es inalcanzable, con «Llévame ahí»', async () => {
+    const { raiz, store, caso, listo } = await montar();
+    const escrito = structuredClone(store.caso()!);
+    for (const e of escrito.escenas) e.lineas = [{ id: `l-${e.id}`, personajeId: escrito.personajes[0].id, texto: 'Hola', expresion: 'neutral', marcaIa: false }];
+    store.fijar(escrito);
+    await listo();
     const informar = caso.hitos.find((h) => h.clave === 'informar_derechos')!;
     const fila = raiz.querySelector<HTMLElement>(`li.hito[id="hito-${informar.clave}"]`)!;
     expect(fila.textContent).toContain(`El hito «${informar.nombre}» no se puede cumplir: ninguna respuesta lo marca.`);
     expect(fila.querySelector('button')!.textContent!.trim()).toBe('Llévame ahí');
-    const avisos = [...raiz.querySelectorAll<HTMLElement>('section.avisos li')].map((li) => li.textContent!.replace(/\s+/g, ' '));
-    expect(avisos.some((t) => t.includes('Por resolver') && t.includes(`El hito «${informar.nombre}» no se puede cumplir`))).toBe(true);
     expect(raiz.querySelector('li.hito[id="hito-valorar_el_riesgo"] .aviso-hito')).toBeNull(); // el que sí se cumple no avisa
+  });
+
+  it('E1 · con escenas por escribir, un hito sin marcar no se muestra como aviso (es trabajo pendiente)', async () => {
+    const { raiz, caso } = await montar();
+    const informar = caso.hitos.find((h) => h.clave === 'informar_derechos')!;
+    expect(raiz.querySelector(`li.hito[id="hito-${informar.clave}"] .aviso-hito`)).toBeNull();
+    expect(raiz.querySelector(`li.hito[id="hito-${informar.clave}"]`)!.textContent).toContain('Ninguna respuesta lo marca todavía.');
   });
 
   it('cada escena muestra su intensidad con palabras, no solo con color', async () => {

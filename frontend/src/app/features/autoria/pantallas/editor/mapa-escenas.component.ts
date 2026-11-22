@@ -1,13 +1,14 @@
 import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
 import {
-  ChangeDetectionStrategy, Component, ElementRef, Injector, TemplateRef, afterNextRender, computed, effect, inject, input, output,
-  signal, viewChild,
+  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, TemplateRef, afterNextRender, computed, effect, inject, input,
+  output, signal, viewChild,
 } from '@angular/core';
 
 import { rutaArte } from '../../modelo/biblioteca.service';
 import { NOMBRE_AVISO, type Aviso } from '../../modelo/caminos';
-import { NOMBRE_INTENSIDAD, plural } from '../../modelo/textos';
 import type { CasoBorrador, Escena } from '../../modelo/caso';
+import { escenasEnOrden } from '../../modelo/progreso';
+import { NOMBRE_INTENSIDAD, plural } from '../../modelo/textos';
 import { ALTO_ESCENA, ANCHO_ESCENA } from '../../modelo/trazado';
 
 export type AccionEscena =
@@ -27,15 +28,38 @@ interface Flecha {
   deElegida: boolean;
 }
 
+interface Punto { x: number; y: number }
+
 const MARGEN = 32;
 const PASO_MOVER = 24;
+const ZOOM_MIN = 0.4;
+const ZOOM_MAX = 1.5;
+/**
+ * Por debajo de este zoom la tarjeta pasa a su forma compacta (número, marcas y título grande). EDITOR.md §4.2 dice 60 %,
+ * pero a 60 % el texto de 16 px se ve a 9,6 px: ilegible igual. A 75 % queda en 12 px, el mínimo que se lee (D-38).
+ */
+const UMBRAL_COMPACTO = 0.75;
+/** Alto mínimo del lienzo: con menos no se ven ni dos filas de escenas. */
+const ALTO_MINIMO = 320;
+/** Píxeles de pantalla que «Ver todo» deja libres entre el caso y el borde del lienzo (repartidos a los dos lados). */
+const AIRE = 48;
 
 /**
- * Mapa de escenas (tablero 25): cada escena es una tarjeta, cada respuesta una flecha.
- * Al pasar el cursor o enfocar una escena se ve su sala, y al hacerlo con una respuesta, qué dice y a dónde lleva (estados de
- * atención, tablero 50). Esc pliega lo que se muestra sin quitar el foco ni el cursor de donde están (WCAG 1.4.13); volver a
- * entrar o a enfocar lo muestra otra vez. Las acciones están en el clic derecho, en Mayús+F10 o la tecla de menú, y en el
- * botón «Acciones».
+ * Mapa de escenas, la vista «Caminos» (tablero 25 y EDITOR.md §4.2, regla 6): cada escena es una tarjeta, cada respuesta
+ * una flecha.
+ *
+ * Patrón: componente de presentación (Composite del editor). Recibe el caso y los avisos, y cuenta lo que pasa por sus
+ * salidas; no conoce el store. Lo único que mide es su propio lienzo.
+ *
+ * - Ocupa todo el alto que le deja la zona central y, al abrirse, se ajusta solo para que se vea el caso entero («Ver todo
+ *   el mapa», sin guardar posiciones). Si la ventana cambia y la docente no tocó el zoom, se vuelve a ajustar.
+ * - Por debajo del 75 % las tarjetas pasan a su forma compacta; el título completo va en el globo y en el nombre accesible.
+ * - Los números son los del orden de la historia: los mismos del riel y de «Escena 2 de 8».
+ * - Al pasar el cursor o enfocar una escena se ve su sala, y al hacerlo con una respuesta, qué dice y a dónde lleva (estados
+ *   de atención, tablero 50). Esos globos viven fuera de la escala: se leen igual a cualquier zoom. Esc los pliega sin
+ *   quitar el foco ni el cursor de donde están (WCAG 1.4.13).
+ * - Las acciones están en el clic derecho, en Mayús+F10 o la tecla de menú, y en el botón «Acciones». El menú se pinta
+ *   fuera del marco (capa del CDK): lleva la piel de quien lo abre, para salir oscuro en oscuro (§4.7).
  */
 @Component({
   selector: 'app-mapa-escenas',
@@ -44,21 +68,36 @@ const PASO_MOVER = 24;
   host: { '(document:keydown.escape)': 'plegarAtencion()' },
   template: `
     <div class="barra">
-      <p id="mapa-ayuda" class="texto-secundario">
-        Mapa del caso: {{ plural(caso().escenas.length, 'escena', 'escenas') }}. Con el foco en una escena, las flechas van a la escena conectada;
-        <kbd>Enter</kbd> abre su guion; <kbd>Mayús</kbd>+<kbd>F10</kbd> abre las acciones.
-      </p>
-      <div class="acciones">
+      <div class="grupo">
         <button type="button" class="boton" data-accion="conectar-escenas marcar-final" [cdkMenuTriggerFor]="elegidaEscena() ? menu : null"
                 #trigger="cdkMenuTriggerFor" (click)="!elegidaEscena() && pista.set('Primero elige una escena en el mapa.')"
                 [attr.aria-label]="elegidaEscena() ? 'Acciones de la escena ' + elegidaEscena()!.titulo : 'Acciones de la escena'"
                 [attr.aria-disabled]="elegidaEscena() ? null : 'true'">Acciones</button>
-        <div role="group" aria-label="Zoom del mapa" class="acciones">
+        <!-- Lo que el editor agrega a la barra (agregar una escena, ordenar el mapa). -->
+        <ng-content />
+      </div>
+      <div class="grupo">
+        <div class="teclas-ancla">
+          <button type="button" class="boton cuadrado" aria-label="Teclas del mapa" title="Teclas del mapa" aria-controls="mapa-ayuda"
+                  [attr.aria-expanded]="tecladoAbierto()" (click)="tecladoAbierto.set(!tecladoAbierto())">
+            <svg class="icono" viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="5" width="16" height="10" rx="2" /><path d="M5 8.5h1M8.5 8.5h1M12 8.5h1M15 8.5h0M6.5 12h7" /></svg>
+          </button>
+          <!-- La ayuda existe siempre (describe el mapa para el lector); a la vista solo cuando se pide. -->
+          <div id="mapa-ayuda" class="globo-teclas" [hidden]="!tecladoAbierto()">
+            <p>Mapa del caso: {{ plural(caso().escenas.length, 'escena', 'escenas') }}.</p>
+            <ul>
+              <li><kbd>←</kbd> <kbd>→</kbd> van a la escena conectada; <kbd>↑</kbd> <kbd>↓</kbd>, a la anterior o la siguiente de la historia.</li>
+              <li><kbd>Enter</kbd> abre su guion; <kbd>Supr</kbd> la borra.</li>
+              <li><kbd>Mayús</kbd>+<kbd>F10</kbd> abre sus acciones; <kbd>Ctrl</kbd> y la rueda acercan o alejan.</li>
+            </ul>
+          </div>
+        </div>
+        <div role="group" aria-label="Zoom del mapa" class="zoom-grupo">
           <button type="button" class="boton cuadrado" aria-label="Alejar" (click)="zoomar(-0.1)">−</button>
           <span class="zoom">{{ porcentaje() }} %</span>
           <button type="button" class="boton cuadrado" aria-label="Acercar" (click)="zoomar(0.1)">+</button>
-          <button type="button" class="boton" (click)="verTodo()">Ver todo el mapa</button>
         </div>
+        <button type="button" class="boton" aria-label="Ver todo el mapa" (click)="verTodo()">Ver todo</button>
       </div>
     </div>
 
@@ -79,70 +118,78 @@ const PASO_MOVER = 24;
       </div>
     }
 
-    <!-- En solo lectura las escenas quedan deshabilitadas (fieldset del editor): el mapa mismo toma el foco para desplazarlo con el teclado. -->
-    <div class="marco" #marco (wheel)="rueda($event)" (keydown.escape)="vista.set(null)"
-         [attr.tabindex]="soloLectura() ? 0 : null" [attr.role]="soloLectura() ? 'region' : null"
-         [attr.aria-label]="soloLectura() ? 'Mapa del caso (solo lectura): desplázalo con las flechas' : null">
-      <div class="plano" role="group" aria-label="Mapa del caso" aria-describedby="mapa-ayuda"
-           [style.width.px]="limites().ancho * zoom()" [style.height.px]="limites().alto * zoom()">
-        <div class="escala" [style.transform]="'scale(' + zoom() + ')'" [style.width.px]="limites().ancho" [style.height.px]="limites().alto">
-          <svg class="flechas" [attr.width]="limites().ancho" [attr.height]="limites().alto" aria-hidden="false">
-            <defs>
-              <marker id="punta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-                <path d="M0,0 L10,5 L0,10 z" fill="#6B7C84" />
-              </marker>
-              <marker id="punta-elegida" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-                <path d="M0,0 L10,5 L0,10 z" fill="#0B5563" />
-              </marker>
-            </defs>
-            @for (f of flechas(); track f.id) {
-              <path class="flecha" [class.de-elegida]="f.deElegida" [attr.d]="f.d" tabindex="0" role="img"
-                    [attr.marker-end]="f.deElegida ? 'url(#punta-elegida)' : 'url(#punta)'"
-                    [attr.aria-label]="'Respuesta: ' + (f.texto || 'sin escribir')"
-                    (mouseenter)="flechaActiva.set(f.id)" (mouseleave)="flechaActiva.set(null)"
-                    (focus)="flechaActiva.set(f.id)" (blur)="flechaActiva.set(null)" />
+    <div class="lienzo" #lienzo [style.block-size.px]="altoLienzo()">
+      <!-- En solo lectura las escenas quedan deshabilitadas (fieldset del editor): el mapa mismo toma el foco para desplazarlo con el teclado. -->
+      <div class="marco" #marco (wheel)="rueda($event)" (keydown.escape)="vista.set(null)"
+           [attr.tabindex]="soloLectura() ? 0 : null" [attr.role]="soloLectura() ? 'region' : null"
+           [attr.aria-label]="soloLectura() ? 'Mapa del caso (solo lectura): desplázalo con las flechas' : null">
+        <div class="plano" role="group" aria-label="Mapa del caso" aria-describedby="mapa-ayuda" [class.compacto]="compacto()"
+             [style.width.px]="limites().ancho * zoom()" [style.height.px]="limites().alto * zoom()"
+             [style.margin-inline-start.px]="desfase().x" [style.margin-block-start.px]="desfase().y">
+          <div class="escala" [style.transform]="'scale(' + zoom() + ')'" [style.width.px]="limites().ancho" [style.height.px]="limites().alto">
+            <svg class="flechas" [attr.width]="limites().ancho" [attr.height]="limites().alto" aria-hidden="false" [style.--zoom]="zoom()">
+              <defs>
+                <marker id="punta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                  <path class="punta" d="M0,0 L10,5 L0,10 z" />
+                </marker>
+                <marker id="punta-elegida" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                  <path class="punta punta-elegida" d="M0,0 L10,5 L0,10 z" />
+                </marker>
+              </defs>
+              @for (f of flechas(); track f.id) {
+                <path class="flecha" [class.de-elegida]="f.deElegida" [attr.d]="f.d" tabindex="0" role="img"
+                      [attr.marker-end]="f.deElegida ? 'url(#punta-elegida)' : 'url(#punta)'"
+                      [attr.aria-label]="'Respuesta: ' + (f.texto || 'sin escribir')"
+                      (mouseenter)="flechaActiva.set(f.id)" (mouseleave)="flechaActiva.set(null)"
+                      (focus)="flechaActiva.set(f.id)" (blur)="flechaActiva.set(null)" />
+              }
+            </svg>
+
+            @for (e of caso().escenas; track e.id) {
+              <button type="button" class="escena" [attr.data-escena]="e.id"
+                      [class.elegida]="elegida() === e.id" [class.final]="e.esFinal" [class.con-aviso]="avisosDe(e.id).length" [class.marca-ia]="e.marcaIa"
+                      [style.left.px]="pos(e).x" [style.top.px]="pos(e).y" [attr.tabindex]="tabParada() === e.id ? 0 : -1"
+                      [attr.aria-pressed]="elegida() === e.id"
+                      (click)="elegir(e.id)" (dblclick)="abrirGuion.emit(e.id)"
+                      (contextmenu)="menuContextual($event, e.id)" (keydown)="tecla($event, e)"
+                      (mouseenter)="vista.set(e.id)" (mouseleave)="vista.set(null)" (focus)="vista.set(e.id)" (blur)="vista.set(null)">
+                <!-- El nombre de la tarjeta es su propio texto (lo que se ve) más un final que solo oye el lector. -->
+                <span class="cabeza-tarjeta">
+                  <span class="numero">{{ numero(e.id) }}</span>
+                  <span class="etiquetas">
+                    @if (caso().inicioId === e.id) { <span class="pildora pildora-primaria">Inicio</span> }
+                    @if (e.esFinal) { <span class="pildora pildora-adecuada">Final</span> }
+                    @if (e.marcaIa) { <span class="pildora pildora-ia">IA</span> }
+                    @if (avisosDe(e.id).length === 1) {
+                      <span class="pildora aviso">⚠ {{ nombreAviso[avisosDe(e.id)[0].tipo] }}</span>
+                    } @else if (avisosDe(e.id).length > 1) {
+                      <span class="pildora aviso">⚠ {{ avisosDe(e.id).length }} avisos</span>
+                    }
+                  </span>
+                </span>
+                <span class="titulo">{{ e.titulo }}</span>
+                <span class="sala texto-secundario">{{ nombreSala(e.salaId) }}</span>
+                <span class="intensidad-marca" [attr.data-intensidad]="e.intensidad">
+                  <span aria-hidden="true">{{ simboloIntensidad[e.intensidad] }}</span> Intensidad {{ nombreIntensidad[e.intensidad].toLowerCase() }}
+                </span>
+                <span class="solo-lector">{{ detalle(e) }}</span>
+              </button>
             }
-          </svg>
+          </div>
 
-          @for (e of caso().escenas; track e.id; let i = $index) {
-            <button type="button" class="escena" [attr.data-escena]="e.id"
-                    [class.elegida]="elegida() === e.id" [class.final]="e.esFinal" [class.con-aviso]="avisosDe(e.id).length" [class.marca-ia]="e.marcaIa"
-                    [style.left.px]="pos(e).x" [style.top.px]="pos(e).y" [attr.tabindex]="tabParada() === e.id ? 0 : -1"
-                    [attr.aria-pressed]="elegida() === e.id"
-                    (click)="elegir(e.id)" (dblclick)="abrirGuion.emit(e.id)"
-                    (contextmenu)="menuContextual($event, e.id)" (keydown)="tecla($event, e)"
-                    (mouseenter)="vista.set(e.id)" (mouseleave)="vista.set(null)" (focus)="vista.set(e.id)" (blur)="vista.set(null)">
-              <!-- El nombre de la tarjeta es su propio texto (lo que se ve) más un final que solo oye el lector. -->
-              <span class="etiquetas">
-                @if (caso().inicioId === e.id) { <span class="pildora pildora-primaria">Inicio</span> }
-                @if (e.esFinal) { <span class="pildora pildora-adecuada">Final</span> }
-                @if (e.marcaIa) { <span class="pildora">Sugerido por la IA</span> }
-                @if (avisosDe(e.id).length === 1) {
-                  <span class="pildora aviso">⚠ {{ nombreAviso[avisosDe(e.id)[0].tipo] }}</span>
-                } @else if (avisosDe(e.id).length > 1) {
-                  <span class="pildora aviso">⚠ {{ avisosDe(e.id).length }} avisos</span>
-                }
-              </span>
-              <span class="titulo">{{ i + 1 }} · {{ e.titulo }}</span>
-              <span class="sala texto-secundario">{{ nombreSala(e.salaId) }}</span>
-              <span class="intensidad-marca" [attr.data-intensidad]="e.intensidad">
-                <span aria-hidden="true">{{ simboloIntensidad[e.intensidad] }}</span> Intensidad {{ nombreIntensidad[e.intensidad].toLowerCase() }}
-              </span>
-              <span class="solo-lector">{{ detalle(e, i) }}</span>
-            </button>
-          }
-
+          <!-- Los globos van fuera de la escala, en píxeles de pantalla: a 50 % se leen igual que a 100 %. -->
           @if (vistaEscena(); as v) {
-            <div class="vista tarjeta" role="tooltip" [attr.id]="'vista-' + v.escena.id"
-                 [style.left.px]="pos(v.escena).x" [style.top.px]="pos(v.escena).y + altoEscena + 8">
-              <img class="pixel" [src]="v.fondo" alt="" width="960" height="528" />
-              <strong>{{ v.sala }}</strong>
+            <div class="vista" role="tooltip" [attr.id]="'vista-' + v.escena.id" [class.arriba]="v.arriba"
+                 [style.left.px]="v.x" [style.top.px]="v.y">
+              @if (v.fondo) { <img class="pixel" [src]="v.fondo" alt="" width="960" height="528" /> }
+              <strong>{{ v.titulo }}</strong>
+              <span>{{ v.sala }}</span>
               <span class="texto-secundario">{{ v.resumen }}</span>
             </div>
           }
 
           @if (flechaElegida(); as f) {
-            <div class="tarjeta-flecha" role="status" [style.left.px]="f.medio.x" [style.top.px]="f.medio.y">
+            <div class="tarjeta-flecha" role="status" [style.left.px]="f.medio.x * zoom()" [style.top.px]="f.medio.y * zoom()">
               <strong>{{ f.texto || 'Respuesta sin escribir' }}</strong>
               <span class="hacia">{{ f.hacia }}</span>
             </div>
@@ -150,18 +197,18 @@ const PASO_MOVER = 24;
         </div>
       </div>
 
+      @if (desborda()) {
+        <svg class="minivista" viewBox="0 0 160 90" role="img" aria-label="Minivista del mapa">
+          @for (e of caso().escenas; track e.id) {
+            <rect [class.elegida]="elegida() === e.id" [attr.x]="mini(e).x" [attr.y]="mini(e).y" [attr.width]="mini(e).w" [attr.height]="mini(e).h" />
+          }
+        </svg>
+      }
     </div>
 
-    <svg class="minivista" viewBox="0 0 160 90" role="img" aria-label="Minivista del mapa">
-      @for (e of caso().escenas; track e.id) {
-        <rect [attr.x]="mini(e).x" [attr.y]="mini(e).y" [attr.width]="mini(e).w" [attr.height]="mini(e).h"
-              [attr.fill]="elegida() === e.id ? '#0B5563' : '#CBD5D8'" />
-      }
-    </svg>
-
-
     <ng-template #menu>
-      <div cdkMenu class="menu" aria-label="Acciones de la escena">
+      <!-- La capa del CDK vive fuera del editor: la piel se lee de quien abre el menú, como en UiDialog (C13). -->
+      <div cdkMenu class="menu" [attr.data-skin]="piel()" aria-label="Acciones de la escena">
         <button cdkMenuItem class="item" (cdkMenuItemTriggered)="abrirGuion.emit(elegida()!)">Abrir guion <kbd>Enter</kbd></button>
         @if (elegidaEscena()?.salaId; as salaId) {
           <button cdkMenuItem class="item" (cdkMenuItemTriggered)="abrirSala.emit(salaId)">Abrir sala</button>
@@ -178,60 +225,146 @@ const PASO_MOVER = 24;
     </ng-template>
   `,
   styles: `
-    :host { display: flex; flex-direction: column; gap: 8px; position: relative; min-width: 0; }
-    .barra { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
-    .barra p { margin: 0; font-size: var(--autoria-texto-16); line-height: 24px; flex: 1 1 320px; }
-    .cuadrado { width: 48px; padding: 0; }
-    .zoom { min-width: 56px; text-align: center; font-size: var(--autoria-texto-16); }
-    .marco { position: relative; overflow: auto; height: 460px; border: 1px solid var(--linea); border-radius: 12px; background: var(--fondo-hundido); }
+    :host { display: flex; flex-direction: column; gap: 0.5rem; position: relative; min-inline-size: 0; }
+    .barra { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; justify-content: space-between; }
+    .grupo { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem 0.75rem; }
+    .zoom-grupo { display: flex; align-items: center; gap: 0.25rem; }
+    .boton[aria-expanded='true'] { background: var(--l-tinte); border-color: var(--l-tinte-filo); }
+    .boton[aria-disabled='true'] { color: var(--ds-text-2); cursor: not-allowed; }
+    .cuadrado { inline-size: 3rem; padding: 0; font-size: var(--autoria-texto-20); }
+    .icono { inline-size: 1.25rem; block-size: 1.25rem; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+    .zoom { min-inline-size: 3.25rem; text-align: center; font-size: var(--autoria-texto-16); font-variant-numeric: tabular-nums; color: var(--ds-text-2); }
+
+    .teclas-ancla { position: relative; }
+    .globo-teclas {
+      position: absolute; z-index: var(--autoria-capa-4); inset-block-start: calc(100% + 0.5rem); inset-inline-start: 0;
+      inline-size: min(26rem, 80vw); padding: 0.875rem 1rem; border: 1px solid var(--l-filo-fuerte); border-radius: var(--l-radio-control);
+      background: color-mix(in oklab, var(--l-superficie) 96%, transparent); box-shadow: var(--l-sombra-alta); color: var(--ds-text-1);
+      font-size: var(--autoria-texto-16); line-height: 1.5rem;
+    }
+    .globo-teclas[hidden] { display: none; }
+    .globo-teclas p { margin: 0 0 0.375rem; font-weight: 700; }
+    .globo-teclas ul { margin: 0; padding-inline-start: 1.125rem; display: flex; flex-direction: column; gap: 0.25rem; }
+
+    /* El lienzo: alto medido (ocupa lo que deja la zona central); en el teléfono, uno fijo y legible. */
+    .lienzo { position: relative; block-size: 26rem; min-block-size: 20rem; }
+    .marco {
+      position: absolute; inset: 0; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--l-filo-fuerte);
+      border-radius: var(--l-radio-tarjeta); background-color: var(--l-superficie-hundida);
+      /* Retícula de puntos: el papel cuadriculado del juego, apenas visible. */
+      background-image: radial-gradient(circle, var(--l-filo-fuerte) 1px, transparent 1.5px);
+      background-size: 1.5rem 1.5rem;
+    }
     .plano { position: relative; }
-    .escala { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+    .escala { position: absolute; inset-inline-start: 0; inset-block-start: 0; transform-origin: 0 0; }
     .flechas { position: absolute; inset: 0; overflow: visible; }
-    .flecha { fill: none; stroke: var(--borde-control); stroke-width: 2.5; cursor: pointer; }
-    .flecha.de-elegida { stroke: var(--primario); stroke-width: 3.5; }
-    .flecha:focus-visible { outline: none; stroke: var(--foco); stroke-width: 5; }
+    /* El grosor se divide por el zoom: la flecha se ve de 2 px (3 la elegida) a cualquier escala, nunca un hilo de 1 px. */
+    .flecha { fill: none; stroke: var(--borde-control); stroke-width: calc(2px / var(--zoom, 1)); cursor: pointer; }
+    .flecha.de-elegida { stroke: var(--ds-primary); stroke-width: calc(3px / var(--zoom, 1)); }
+    .flecha:focus-visible { outline: none; stroke: var(--ds-focus); stroke-width: calc(4px / var(--zoom, 1)); }
+    .punta { fill: var(--borde-control); }
+    .punta-elegida { fill: var(--ds-primary); }
+
     .escena {
       position: absolute; width: ${ANCHO_ESCENA}px; height: ${ALTO_ESCENA}px; display: flex; flex-direction: column; align-items: flex-start;
-      gap: 2px; padding: 8px 10px; text-align: left; font: inherit; color: var(--tinta); background: var(--superficie);
-      border: 2px solid var(--borde-control); border-radius: 12px; cursor: pointer; overflow: hidden;
+      gap: 0.25rem; padding: 0.625rem 0.75rem; text-align: start; font: inherit; color: var(--ds-text-1); background: var(--l-superficie);
+      border: 2px solid var(--l-filo-fuerte); border-radius: var(--l-radio-control); cursor: pointer; overflow: hidden;
+      box-shadow: var(--l-sombra-trabajo);
+      transition: border-color var(--ds-dur-fade) var(--ds-ease-out), box-shadow var(--ds-dur-fade) var(--ds-ease-out);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .escena:hover { border-color: var(--borde-control); }
     }
     .escena:active { scale: 0.98; }
-    .escena.elegida { border: 3px solid var(--primario); box-shadow: 0 0 0 3px var(--primario-tinte); }
-    .escena.final { border-style: double; border-width: 4px; }
+    .escena.elegida { border: 3px solid var(--ds-primary); box-shadow: 0 0 0 4px var(--l-tinte); }
+    /* Final, IA y aviso se dicen con forma (doble, discontinuo) y con palabra, no solo con color. */
+    .escena.final { border-style: double; border-width: 5px; }
     .escena.con-aviso { border-color: var(--aviso); }
     .escena.marca-ia { border-style: dashed; }
-    .etiquetas { display: flex; flex-wrap: wrap; gap: 4px; min-height: 26px; }
-    .etiquetas .pildora { min-height: 24px; padding: 0 8px; font-size: var(--autoria-texto-14); }
-    .etiquetas { flex-wrap: nowrap; overflow: hidden; max-width: 100%; }
-    .titulo, .sala { max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-box-orient: vertical; }
-    .titulo { -webkit-line-clamp: 2; }
-    .sala { -webkit-line-clamp: 1; }
+    .cabeza-tarjeta { display: flex; align-items: center; gap: 0.375rem; max-inline-size: 100%; min-block-size: 1.75rem; }
+    /* El número es una tesela de píxel, como en el riel: el mismo número en los dos sitios. */
+    .numero {
+      flex: none; display: grid; place-items: center; min-inline-size: 1.75rem; block-size: 1.75rem; padding-inline: 0.25rem;
+      border-radius: 0.375rem; background: var(--l-superficie-hundida); box-shadow: inset 0 0 0 1px var(--l-filo-fuerte);
+      font-size: var(--autoria-texto-14); font-weight: 800; font-variant-numeric: tabular-nums;
+    }
+    .escena.elegida .numero { background: var(--ds-primary); box-shadow: none; color: var(--ds-on-primary); }
+    .etiquetas { display: flex; flex-wrap: nowrap; gap: 0.25rem; min-inline-size: 0; overflow: hidden; }
+    .etiquetas .pildora { flex: none; min-block-size: 1.5rem; padding: 0 0.5rem; font-size: var(--autoria-texto-14); white-space: nowrap; }
+    .pildora-ia { border-style: dashed; }
+    .titulo, .sala { max-inline-size: 100%; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; }
+    .titulo { -webkit-line-clamp: 2; font-weight: 700; font-size: var(--autoria-texto-16); line-height: 1.375rem; overflow-wrap: anywhere; }
+    .sala { -webkit-line-clamp: 1; font-size: var(--autoria-texto-14); line-height: 1.25rem; }
     .aviso { border-color: var(--aviso); color: var(--aviso-texto); background: var(--aviso-tinte); }
-    .intensidad-marca { font-size: var(--autoria-texto-14); line-height: 20px; font-weight: 700; color: var(--texto-secundario); }
+    .intensidad-marca { margin-block-start: auto; font-size: var(--autoria-texto-14); line-height: 1.25rem; font-weight: 700; color: var(--ds-text-2); }
     .intensidad-marca[data-intensidad='HIGH'] { color: var(--aviso-texto); }
-    .titulo { font-weight: 700; font-size: var(--autoria-texto-16); line-height: 22px; }
-    .sala { font-size: var(--autoria-texto-14); line-height: 20px; }
+
+    /* Forma compacta (zoom bajo): número y título grandes, marcas; la sala y la intensidad quedan en el globo. */
+    .compacto .escena { gap: 0.5rem; padding: 0.75rem 0.875rem; }
+    .compacto .cabeza-tarjeta { min-block-size: 2.5rem; gap: 0.5rem; }
+    .compacto .numero { min-inline-size: 2.5rem; block-size: 2.5rem; font-size: var(--autoria-texto-24); border-radius: 0.5rem; }
+    .compacto .etiquetas .pildora { min-block-size: 2rem; font-size: var(--autoria-texto-20); }
+    .compacto .titulo { font-size: var(--autoria-texto-24); line-height: 1.875rem; }
+    .compacto .sala, .compacto .intensidad-marca { display: none; }
+
+    .vista {
+      position: absolute; z-index: var(--autoria-capa-3); inline-size: 16.25rem; display: flex; flex-direction: column; gap: 0.25rem;
+      padding: 0.625rem; border: 1px solid var(--l-filo-fuerte); border-radius: var(--l-radio-control);
+      background: color-mix(in oklab, var(--l-superficie) 96%, transparent); box-shadow: var(--l-sombra-alta); color: var(--ds-text-1);
+      pointer-events: none; font-size: var(--autoria-texto-16); line-height: 1.375rem;
+    }
+    .vista.arriba { translate: 0 -100%; }
+    .vista img { inline-size: 100%; block-size: auto; border-radius: 0.5rem; image-rendering: pixelated; margin-block-end: 0.25rem; }
     .tarjeta-flecha {
-      position: absolute; transform: translate(-50%, -120%); max-width: 260px; padding: 6px 10px; font-size: var(--autoria-texto-16); line-height: 22px;
-      background: var(--tinta); color: var(--sobre-primario); border-radius: 8px; pointer-events: none;
-      display: flex; flex-direction: column; gap: 2px;
+      position: absolute; z-index: var(--autoria-capa-3); translate: -50% -120%; max-inline-size: 16.25rem; padding: 0.375rem 0.625rem;
+      display: flex; flex-direction: column; gap: 0.125rem; border-radius: 0.5rem; background: var(--ds-text-1); color: var(--ds-surface-1);
+      font-size: var(--autoria-texto-16); line-height: 1.375rem; pointer-events: none;
     }
     .tarjeta-flecha .hacia { font-weight: 400; }
 
-    .vista { position: absolute; width: 260px; display: flex; flex-direction: column; gap: 4px; z-index: var(--autoria-capa-3); pointer-events: none; box-shadow: var(--sombra-menu); }
-    .vista img { width: 100%; height: auto; border-radius: 8px; }
-    .vista span { font-size: var(--autoria-texto-16); }
-    .minivista { position: absolute; right: 16px; bottom: 16px; width: 160px; height: 90px; background: var(--superficie); border: 1px solid var(--linea); border-radius: 8px; }
-    .moviendo { display: flex; flex-direction: column; gap: 8px; }
+    .minivista {
+      position: absolute; inset-inline-start: 0.75rem; inset-block-end: 0.75rem; inline-size: 10rem; block-size: 5.625rem;
+      border: 1px solid var(--l-filo-fuerte); border-radius: 0.5rem; background: var(--l-superficie); box-shadow: var(--l-sombra);
+    }
+    .minivista rect { fill: var(--l-filo-fuerte); }
+    .minivista rect.elegida { fill: var(--ds-primary); }
+
+    .moviendo { display: flex; flex-direction: column; gap: 0.5rem; }
     .moviendo p { margin: 0; }
-    .menu { display: flex; flex-direction: column; min-width: 240px; padding: 6px; background: var(--superficie); border: 1px solid var(--linea); border-radius: 12px; box-shadow: var(--sombra-menu); }
-    .item { display: flex; justify-content: space-between; gap: 16px; min-height: 44px; padding: 0 12px; font: inherit; font-size: var(--autoria-texto-16); text-align: left; border: 0; background: none; border-radius: 8px; cursor: pointer; color: var(--tinta); align-items: center; }
-    .item:focus, .item:active { background: var(--primario-tinte); }
-    @media (hover: hover) and (pointer: fine) { .item:hover { background: var(--primario-tinte); } }
-    .item.peligro { color: var(--peligro); }
-    hr { width: 100%; border: 0; border-top: 1px solid var(--linea); margin: 4px 0; }
-    .pista { margin: 0; font-size: var(--autoria-texto-16); line-height: 24px; }
+
+    /*
+     * El menú flota sobre todo: vidrio casi opaco sin desenfoque (D-25), filo fino y la sombra alta de las capas. Se pinta
+     * en la capa del CDK, fuera del editor, donde no llegan los materiales «--l-*»: por eso usa solo «--ds-*», que la
+     * piel («data-skin» en el propio menú) sí define.
+     */
+    .menu {
+      display: flex; flex-direction: column; min-inline-size: 15rem; padding: 0.375rem; border: 1px solid var(--ds-border);
+      border-radius: 1.25rem; background: color-mix(in oklab, var(--ds-surface-1) 97%, transparent);
+      box-shadow: var(--ds-shadow-e3); color: var(--ds-text-1);
+    }
+    .item {
+      display: flex; justify-content: space-between; align-items: center; gap: 1rem; min-block-size: 2.75rem; padding: 0 0.75rem;
+      font: inherit; font-size: var(--autoria-texto-16); text-align: start; border: 0; background: none; border-radius: 0.875rem;
+      cursor: pointer; color: var(--ds-text-1);
+      transition: background-color var(--ds-dur-fade) var(--ds-ease-out);
+    }
+    .item kbd { color: var(--ds-text-2); }
+    .item:focus, .item:active { background: var(--ds-primary-subtle); outline: none; }
+    .item:focus-visible { box-shadow: inset 0 0 0 2px var(--ds-focus); }
+    @media (hover: hover) and (pointer: fine) { .item:hover { background: var(--ds-primary-subtle); } }
+    .item.peligro { color: var(--ds-danger); }
+    hr { inline-size: 100%; border: 0; border-block-start: 1px solid var(--ds-border); margin: 0.25rem 0; }
+    .pista { margin: 0; font-size: var(--autoria-texto-16); line-height: 1.5rem; }
     .pista:empty { display: none; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .escena, .item { transition: none; }
+    }
+    @media (forced-colors: active) {
+      .escena.elegida { outline: 3px solid Highlight; }
+      .flecha.de-elegida { stroke: Highlight; }
+      .punta, .punta-elegida { fill: CanvasText; }
+    }
   `,
 })
 export class MapaEscenasComponent {
@@ -248,7 +381,6 @@ export class MapaEscenasComponent {
   readonly accion = output<AccionEscena>();
 
   protected readonly PASO = PASO_MOVER;
-  protected readonly altoEscena = ALTO_ESCENA;
   protected readonly nombreIntensidad = NOMBRE_INTENSIDAD;
   /** La intensidad también se ve en la forma (no solo en el color): una, dos o tres barras. */
   protected readonly simboloIntensidad: Record<Escena['intensidad'], string> = { LOW: '▁', MEDIUM: '▃', HIGH: '▇' };
@@ -259,26 +391,60 @@ export class MapaEscenasComponent {
   protected readonly vista = signal<string | null>(null);
   protected readonly flechaActiva = signal<string | null>(null);
   protected readonly zoom = signal(1);
+  protected readonly tecladoAbierto = signal(false);
   protected readonly moviendo = signal<{ escenaId: string; x: number; y: number } | null>(null);
+  /** Alto del lienzo medido contra la zona que se desplaza; `null` = el de la hoja de estilos (teléfono, pruebas). */
+  protected readonly altoLienzo = signal<number | null>(null);
+  /** Lo que mide por dentro el marco, para centrar el mapa y saber si se sale. */
+  private readonly tamMarco = signal<{ w: number; h: number }>({ w: 0, h: 0 });
+  /** La docente cambió el zoom a mano: entonces un cambio de ventana ya no lo reajusta. */
+  private zoomManual = false;
   private readonly trigger = viewChild.required<CdkMenuTrigger>('trigger');
   private readonly plantillaMenu = viewChild.required<TemplateRef<unknown>>('menu');
   private readonly injector = inject(Injector);
   private readonly marco = viewChild.required<ElementRef<HTMLElement>>('marco');
-  private readonly raiz: HTMLElement;
+  private readonly lienzo = viewChild.required<ElementRef<HTMLElement>>('lienzo');
+  private readonly raiz: HTMLElement = inject(ElementRef).nativeElement;
 
   protected readonly porcentaje = computed(() => Math.round(this.zoom() * 100));
+  protected readonly compacto = computed(() => this.zoom() < UMBRAL_COMPACTO);
   protected readonly elegidaEscena = computed(() => this.caso().escenas.find((e) => e.id === this.elegida()) ?? null);
+  /** El número de cada escena en el orden de la historia (el del riel). */
+  private readonly numeros = computed(() => new Map(escenasEnOrden(this.caso()).map((e, i) => [e.id, i + 1])));
   /** La escena que recibe el Tab: la elegida si todavía existe; si no, el inicio o la primera. */
   protected readonly tabParada = computed(() => {
     const ids = new Set(this.caso().escenas.map((e) => e.id));
     return [this.elegida(), this.caso().inicioId, this.caso().escenas[0]?.id].find((id) => !!id && ids.has(id)) ?? null;
   });
 
+  /**
+   * La esquina de arriba a la izquierda del caso. Las posiciones guardadas pueden empezar lejos del 0 (un caso ordenado o
+   * importado): el mapa se dibuja desde la primera escena, no desde el origen, para que «Ver todo» no desperdicie espacio.
+   */
+  private readonly origen = computed<Punto>(() => {
+    const ps = this.caso().escenas.map((e) => this.base(e));
+    return ps.length ? { x: Math.min(...ps.map((p) => p.x)), y: Math.min(...ps.map((p) => p.y)) } : { x: 0, y: 0 };
+  });
+
   protected readonly limites = computed(() => {
     const es = this.caso().escenas.map((e) => this.pos(e));
-    const ancho = Math.max(640, ...es.map((p) => p.x + ANCHO_ESCENA + MARGEN));
-    const alto = Math.max(360, ...es.map((p) => p.y + ALTO_ESCENA + MARGEN));
+    const ancho = Math.max(ANCHO_ESCENA + 2 * MARGEN, ...es.map((p) => p.x + ANCHO_ESCENA + MARGEN));
+    const alto = Math.max(ALTO_ESCENA + 2 * MARGEN, ...es.map((p) => p.y + ALTO_ESCENA + MARGEN));
     return { ancho, alto };
+  });
+
+  /** Si el mapa entero cabe, se centra en el marco; si no, empieza arriba a la izquierda y se desplaza. */
+  protected readonly desfase = computed<Punto>(() => {
+    const { w, h } = this.tamMarco();
+    const { ancho, alto } = this.limites();
+    return { x: Math.max(0, Math.floor((w - ancho * this.zoom()) / 2)), y: Math.max(0, Math.floor((h - alto * this.zoom()) / 2)) };
+  });
+
+  /** El mapa no cabe entero: solo entonces la minivista ayuda a ubicarse. */
+  protected readonly desborda = computed(() => {
+    const { w, h } = this.tamMarco();
+    const { ancho, alto } = this.limites();
+    return w > 0 && (ancho * this.zoom() > w + 1 || alto * this.zoom() > h + 1);
   });
 
   protected readonly flechas = computed<Flecha[]>(() => {
@@ -286,25 +452,11 @@ export class MapaEscenasComponent {
     const porId = new Map(caso.escenas.map((e) => [e.id, e]));
     const lista: Flecha[] = [];
     for (const e of caso.escenas) {
-      const a = this.pos(e);
       for (const r of e.respuestas) {
         const destino = r.destinoId ? porId.get(r.destinoId) : undefined;
         if (!destino) continue;
-        const b = this.pos(destino);
-        let d: string;
-        let medio: { x: number; y: number };
-        if (destino.id === e.id) {
-          const x = a.x + ANCHO_ESCENA - 30, y = a.y;
-          d = `M${x},${y} C${x + 10},${y - 50} ${x + 60},${y - 30} ${x + 30},${y + 4}`;
-          medio = { x: x + 30, y: y - 30 };
-        } else {
-          const x1 = a.x + ANCHO_ESCENA, y1 = a.y + ALTO_ESCENA / 2;
-          const x2 = b.x, y2 = b.y + ALTO_ESCENA / 2;
-          const c = Math.max(40, Math.abs(x2 - x1) / 2);
-          d = `M${x1},${y1} C${x1 + c},${y1} ${x2 - c},${y2} ${x2 - 2},${y2}`;
-          medio = { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
-        }
-        const hacia = destino.id === e.id ? 'Vuelve a esta misma escena' : `Lleva a la escena ${caso.escenas.indexOf(destino) + 1} · ${destino.titulo}`;
+        const { d, medio } = this.trazo(this.pos(e), this.pos(destino), destino.id === e.id);
+        const hacia = destino.id === e.id ? 'Vuelve a esta misma escena' : `Lleva a la escena ${this.numero(destino.id)} · ${destino.titulo}`;
         lista.push({ id: r.id, origen: e.id, destino: destino.id, texto: r.texto, hacia, d, medio, deElegida: e.id === this.elegida() });
       }
     }
@@ -313,47 +465,106 @@ export class MapaEscenasComponent {
 
   protected readonly flechaElegida = computed(() => this.flechas().find((f) => f.id === this.flechaActiva()) ?? null);
 
+  /** El globo de una escena: su sala (con la miniatura solo si tiene fondo: nunca un `src` vacío) y dónde se dibuja. */
   protected readonly vistaEscena = computed(() => {
     const e = this.caso().escenas.find((x) => x.id === this.vista());
-    const sala = e ? this.caso().salas.find((s) => s.id === e.salaId) : undefined;
-    if (!e || !sala) return null;
-    const personajes = sala.personajes.length;
-    const muebles = sala.muebles.length;
+    if (!e) return null;
+    const sala = this.caso().salas.find((s) => s.id === e.salaId);
+    const z = this.zoom();
+    const p = this.pos(e);
+    const { ancho, alto } = this.limites();
+    // Debajo de la tarjeta; si no cabe debajo, encima. Nunca más a la derecha que el borde del mapa.
+    const abajo = (p.y + ALTO_ESCENA) * z + 8;
+    const arriba = abajo + 300 > alto * z && p.y * z > 300;
+    const resumen = sala
+      ? `${plural(sala.personajes.length, 'personaje', 'personajes')} · ${plural(sala.muebles.length, 'mueble', 'muebles')}`
+      : 'Esta escena no tiene sala.';
     return {
       escena: e,
-      fondo: rutaArte(this.caso().lugarId, sala.fondo),
-      sala: sala.nombre,
-      resumen: `${personajes} ${personajes === 1 ? 'personaje' : 'personajes'} · ${muebles} ${muebles === 1 ? 'mueble' : 'muebles'}`,
+      titulo: `${this.numero(e.id)} · ${e.titulo}`,
+      fondo: sala?.fondo ? rutaArte(this.caso().lugarId, sala.fondo) || null : null,
+      sala: sala?.nombre ?? 'Sin sala',
+      resumen,
+      arriba,
+      x: Math.max(0, Math.min(p.x * z, ancho * z - 260)),
+      y: arriba ? p.y * z - 8 : abajo,
     };
   });
 
-  constructor(host: ElementRef<HTMLElement>) {
-    this.raiz = host.nativeElement;
+  constructor() {
+    // La primera escena elegida (el inicio, al entrar) solo se marca: robarle el foco a la página al abrirla abriría además el
+    // globo de su sala encima del mapa. Las siguientes («Llévame ahí») sí llevan el foco.
+    let primera = true;
     effect(() => {
       const id = this.elegidaInicial();
-      if (id) this.elegirYEnfocar(id);
+      if (!id) return;
+      if (primera) this.elegir(id);
+      else this.elegirYEnfocar(id);
+      primera = false;
     });
+    // Ajuste al abrir: se mide la zona después de dibujar y se ve todo el caso. El observador sigue a la ventana.
+    afterNextRender(() => this.observarTamano());
   }
 
   /**
-   * Esc pliega lo que la atención mostró (la vista de una sala y el detalle de una respuesta), esté el foco o solo el cursor encima.
-   * No suelta nada más: la escena elegida, el foco y el menú abierto siguen como estaban.
+   * Esc pliega lo que la atención mostró (la vista de una sala, el detalle de una respuesta y las teclas del mapa), esté el
+   * foco o solo el cursor encima. No suelta nada más: la escena elegida, el foco y el menú abierto siguen como estaban.
    */
   protected plegarAtencion(): void {
     if (this.vista() !== null) this.vista.set(null);
     if (this.flechaActiva() !== null) this.flechaActiva.set(null);
+    if (this.tecladoAbierto()) this.tecladoAbierto.set(false);
   }
 
-  protected pos(e: Escena): { x: number; y: number } {
+  /** La piel del contenedor de quien abre el menú (`app-shell.portal[data-skin]`); `null` fuera del portal. */
+  protected piel(): string | null {
+    return this.raiz.closest('[data-skin]')?.getAttribute('data-skin') ?? null;
+  }
+
+  private base(e: Escena): Punto {
     const m = this.moviendo();
-    const base = m && m.escenaId === e.id ? { x: m.x, y: m.y } : e.posicion;
-    return { x: base.x + MARGEN, y: base.y + MARGEN };
+    return m && m.escenaId === e.id ? { x: m.x, y: m.y } : e.posicion;
+  }
+
+  protected pos(e: Escena): Punto {
+    const b = this.base(e);
+    const o = this.origen();
+    return { x: b.x - o.x + MARGEN, y: b.y - o.y + MARGEN };
+  }
+
+  /**
+   * La curva de una respuesta. Si la escena destino queda sobre todo abajo (o arriba), la flecha sale por el borde de abajo
+   * y entra por el de arriba; si queda a un lado, sale y entra por los costados. Así sirve igual para un mapa ordenado de
+   * izquierda a derecha que para uno de arriba abajo.
+   */
+  private trazo(a: Punto, b: Punto, mismo: boolean): { d: string; medio: Punto } {
+    if (mismo) {
+      const x = a.x + ANCHO_ESCENA - 30, y = a.y;
+      return { d: `M${x},${y} C${x + 10},${y - 50} ${x + 60},${y - 30} ${x + 30},${y + 4}`, medio: { x: x + 30, y: y - 30 } };
+    }
+    const dx = b.x - a.x, dy = b.y - a.y;
+    if (Math.abs(dy) > Math.abs(dx) * 1.2) {
+      const baja = dy > 0;
+      const x1 = a.x + ANCHO_ESCENA / 2, y1 = baja ? a.y + ALTO_ESCENA : a.y;
+      const x2 = b.x + ANCHO_ESCENA / 2, y2 = baja ? b.y - 2 : b.y + ALTO_ESCENA + 2;
+      const c = Math.max(40, Math.abs(y2 - y1) / 2) * (baja ? 1 : -1);
+      return { d: `M${x1},${y1} C${x1},${y1 + c} ${x2},${y2 - c} ${x2},${y2}`, medio: { x: (x1 + x2) / 2, y: (y1 + y2) / 2 } };
+    }
+    const avanza = dx >= 0;
+    const x1 = avanza ? a.x + ANCHO_ESCENA : a.x, y1 = a.y + ALTO_ESCENA / 2;
+    const x2 = avanza ? b.x - 2 : b.x + ANCHO_ESCENA + 2, y2 = b.y + ALTO_ESCENA / 2;
+    const c = Math.max(40, Math.abs(x2 - x1) / 2) * (avanza ? 1 : -1);
+    return { d: `M${x1},${y1} C${x1 + c},${y1} ${x2 - c},${y2} ${x2},${y2}`, medio: { x: (x1 + x2) / 2, y: (y1 + y2) / 2 } };
   }
 
   protected mini(e: Escena) {
     const { ancho, alto } = this.limites();
     const p = this.pos(e);
     return { x: (p.x / ancho) * 160, y: (p.y / alto) * 90, w: Math.max(4, (ANCHO_ESCENA / ancho) * 160), h: Math.max(3, (ALTO_ESCENA / alto) * 90) };
+  }
+
+  protected numero(id: string): number {
+    return this.numeros().get(id) ?? 0;
   }
 
   protected avisosDe(id: string): Aviso[] {
@@ -365,14 +576,14 @@ export class MapaEscenasComponent {
   }
 
   protected tituloDe(id: string): string {
-    const i = this.caso().escenas.findIndex((e) => e.id === id);
-    return i >= 0 ? `${i + 1} · ${this.caso().escenas[i].titulo}` : '';
+    const e = this.caso().escenas.find((x) => x.id === id);
+    return e ? `${this.numero(id)} · ${e.titulo}` : '';
   }
 
   /** Lo que el lector de pantalla oye después del texto visible de la tarjeta. */
-  protected detalle(e: Escena, i: number): string {
-    const partes = [`escena ${i + 1} de ${this.caso().escenas.length}`];
-    if (e.marcaIa) partes.push('sin revisar');
+  protected detalle(e: Escena): string {
+    const partes = [`escena ${this.numero(e.id)} de ${this.caso().escenas.length}`];
+    if (e.marcaIa) partes.push('sugerida por la IA, sin revisar');
     partes.push(`intensidad ${NOMBRE_INTENSIDAD[e.intensidad].toLowerCase()}`);
     const avisos = this.avisosDe(e.id);
     if (avisos.length > 1) partes.push(`avisos: ${avisos.map((a) => NOMBRE_AVISO[a.tipo].toLowerCase()).join(', ')}`);
@@ -454,7 +665,10 @@ export class MapaEscenasComponent {
       this.abrirMenu(e.id);
       return;
     }
+    // Con Alt las flechas son del riel (escena anterior o siguiente del guion): no se toman aquí.
+    if (evento.altKey) return;
     const caso = this.caso();
+    const orden = escenasEnOrden(caso);
     let destino: string | undefined;
     switch (evento.key) {
       case 'Enter':
@@ -472,10 +686,10 @@ export class MapaEscenasComponent {
         destino = caso.escenas.find((x) => x.respuestas.some((r) => r.destinoId === e.id) && x.id !== e.id)?.id;
         break;
       case 'ArrowDown':
-        destino = caso.escenas[caso.escenas.indexOf(e) + 1]?.id;
+        destino = orden[orden.findIndex((x) => x.id === e.id) + 1]?.id;
         break;
       case 'ArrowUp':
-        destino = caso.escenas[caso.escenas.indexOf(e) - 1]?.id;
+        destino = orden[orden.findIndex((x) => x.id === e.id) - 1]?.id;
         break;
       default:
         return;
@@ -520,10 +734,11 @@ export class MapaEscenasComponent {
     if (m) this.elegirYEnfocar(m.escenaId);
   }
 
-  // ── Zoom ─────────────────────────────────────────────────────────────────
+  // ── Zoom y alto del lienzo ───────────────────────────────────────────────
 
   protected zoomar(delta: number): void {
-    this.zoom.update((z) => Math.min(1.5, Math.max(0.4, Math.round((z + delta) * 10) / 10)));
+    this.zoomManual = true;
+    this.zoom.update((z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round((z + delta) * 10) / 10)));
   }
 
   protected rueda(evento: WheelEvent): void {
@@ -532,10 +747,70 @@ export class MapaEscenasComponent {
     this.zoomar(evento.deltaY > 0 ? -0.1 : 0.1);
   }
 
+  /** «Ver todo el mapa»: el zoom con el que cabe el caso entero, sin pasar del 100 % (un caso corto no se agiganta). */
   protected verTodo(): void {
+    this.encuadrar();
+  }
+
+  /** Vuelve a encuadrar el caso entero (después de ordenar el mapa, por ejemplo) y deja el zoom en automático. */
+  encuadrar(): void {
+    this.zoomManual = false;
+    this.ajustar();
+  }
+
+  private ajustar(): void {
     const marco = this.marco().nativeElement;
+    const w = marco.clientWidth, h = marco.clientHeight;
+    if (!w || !h) return; // sin dibujar (pruebas, pestaña oculta): se queda como está
     const { ancho, alto } = this.limites();
-    const z = Math.min(1.5, Math.max(0.4, Math.min(marco.clientWidth / ancho, marco.clientHeight / alto)));
-    this.zoom.set(Math.floor(z * 10) / 10 || 1);
+    // Con aire alrededor: ninguna escena queda pegada al borde del lienzo, donde se confunde con un recorte.
+    const z = Math.min(1, (w - AIRE) / ancho, (h - AIRE) / alto);
+    this.zoom.set(Math.max(ZOOM_MIN, Math.floor(z * 20) / 20));
+  }
+
+  /**
+   * La zona central se desplaza sola (el marco del editor), así que el mapa puede ocupar exactamente lo que queda de ella
+   * bajo la cabecera. En el teléfono la página entera se desplaza: ahí no hay zona y vale el alto de la hoja de estilos.
+   */
+  private medirAlto(): void {
+    const zona = this.zonaQueSeDesplaza();
+    const lienzo = this.lienzo().nativeElement;
+    if (!zona) {
+      this.altoLienzo.set(null);
+      return;
+    }
+    const arriba = lienzo.getBoundingClientRect().top - zona.getBoundingClientRect().top + zona.scrollTop;
+    const alto = Math.max(ALTO_MINIMO, Math.floor(zona.clientHeight - arriba - 16));
+    if (this.altoLienzo() !== alto) this.altoLienzo.set(alto);
+  }
+
+  private zonaQueSeDesplaza(): HTMLElement | null {
+    for (let el = this.raiz.parentElement; el && el !== document.body; el = el.parentElement) {
+      const desborde = getComputedStyle(el).overflowY;
+      if (desborde === 'auto' || desborde === 'scroll') return el;
+    }
+    return null;
+  }
+
+  private observarTamano(): void {
+    const marco = this.marco().nativeElement;
+    const leerMarco = () => this.tamMarco.set({ w: marco.clientWidth, h: marco.clientHeight });
+    this.medirAlto();
+    leerMarco();
+    afterNextRender(() => { leerMarco(); this.ajustar(); }, { injector: this.injector });
+    if (typeof ResizeObserver === 'undefined') return;
+    const zona = this.zonaQueSeDesplaza();
+    const observador = new ResizeObserver((entradas) => {
+      const cambioLaZona = entradas.some((x) => x.target === zona);
+      this.medirAlto();
+      leerMarco();
+      // Cambió la ventana y la docente no tocó el zoom: vuelve a verse el caso entero.
+      if (cambioLaZona && !this.zoomManual) afterNextRender(() => { leerMarco(); this.ajustar(); }, { injector: this.injector });
+    });
+    observador.observe(marco);
+    if (zona) observador.observe(zona);
+    // Si algo de la cabecera cambia de alto, el lienzo se vuelve a medir (sin tocar el zoom).
+    if (this.raiz.parentElement) observador.observe(this.raiz.parentElement);
+    this.injector.get(DestroyRef).onDestroy(() => observador.disconnect());
   }
 }
