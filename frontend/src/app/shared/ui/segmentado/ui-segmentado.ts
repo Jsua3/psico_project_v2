@@ -26,9 +26,12 @@ export interface UiSegmento {
     class: 'ui-segmentado',
     '[class.ui-segmentado--medido]': 'medido()',
     '[class.ui-segmentado--listo]': 'listo()',
+    '[class.ui-segmentado--mas-inicio]': 'masInicio()',
+    '[class.ui-segmentado--mas-fin]': 'masFin()',
   },
   template: `
-    <div #pista class="ui-segmentado__pista" role="radiogroup" [attr.aria-label]="etiqueta()" (keydown)="teclado($event)">
+    <div #pista class="ui-segmentado__pista" role="radiogroup" [attr.aria-label]="etiqueta()" (keydown)="teclado($event)"
+      (scroll)="bordes()">
       <span #indicador class="ui-segmentado__indicador ds-motion" aria-hidden="true"></span>
       @for (opcion of opciones(); track opcion.valor) {
         <button #segmento type="button" role="radio" class="ui-segmentado__opcion"
@@ -61,6 +64,12 @@ export class UiSegmentado {
    * página, solo cuando la persona cambia de opción.
    */
   protected readonly listo = signal(false);
+  /**
+   * Si la pista se desplaza (opciones que no caben en un teléfono), el borde por donde hay más se desvanece: sin esa
+   * pista visual, «Administradores» o «Por aprobar» quedaban cortadas sin que nada dijera que se puede deslizar.
+   */
+  protected readonly masInicio = signal(false);
+  protected readonly masFin = signal(false);
 
   private readonly pista = viewChild.required<ElementRef<HTMLElement>>('pista');
   private readonly indicador = viewChild.required<ElementRef<HTMLElement>>('indicador');
@@ -128,5 +137,14 @@ export class UiSegmentado {
       if (inicio < pista.scrollLeft) pista.scrollLeft = inicio;
       else if (fin > pista.scrollLeft + pista.clientWidth) pista.scrollLeft = fin - pista.clientWidth;
     }
+    this.bordes();
+  }
+
+  /** Qué bordes de la pista esconden opciones (1 px de tolerancia por el redondeo de los anchos). */
+  protected bordes(): void {
+    const { scrollLeft, scrollWidth, clientWidth } = this.pista().nativeElement;
+    const desborda = scrollWidth > clientWidth + 1;
+    this.masInicio.set(desborda && scrollLeft > 1);
+    this.masFin.set(desborda && scrollLeft + clientWidth < scrollWidth - 1);
   }
 }

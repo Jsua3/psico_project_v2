@@ -28,6 +28,20 @@
   }
 }
 
+// Más opciones fuera de la vista: el borde de ese lado se desvanece (la máscara solo usa la opacidad; `currentColor`
+// es cualquier color opaco). Sin desborde no hay máscara y la cápsula se ve entera.
+:host(.ui-segmentado--mas-fin) .ui-segmentado__pista {
+  mask-image: linear-gradient(to right, currentColor calc(100% - 2.5rem), transparent);
+}
+
+:host(.ui-segmentado--mas-inicio) .ui-segmentado__pista {
+  mask-image: linear-gradient(to right, transparent, currentColor 2.5rem);
+}
+
+:host(.ui-segmentado--mas-inicio.ui-segmentado--mas-fin) .ui-segmentado__pista {
+  mask-image: linear-gradient(to right, transparent, currentColor 2.5rem, currentColor calc(100% - 2.5rem), transparent);
+}
+
 // El indicador vive detrás de los segmentos (primero en el DOM; los segmentos van posicionados después de él).
 .ui-segmentado__indicador {
   position: absolute;
