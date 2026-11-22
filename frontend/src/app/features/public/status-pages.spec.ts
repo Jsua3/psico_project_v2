@@ -56,10 +56,11 @@ describe('páginas de estado', () => {
     expect(text(host.querySelector('app-pagina-estado'))).toContain('No tienes permiso para abrir esta página.');
   });
 
-  it('sin permiso lleva la puerta del consultorio y el letrero; sin conexión ninguna imagen', async () => {
+  it('sin permiso lleva la viñeta de la zona restringida (decorativa)', async () => {
     const host = await render('/portal/sin-permiso');
-    const fuentes = [...host.querySelectorAll('app-pagina-estado img')].map((i) => i.getAttribute('src'));
-    expect(fuentes).toEqual(['assets/game/doors/door_consultorio.png', 'assets/game/objects/object_acceso_restringido.png']);
+    const vineta = host.querySelector('app-pagina-estado ui-vineta');
+    expect(vineta?.getAttribute('data-escena')).toBe('restringido');
+    expect(vineta?.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('sin conexión: su propio <main>, un h1, el estado bloqueante y «Reintentar» CARGA de nuevo la ruta pedida', async () => {
