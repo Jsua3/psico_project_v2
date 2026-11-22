@@ -81,7 +81,9 @@ describe('GuiaService', () => {
   });
 
   it('con prefers-reduced-motion no se aplican animaciones', async () => {
-    vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('reduce'), media: q, addEventListener() {}, removeEventListener() {} }));
+    // addListener/removeListener: el BreakpointObserver del CDK (que usa el marco del estudio) los llama al montar; sin
+    // ellos la prueba pasaba pero dejaba un error suelto que ponía en rojo la corrida completa (2026-11-22).
+    vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('reduce'), media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
     const { guia, raiz, listo } = await montar();
     await guia.mostrar('agregar-escena', 'foco');
     await listo();
