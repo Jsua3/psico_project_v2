@@ -1,356 +1,191 @@
-import { provideZonelessChangeDetection } from '@angular/core';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { ActivatedRoute, ParamMap, Router, convertToParamMap, provideRouter } from '@angular/router';
-import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
+import { provideZonelessChangeDetection, signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
+import { of, throwError } from 'rxjs';
 
+import { CaseAccessCache } from '../../core/api/case-access.cache';
 import { SimulationService } from '../../core/api/simulation.service';
 import { AuthService } from '../../core/auth/auth.service';
-import { AttemptCompletionReport, CatalogItem, SimulationCaseSummary, StudentAttemptSummary } from '../../core/models/simulation.model';
+import { NotificationService } from '../../core/notifications/notification.service';
+import { CatalogItem, StudentAttemptSummary } from '../../core/models/simulation.model';
 import { SimulationCatalogComponent } from './simulation-catalog.component';
 
-type Role = 'ESTUDIANTE' | 'PROFESOR' | 'ADMIN';
-
-function caseSummary(id: number, partial: Partial<SimulationCaseSummary> = {}): SimulationCaseSummary {
-  return {
-    caseVersionId: id, code: `SIM-${id}`, title: `Caso ${id}`, description: 'Descripción del caso.',
-    semanticVersion: '2.0.0', nodeCount: 8, status: 'PUBLISHED', ...partial,
-  };
-}
-
-function attempt(partial: Partial<StudentAttemptSummary>): StudentAttemptSummary {
-  return {
-    attemptId: 'a', caseVersionId: 1, caseTitle: 'Caso 1', status: 'COMPLETED',
-    totalDurationSeconds: null,
-    activeDurationSeconds: null, startedAt: '2026-09-01T10:00:00Z', endedAt: null,
-    ...partial,
-  };
-}
-
-function report(partial: Partial<AttemptCompletionReport> = {}): AttemptCompletionReport {
-  return {
-    attemptId: 'done', caseTitle: 'Caso 1', status: 'COMPLETED', schemaVersion: 3,
-    totalDurationSeconds: 754, phaseDurations: [], toolsUsed: 2, reflectionsCount: 3, safeExitUsed: false, visitedNodeTitles: [],
-    recommendations: ['Activa la ruta institucional antes de cerrar el caso.'], summaryMessage: '',
-    ending: { key: 'con_brechas', title: 'Cierre con brechas', message: 'Quedaron aspectos por reforzar.', tone: 'neutral', reason: [] },
-    milestones: {
-      done: [{ key: 'escucha', label: 'Escuchar sin juzgar', decisive: false }],
-      missing: [{ key: 'ruta', label: 'Recomendar medidas de protección', decisive: true }],
-    },
-    ...partial,
-  };
-}
-
-const httpFailure = () => throwError(() => ({ status: 500 }));
-
-interface Api {
-  listCases: () => Observable<SimulationCaseSummary[]>;
-  attemptHistory: () => Observable<StudentAttemptSummary[]>;
-  studentReport: (attemptId: string) => Observable<AttemptCompletionReport>;
-  getCatalog: () => Observable<CatalogItem[]>;
-}
-
-function catalogItem(caseVersionId: number, order: number, unlocked: boolean, completed = false): CatalogItem {
-  return { caseVersionId, code: `SIM-${caseVersionId}`, title: `Caso ${caseVersionId}`, description: '', order, unlocked, completed, locked: !unlocked };
-}
-
-/**
- * Catálogo, historial y reporte propio (plan visual F5-2), en DOM: lo abierto se continúa y no se reinicia (RN-07,
- * parte de interfaz), el error del historial no se confunde con «sin intentos» (RF-24), el reporte se abre en un
- * diálogo con su propio error y los estados salen humanizados. Sustituye a la spec que leía el código fuente
- * (estados en español, tildes, nombres de botón del e2e): las mismas garantías, ahora sobre lo que se ve.
- */
-// req: RN-07, RF-24, RNF-04, BLOQUE-H
-describe('SimulationCatalogComponent', () => {
-  let fixture: ComponentFixture<SimulationCatalogComponent>;
-  let navigate: ReturnType<typeof vi.fn>;
-  const host = () => fixture.nativeElement as HTMLElement;
-  const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-  const spoken = (el: Element) => {
-    const copy = el.cloneNode(true) as Element;
-    copy.querySelectorAll('[aria-hidden="true"], [hidden]').forEach(node => node.remove());
-    return text(copy);
-  };
-  const cards = () => [...host().querySelectorAll('.case-card')];
-  const card = (title: string) => cards().find(el => text(el.querySelector('h3')) === title)!;
-  const buttons = (root: Element) => [...root.querySelectorAll('button, a')].map(spoken);
-  const historySection = () => host().querySelector('.catalog-history')!;
-  const dialog = () => document.querySelector('.cdk-dialog-container');
-  // Valor de un dato del reporte por su rótulo (dt → dd).
-  const field = (label: string) =>
-    text([...(dialog()?.querySelectorAll('dt') ?? [])].find(el => text(el) === label)?.nextElementSibling ?? null);
-
-  let queryParams: BehaviorSubject<ParamMap>;
-
-  async function render(role: Role, api: Partial<Api> = {}, query: Record<string, string> = {}) {
-    queryParams = new BehaviorSubject(convertToParamMap(query));
-    const service: Api = {
-      listCases: () => of([caseSummary(1)]),
-      attemptHistory: () => of([]),
-      studentReport: () => of(report()),
-      getCatalog: () => of([]),
-      ...api,
-    };
-    TestBed.configureTestingModule({
-      providers: [
-        provideZonelessChangeDetection(), provideRouter([]),
-        { provide: SimulationService, useValue: service },
-        { provide: AuthService, useValue: { hasRole: (...roles: string[]) => roles.includes(role) } },
-        { provide: ActivatedRoute, useValue: { queryParamMap: queryParams } },
-      ],
-    });
-    navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true) as unknown as ReturnType<typeof vi.fn>;
-    fixture = TestBed.createComponent(SimulationCatalogComponent);
-    await fixture.whenStable();
-  }
-
-  afterEach(() => document.querySelectorAll('.cdk-overlay-container').forEach(node => node.replaceChildren()));
-
-  it('un h1 y los casos como tarjetas con su estado en español (nunca PUBLISHED)', async () => {
-    await render('ESTUDIANTE', { listCases: () => of([caseSummary(1), caseSummary(2, { status: 'IN_REVIEW' })]) });
-    expect(host().querySelectorAll('h1')).toHaveLength(1);
-    expect(cards().map(el => text(el.querySelector('h3')))).toEqual(['Caso 1', 'Caso 2']);
-    expect(text(card('Caso 1'))).toContain('Publicado');
-    expect(text(card('Caso 2'))).toContain('En revisión');
-    expect(text(card('Caso 1'))).toContain('8 escenas');
-    expect(host().textContent).not.toMatch(/PUBLISHED|IN_REVIEW/);
-  });
-
-  it('RN-07: con un intento abierto la tarjeta dice «Continuar» y no ofrece iniciar otro', async () => {
-    await render('ESTUDIANTE', {
-      listCases: () => of([caseSummary(1), caseSummary(2), caseSummary(3)]),
-      attemptHistory: () => of([
-        attempt({ attemptId: 'p', caseVersionId: 1, caseTitle: 'Caso 1', status: 'PAUSED' }),
-        attempt({ attemptId: 'old', caseVersionId: 3, caseTitle: 'Caso 3', status: 'SAFE_EXITED' }),
-      ]),
-    });
-    expect(buttons(card('Caso 1'))).toEqual(['Continuar']);
-    expect(text(card('Caso 1').querySelector('ui-badge.case-card__attempt'))).toBe('En pausa (reanudable)');
-    expect(buttons(card('Caso 2'))).toEqual(['Iniciar simulación']);
-    expect(buttons(card('Caso 3'))).toEqual(['Iniciar nuevo intento']);
-
-    (card('Caso 1').querySelector('button') as HTMLButtonElement).click();
-    expect(navigate).toHaveBeenCalledWith(['/portal/simulador', 1]);
-  });
-
-  // req: RF-16, CU-07
-  it('RF-16: sin intento abierto «Iniciar» lleva primero a la ficha del caso; «Continuar» sigue directo al juego', async () => {
-    await render('ESTUDIANTE', {
-      listCases: () => of([caseSummary(1), caseSummary(2), caseSummary(3)]),
-      attemptHistory: () => of([
-        attempt({ attemptId: 'p', caseVersionId: 1, caseTitle: 'Caso 1', status: 'IN_PROGRESS' }),
-        attempt({ attemptId: 'old', caseVersionId: 3, caseTitle: 'Caso 3', status: 'COMPLETED' }),
-      ]),
-    });
-    (card('Caso 2').querySelector('button') as HTMLButtonElement).click();
-    expect(navigate).toHaveBeenLastCalledWith(['/portal/simulador', 2, 'ficha']);
-    (card('Caso 3').querySelector('button') as HTMLButtonElement).click();
-    expect(navigate).toHaveBeenLastCalledWith(['/portal/simulador', 3, 'ficha']);
-    (card('Caso 1').querySelector('button') as HTMLButtonElement).click();
-    expect(navigate).toHaveBeenLastCalledWith(['/portal/simulador', 1]);
-  });
-
-  it('historial: la fila en pausa o en curso ofrece «Continuar»; la cerrada, «Ver resumen»; estados humanizados', async () => {
-    await render('ESTUDIANTE', {
-      attemptHistory: () => of([
-        attempt({ attemptId: 'p', caseVersionId: 1, status: 'PAUSED', }),
-        attempt({ attemptId: 'c', caseVersionId: 1, status: 'IN_PROGRESS' }),
-        attempt({ attemptId: 'done', caseVersionId: 1, status: 'COMPLETED', totalDurationSeconds: 754 }),
-      ]),
-    });
-    // La región de la tabla no repite el nombre de su sección (Axe landmark-unique).
-    expect(historySection().querySelector('ui-table [role="region"]')?.getAttribute('aria-label')).toBe('Tabla del historial de intentos');
-    expect(text(historySection().querySelector('h2'))).toBe('Historial de intentos');
-    const rows = [...historySection().querySelectorAll('tbody tr')];
-    expect(rows.every(row => row.classList.contains('ui-table__row'))).toBe(true);
-    expect(rows.map(row => text(row.querySelector('ui-badge')))).toEqual(['En pausa (reanudable)', 'En curso', 'Finalizado']);
-    expect(rows.map(row => buttons(row))).toEqual([['Continuar'], ['Continuar'], ['Ver resumen']]);
-    expect(text(rows[2])).toContain('12 min 34 s');
-    expect([...historySection().querySelectorAll('th')].map(text)).toEqual(['Caso', 'Inicio', 'Estado', 'Duración', 'Acción']);
-    expect(historySection().textContent).not.toMatch(/PAUSED|IN_PROGRESS|COMPLETED/);
-  });
-
-  it('RF-24: si falla el historial, un error con «Reintentar» —no «Aún no tienes intentos»— y el catálogo sigue', async () => {
-    let calls = 0;
-    await render('ESTUDIANTE', {
-      attemptHistory: () => (++calls === 1 ? httpFailure() : of([attempt({ attemptId: 'done' })])),
-    });
-    const error = historySection().querySelector('ui-error-state')!;
-    expect(text(error)).toContain('No pudimos cargar tu historial de intentos.');
-    expect(historySection().querySelector('ui-empty-state')).toBeNull();
-    expect(cards()).toHaveLength(1);
-
-    (error.querySelector('button') as HTMLButtonElement).click();
-    await fixture.whenStable();
-    expect(calls).toBe(2);
-    expect(historySection().querySelector('ui-error-state')).toBeNull();
-    expect(historySection().querySelectorAll('tbody tr')).toHaveLength(1);
-  });
-
-  it('sin intentos: el vacío lo dice (y no es un error)', async () => {
-    await render('ESTUDIANTE', { attemptHistory: () => of([]) });
-    expect(text(historySection().querySelector('ui-empty-state'))).toContain('Aún no tienes intentos');
-    expect(historySection().querySelector('ui-error-state')).toBeNull();
-  });
-
-  it('el reporte se abre en un diálogo junto a su fila: final, hitos y recomendaciones, sin puntaje ni estrés', async () => {
-    await render('ESTUDIANTE', { attemptHistory: () => of([attempt({ attemptId: 'done', caseTitle: 'Caso 1' })]) });
-    (historySection().querySelector('tbody button') as HTMLButtonElement).click();
-    await fixture.whenStable();
-    const content = text(dialog());
-    expect(dialog()?.getAttribute('aria-modal')).toBe('true');
-    expect(content).toContain('Caso 1');
-    expect(field('Tiempo total')).toBe('12 min 34 s');
-    expect(field('Reflexiones')).toBe('3');
-    expect(content).toContain('Cierre con brechas');
-    expect(content).toContain('Lo que hiciste');
-    expect(content).toContain('Escuchar sin juzgar');
-    expect(content).toContain('Lo que faltó');
-    expect(content).toContain('Recomendar medidas de protección (clave)');
-    expect(content).not.toMatch(/puntaje|estrés|desempeño|\d+\s?%|adecuadas/i);
-    expect(content).toContain('Activa la ruta institucional antes de cerrar el caso.');
-    expect(content).toContain('no realiza diagnósticos clínicos');
-    // Un solo «Cerrar» (el del pie), como los demás diálogos del sistema.
-    expect([...dialog()!.querySelectorAll('button')].filter(button => spoken(button) === 'Cerrar')).toHaveLength(1);
-    expect(dialog()!.querySelector('[role="status"]')).not.toBeNull();
-    // El reporte ya no se pega al final de la página.
-    expect(host().querySelector('.report-panel')).toBeNull();
-  });
-
-  it('si falla el reporte, el error vive en el diálogo con «Reintentar» y el catálogo no cambia', async () => {
-    let calls = 0;
-    await render('ESTUDIANTE', {
-      attemptHistory: () => of([attempt({ attemptId: 'done' })]),
-      studentReport: () => (++calls === 1 ? httpFailure() : of(report())),
-    });
-    (historySection().querySelector('tbody button') as HTMLButtonElement).click();
-    await fixture.whenStable();
-    const error = dialog()!.querySelector('ui-error-state')!;
-    expect(text(error)).toContain('No pudimos cargar el resumen de este intento.');
-    expect(host().querySelector('ui-error-state')).toBeNull();
-    expect(cards()).toHaveLength(1);
-
-    (error.querySelector('button') as HTMLButtonElement).click();
-    await fixture.whenStable();
-    expect(calls).toBe(2);
-    expect(field('Tiempo total')).toBe('12 min 34 s');
-  });
-
-  it('si falla el catálogo: error con «Reintentar»; sin casos: vacío que lo dice', async () => {
-    let calls = 0;
-    await render('ESTUDIANTE', { listCases: () => (++calls === 1 ? httpFailure() : of([])) });
-    const error = host().querySelector('.catalog-cases ui-error-state')!;
-    expect(text(error)).toContain('No pudimos cargar los casos.');
-    (error.querySelector('button') as HTMLButtonElement).click();
-    await fixture.whenStable();
-    expect(text(host().querySelector('.catalog-cases ui-empty-state'))).toContain('Aún no tienes casos asignados');
-  });
-
-  // req: SIEP-RF-12 (gancho de interfaz), BLOQUE-H (plan visual F5-5)
-  it('F5-5: un caso bloqueado lo dice con motivo y su botón queda deshabilitado CON motivo (enfocable, no navega)', async () => {
-    await render('ESTUDIANTE', {
-      listCases: () => of([caseSummary(1), caseSummary(2)]),
-      getCatalog: () => of([catalogItem(1, 1, true, true), catalogItem(2, 2, false)]),
-    });
-    const locked = card('Caso 2');
-    expect(text(locked.querySelector('ui-badge.case-card__lock'))).toBe('Bloqueado');
-    expect(text(locked.querySelector('.case-card__reason'))).toBe('Completa «Caso 1» para abrirlo.');
-    const start = locked.querySelector('button') as HTMLButtonElement;
-    expect(spoken(start)).toBe('Iniciar simulación');
-    expect(start.disabled).toBe(false);
-    expect(start.getAttribute('aria-disabled')).toBe('true');
-    start.click();
-    expect(navigate).not.toHaveBeenCalled();
-    expect(text(card('Caso 1').querySelector('ui-badge.case-card__done'))).toBe('Resuelto');
-  });
-
-  // req: RN-04, RF-15, RF-14 (F10-5)
-  it('F10-5: un caso cuya ventana aún no abre o ya cerró se rotula así, con la fecha, y no manda a completar otro caso', async () => {
-    const scheduled = { ...catalogItem(2, 2, false), access: { allowed: false as const, reason: 'NOT_YET_OPEN' as const, opensAt: '2026-10-20T08:00:00-05:00' } };
-    const closed = { ...catalogItem(3, 3, false), access: { allowed: false as const, reason: 'CLOSED' as const, closesAt: '2026-10-05T23:59:00-05:00' } };
-    await render('ESTUDIANTE', {
-      listCases: () => of([caseSummary(1), caseSummary(2), caseSummary(3)]),
-      getCatalog: () => of([catalogItem(1, 1, true, true), scheduled, closed]),
-    });
-    expect(text(card('Caso 2').querySelector('ui-badge.case-card__lock'))).toBe('Aún no abre');
-    expect(text(card('Caso 2').querySelector('.case-card__reason'))).toMatch(/20 de oct/);
-    expect(text(card('Caso 2').querySelector('.case-card__reason'))).not.toContain('Completa');
-    expect(text(card('Caso 3').querySelector('ui-badge.case-card__lock'))).toBe('Ya cerró');
-    expect(text(card('Caso 3').querySelector('.case-card__reason'))).toMatch(/5 de oct/);
-    (card('Caso 2').querySelector('button') as HTMLButtonElement).click();
-    expect(navigate).not.toHaveBeenCalled();
-  });
-
-  it('F5-5: si el catálogo de desbloqueo falla, no se inventa ningún bloqueo (decide el servidor)', async () => {
-    await render('ESTUDIANTE', { listCases: () => of([caseSummary(1), caseSummary(2)]), getCatalog: httpFailure });
-    expect(host().querySelector('.case-card__lock')).toBeNull();
-    expect(cards()).toHaveLength(2);
-  });
-
-  it('F5-5: al volver de un caso bloqueado pedido por dirección, el aviso dice cuál y por qué', async () => {
-    await render('ESTUDIANTE', {
-      listCases: () => of([caseSummary(1), caseSummary(2)]),
-      getCatalog: () => of([catalogItem(1, 1, true), catalogItem(2, 2, false)]),
-    }, { bloqueado: '2' });
-    expect(spoken(host().querySelector('.catalog-notice')!)).toBe('«Caso 2» todavía está bloqueado: completa «Caso 1» para abrirlo.');
-    expect(host().querySelector('.catalog-notice')!.closest('[role="status"]')).not.toBeNull();
-    // La guardia puede redirigir a esta misma ruta (Angular reutiliza el componente): el aviso sigue a la dirección.
-    queryParams.next(convertToParamMap({}));
-    await fixture.whenStable();
-    expect(host().querySelector('.catalog-notice')).toBeNull();
-    expect(host().querySelector('.catalog-notice-region[role="status"]')).not.toBeNull();
-  });
-
-  it('F5-6: un intento abierto se continúa aunque el caso haya quedado bloqueado (RN-07 manda)', async () => {
-    await render('ESTUDIANTE', {
-      listCases: () => of([caseSummary(1), caseSummary(2)]),
-      getCatalog: () => of([catalogItem(1, 1, true), catalogItem(2, 2, false)]),
-      attemptHistory: () => of([attempt({ attemptId: 'p', caseVersionId: 2, caseTitle: 'Caso 2', status: 'PAUSED' })]),
-    });
-    const card2 = card('Caso 2');
-    expect(card2.querySelector('.case-card__lock')).toBeNull();
-    const button = card2.querySelector('button') as HTMLButtonElement;
-    expect(spoken(button)).toBe('Continuar');
-    expect(button.getAttribute('aria-disabled')).toBeNull();
-  });
-
-  it('F5-6: sin historial no se sabe si hay algo abierto: «Abrir caso», nunca «Iniciar» (RN-07)', async () => {
-    await render('ESTUDIANTE', { attemptHistory: httpFailure });
-    expect(buttons(card('Caso 1'))).toEqual(['Abrir caso']);
-  });
-
-  // req: ED-5 (E2: el ADMIN no juega; el servidor le niega `attempt.play` con 403)
-  it('administración: solo «Editor visual», sin acción de juego ni historial propio (ED-5)', async () => {
-    await render('ADMIN');
-    expect(buttons(card('Caso 1'))).toEqual(['Editor visual']);
-    (card('Caso 1').querySelectorAll('button')[0] as HTMLButtonElement).click();
-    expect(navigate).toHaveBeenCalledWith(['/portal/casos', 1, 'editor']);
-    expect(host().querySelector('.catalog-history')).toBeNull();
-  });
-
-  it('docencia: ve los casos sin acciones de juego', async () => {
-    await render('PROFESOR');
-    expect(buttons(card('Caso 1'))).toEqual([]);
-  });
+const entrada = (id: number, extra: Partial<CatalogItem> = {}): CatalogItem => ({
+  caseVersionId: id, code: `C${id}`, title: `Caso ${id}`, description: 'Una descripción larga del caso.', order: id, unlocked: true, completed: false, locked: false, ...extra,
+});
+const resumen = (id: number) => ({ ...entrada(id), semanticVersion: '1.0.0', nodeCount: 8, status: 'PUBLISHED' });
+const intento = (extra: Partial<StudentAttemptSummary> = {}): StudentAttemptSummary => ({
+  attemptId: 'abc', caseVersionId: 1, caseTitle: 'Caso 1', status: 'COMPLETED', totalDurationSeconds: 10, activeDurationSeconds: 10, startedAt: '2026-01-01T10:00:00Z', endedAt: null, ...extra,
 });
 
-// Las etiquetas de estado salen de labels.ts (T15.4): se conservan las del catálogo.
-describe('catálogo de simulaciones: textos en español (T15.4)', () => {
-  it('rotula el estado de la versión del caso y del intento en español, no el valor interno', () => {
+describe('Casos del estudiante', () => {
+  const info = vi.fn();
+
+  async function render(catalogo: CatalogItem[], historial: StudentAttemptSummary[], opciones: { rol?: string; bloqueado?: string } = {}) {
+    const rol = opciones.rol ?? 'ESTUDIANTE';
     TestBed.configureTestingModule({
       providers: [
-        provideZonelessChangeDetection(), provideRouter([]),
-        { provide: SimulationService, useValue: { listCases: () => of([]) } },
-        { provide: AuthService, useValue: { hasRole: () => false } },
+        provideZonelessChangeDetection(),
+        provideRouter([]),
+        { provide: AuthService, useValue: { currentUser: signal({ id: 1 }), hasRole: (r: string) => r === rol } },
+        { provide: NotificationService, useValue: { info } },
+        { provide: ActivatedRoute, useValue: { queryParamMap: of(convertToParamMap(opciones.bloqueado ? { bloqueado: opciones.bloqueado } : {})) } },
+        { provide: CaseAccessCache, useValue: { acceso: () => ({ catalogo, historial }), guardandoAcceso: () => (fuente: unknown) => fuente } },
+        { provide: SimulationService, useValue: { listCases: () => of(catalogo.map(item => resumen(item.caseVersionId))) } },
       ],
     });
-    const catalog = TestBed.createComponent(SimulationCatalogComponent).componentInstance;
-    expect(catalog.statusLabel('PUBLISHED')).toBe('Publicado');
-    expect(catalog.statusLabel('DRAFT')).toBe('Borrador');
-    expect(catalog.statusLabel('IN_REVIEW')).toBe('En revisión');
-    expect(catalog.statusLabel('ARCHIVED')).toBe('Archivado');
-    expect(catalog.statusLabel('COMPLETED')).toBe('Finalizado');
-    expect(catalog.statusLabel('PAUSED')).toBe('En pausa (reanudable)');
-    expect(catalog.statusLabel('IN_PROGRESS')).toBe('En curso');
-    expect(catalog.statusLabel('')).toBe('Sin estado');
+    const router = TestBed.inject(Router);
+    const navegar = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    const fixture = TestBed.createComponent(SimulationCatalogComponent);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return { fixture, host: fixture.nativeElement as HTMLElement, navegar };
+  }
+
+  beforeEach(() => { info.mockClear(); sessionStorage.removeItem('siep.catalogo.retorno'); });
+
+  it('agrupa los intentos por caso sin duración ni nombre repetido, y «Ver tu recorrido» navega al cierre', async () => {
+    const { host, navegar } = await render([entrada(1, { completed: true })], [intento()]);
+    const historial = host.querySelector('details')!;
+    expect(historial.textContent).toContain('Tus intentos (1)');
+    expect(historial.textContent).not.toContain('Caso 1');
+    expect(historial.textContent).not.toContain('Duración');
+    expect(historial.querySelector('th')?.textContent).toContain('Estado');
+    (historial.querySelector('tbody button') as HTMLButtonElement).click();
+    expect(navegar).toHaveBeenCalledWith(['/portal/simulador', 1, 'cierre', 'abc']);
+  });
+
+  it('la acción de la tarjeta depende del estado: terminado lleva al recorrido', async () => {
+    const { host, navegar } = await render([entrada(1, { completed: true })], [intento()]);
+    const accion = host.querySelector('.cs-acciones button') as HTMLButtonElement;
+    expect(accion.textContent).toContain('Ver tu recorrido');
+    accion.click();
+    expect(navegar).toHaveBeenCalledWith(['/portal/simulador', 1, 'cierre', 'abc']);
+  });
+
+  it('al volver del recorrido devuelve el foco a la accion del caso', async () => {
+    sessionStorage.setItem('siep.catalogo.retorno', '1');
+    const foco = vi.spyOn(HTMLElement.prototype, 'focus');
+    const { host } = await render([entrada(1, { completed: true })], [intento()]);
+    const boton = host.querySelector('[data-case-id="1"] .cs-acciones button');
+    expect(boton).not.toBeNull();
+    expect(foco.mock.instances).toContain(boton);
+    expect(sessionStorage.getItem('siep.catalogo.retorno')).toBeNull();
+    foco.mockRestore();
+  });
+
+  it('lo abierto se continúa directo; sin empezar abre la ficha; el estado va en palabras', async () => {
+    const { host, navegar } = await render([entrada(1), entrada(2)], [intento({ status: 'PAUSED' })]);
+    const botones = Array.from(host.querySelectorAll<HTMLButtonElement>('.cs-acciones button'));
+    expect(botones).toHaveLength(2);
+    expect(botones[0].textContent).toContain('Continuar');
+    expect(botones[1].textContent).toContain('Ver ficha');
+    botones[0].click();
+    expect(navegar).toHaveBeenCalledWith(['/portal/simulador', 1], expect.objectContaining({ queryParams: { intento: 'continuar' } }));
+    botones[1].click();
+    expect(navegar).toHaveBeenCalledWith(['/portal/simulador', 2, 'ficha'], expect.anything());
+    expect(host.textContent).toContain('En pausa');
+    expect(host.textContent).toContain('Sin empezar');
+  });
+
+  it('un caso bloqueado dice por qué y su botón queda deshabilitado con el motivo', async () => {
+    const { host } = await render([entrada(1), entrada(2, { unlocked: false, locked: true })], []);
+    const tarjeta = host.querySelectorAll('.cs-tarjeta')[1];
+    expect(tarjeta.textContent).toContain('Bloqueado');
+    expect(tarjeta.textContent).toContain('Se abre al terminar «Caso 1»');
+    expect(tarjeta.querySelector('.cs-acciones button')?.getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('un reemplazado se dice «Reemplazado» y no ofrece acción', async () => {
+    const { host } = await render([entrada(1)], [intento({ status: 'REPLACED' })]);
+    const fila = host.querySelector('details tbody tr')!;
+    expect(fila.textContent).toContain('Reemplazado');
+    expect(fila.querySelector('button')).toBeNull();
+  });
+
+  it('el filtro de estado lleva cuentas y filtra; la búsqueda no aparece con pocos casos', async () => {
+    const { fixture, host } = await render([entrada(1, { completed: true }), entrada(2)], [intento()]);
+    expect(host.querySelector('ui-segmentado')).not.toBeNull();
+    expect(host.querySelector('input[type="search"]')).toBeNull();
+    expect(host.querySelectorAll('.cs-tarjeta')).toHaveLength(2);
+    expect(host.querySelector('.cs-rejilla--uno')).toBeNull();
+    const terminados = Array.from(host.querySelectorAll<HTMLElement>('[role="radio"]')).find(radio => radio.textContent?.includes('Terminados'))!;
+    expect(terminados.textContent).toContain('1');
+    terminados.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(host.querySelectorAll('.cs-tarjeta')).toHaveLength(1);
+    // Un solo caso visible no se queda en un tercio de la rejilla: va a todo el ancho.
+    expect(host.querySelector('.cs-rejilla--uno')).not.toBeNull();
+  });
+
+  it('con más de 8 casos aparece la búsqueda', async () => {
+    const casos = Array.from({ length: 9 }, (_, i) => entrada(i + 1));
+    const { host } = await render(casos, []);
+    expect(host.querySelector('input[type="search"]')).not.toBeNull();
+  });
+
+  it('un caso bloqueado pedido por dirección se avisa con el sistema de avisos', async () => {
+    await render([entrada(1), entrada(2, { unlocked: false, locked: true })], [], { bloqueado: '2' });
+    expect(info).toHaveBeenCalledTimes(1);
+    expect(info.mock.calls[0][0]).toContain('Caso 2');
+  });
+
+  it('el administrador ve el catálogo con «Editor visual» y sin estados del estudiante', async () => {
+    const { host } = await render([entrada(1)], [], { rol: 'ADMIN' });
+    expect(host.textContent).toContain('Editor visual');
+    expect(host.querySelector('ui-segmentado')).toBeNull();
+    expect(host.querySelector('details')).toBeNull();
+  });
+
+  describe('catálogo e historial fallan por separado (Codex B4a, hallazgo 3)', () => {
+    async function renderSinCache(servicio: Record<string, unknown>) {
+      const guardarAcceso = vi.fn();
+      TestBed.configureTestingModule({
+        providers: [
+          provideZonelessChangeDetection(),
+          provideRouter([]),
+          { provide: AuthService, useValue: { currentUser: signal({ id: 1 }), hasRole: (r: string) => r === 'ESTUDIANTE' } },
+          { provide: NotificationService, useValue: { info } },
+          { provide: ActivatedRoute, useValue: { queryParamMap: of(convertToParamMap({})) } },
+          { provide: CaseAccessCache, useValue: { acceso: () => null, ticket: () => ({ dueno: 1, epoca: 0 }), guardarAcceso } },
+          { provide: SimulationService, useValue: { listCases: () => of([resumen(1)]), ...servicio } },
+        ],
+      });
+      const fixture = TestBed.createComponent(SimulationCatalogComponent);
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return { host: fixture.nativeElement as HTMLElement, fixture, guardarAcceso };
+    }
+    const falla = () => throwError(() => ({ status: 500 }));
+
+    it('si falla el catálogo, el historial se ve, el error es de los casos y su reintento pide el catálogo', async () => {
+      const getCatalog = vi.fn().mockReturnValueOnce(falla()).mockReturnValue(of([entrada(1)]));
+      const attemptHistory = vi.fn(() => of([intento({ status: 'PAUSED' })]));
+      const { host, fixture, guardarAcceso } = await renderSinCache({ getCatalog, attemptHistory });
+      // Sin catálogo no se pintan tarjetas con un «abierto» inventado; el historial llegó y no se volvió a pedir.
+      expect(host.querySelector('.cs-acciones')).toBeNull();
+      expect(guardarAcceso).not.toHaveBeenCalled();
+      const reintentos = Array.from(host.querySelectorAll('ui-error-state'));
+      expect(reintentos).toHaveLength(1);
+      (reintentos[0].querySelector('button') as HTMLButtonElement).click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(getCatalog).toHaveBeenCalledTimes(2);
+      expect(attemptHistory).toHaveBeenCalledTimes(1);
+      expect(host.querySelector('.cs-acciones button')?.textContent).toContain('Continuar');
+      expect(guardarAcceso).toHaveBeenCalledTimes(1);
+    });
+
+    it('si falla el historial, las tarjetas usan el catálogo y el reintento solo pide el historial', async () => {
+      const getCatalog = vi.fn(() => of([entrada(1, { locked: true, unlocked: false })]));
+      const attemptHistory = vi.fn().mockReturnValueOnce(falla()).mockReturnValue(of([]));
+      const { host, guardarAcceso } = await renderSinCache({ getCatalog, attemptHistory });
+      expect(host.querySelectorAll('ui-error-state')).toHaveLength(1);
+      // La tarjeta sale del catálogo (bloqueada), no del respaldo «abierto».
+      expect(host.querySelector('.cs-acciones')?.textContent).toContain('Se abre al terminar el caso anterior.');
+      expect(guardarAcceso).not.toHaveBeenCalled();
+      expect(getCatalog).toHaveBeenCalledTimes(1);
+    });
   });
 });

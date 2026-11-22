@@ -14,7 +14,9 @@ import { AuthService } from './core/auth/auth.service';
 import { canLeaveGuard } from './core/navigation/can-leave.guard';
 import { ChangePasswordComponent } from './features/account/change-password.component';
 import { rutasEditorCaso, rutasNuevoCaso } from './features/autoria/autoria.routes';
+import { GrupoListComponent } from './features/grupos/grupo-list.component';
 import { InvitationsComponent } from './features/invitations/invitations.component';
+import { CierreCasoComponent } from './features/simulator/cierre/cierre-caso.component';
 import { ReporteEstudianteComponent } from './features/reportes/reporte-estudiante.component';
 import { caseUnlockedGuard } from './features/simulator/case-unlocked.guard';
 import { NotFoundComponent } from './features/public/not-found.component';
@@ -246,4 +248,62 @@ describe('app.routes: rutas de desarrollo', () => {
       expect(index).toBeLessThan(paths.indexOf('**'));
     });
   }
+});
+
+/**
+ * Rediseño 2026-11-21 (DISENO §3.2, §4.5, §5.4 y §7.1): rutas nuevas del armazón (B1) y títulos de pestaña que dicen
+ * lo mismo que el menú.
+ */
+// req: DP-13, DP-18, DP-22
+describe('app.routes: rutas nuevas del rediseño', () => {
+  const children = routes.find(route => route.path === 'portal')!.children ?? [];
+  const ruta = (path: string) => children.find(child => child.path === path)!;
+  const pos = (path: string) => children.findIndex(child => child.path === path);
+  const decide = (path: string, role: string) => {
+    const auth = { getToken: () => 'x', isTokenMalformed: () => false, isTokenExpired: () => false, clearSession: () => undefined,
+      hasRole: (...roles: string[]) => roles.includes(role) };
+    const router = { createUrlTree: (commands: unknown[]) => ({ commands }) };
+    TestBed.configureTestingModule({ providers: [{ provide: AuthService, useValue: auth }, { provide: Router, useValue: router }] });
+    const result = TestBed.runInInjectionContext(() => (ruta(path).canActivate![0] as (...args: unknown[]) => unknown)({}, { url: `/portal/${path}` }));
+    TestBed.resetTestingModule();
+    return result;
+  };
+
+  it('el cierre del caso es una página del portal (con barra), solo del estudiante, antes del comodín', async () => {
+    const cierre = ruta('simulador/:caseVersionId/cierre/:attemptId');
+    expect(cierre.title).toBe('Cierre del caso');
+    expect(cierre.data?.['chrome']).toBeUndefined();
+    expect(await (cierre.loadComponent as () => Promise<unknown>)()).toBe(CierreCasoComponent);
+    expect(decide('simulador/:caseVersionId/cierre/:attemptId', 'ESTUDIANTE')).toBe(true);
+    expect(decide('simulador/:caseVersionId/cierre/:attemptId', 'PROFESOR')).toEqual({ commands: ['/portal/sin-permiso'] });
+    expect(decide('simulador/:caseVersionId/cierre/:attemptId', 'ADMIN')).toEqual({ commands: ['/portal/sin-permiso'] });
+    expect(pos('simulador/:caseVersionId/cierre/:attemptId')).toBeLessThan(pos('**'));
+  });
+
+  it('el detalle de un grupo carga la misma lista de grupos, con la misma guardia', async () => {
+    const detalle = ruta('grupos/:grupoId');
+    expect(await (detalle.loadComponent as () => Promise<unknown>)()).toBe(GrupoListComponent);
+    expect(await (ruta('grupos').loadComponent as () => Promise<unknown>)()).toBe(GrupoListComponent);
+    expect(detalle.canActivate).toHaveLength(1);
+    expect(decide('grupos/:grupoId', 'PROFESOR')).toBe(true);
+    expect(decide('grupos/:grupoId', 'ESTUDIANTE')).toEqual({ commands: ['/portal/sin-permiso'] });
+    expect(pos('grupos/:grupoId')).toBeLessThan(pos('**'));
+  });
+
+  it('cambiar la contraseña por gusto vive dentro del portal y usa el mismo componente en modo voluntario', async () => {
+    const cuenta = ruta('cuenta/contrasena');
+    expect(cuenta.title).toBe('Cambiar contraseña');
+    expect(cuenta.data).toEqual({ modo: 'voluntario' });
+    expect(cuenta.canActivate).toBeUndefined();
+    expect(await (cuenta.loadComponent as () => Promise<unknown>)()).toBe(ChangePasswordComponent);
+    expect(pos('cuenta/contrasena')).toBeLessThan(pos('**'));
+  });
+
+  it('los títulos de pestaña dicen lo mismo que el menú', () => {
+    expect(ruta('dashboard').title).toBe('Inicio');
+    expect(ruta('simulador').title).toBe('Casos');
+    expect(ruta('casos').title).toBe('Casos');
+    expect(ruta('docente/trazabilidad').title).toBe('Revisión formativa');
+    expect(ruta('invitaciones').title).toBe('Tus grupos');
+  });
 });

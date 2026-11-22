@@ -10,6 +10,14 @@ export interface CatalogItem {
   locked: boolean;
   /** La decisión de acceso del servidor (asignación, ventana y secuencia); `unlocked` sigue diciendo lo mismo en pocas palabras. */
   access?: CaseAccess;
+  /**
+   * BK-1 · URL del fondo en pixel art de la sala donde empieza el caso, o `null` si esa sala se arma por piezas, no tiene
+   * fondo o el fondo no es una ruta permitida (la interfaz pinta su composición de respaldo). Opcional: un servidor
+   * anterior a BK no lo manda y ninguna pantalla puede romperse por eso.
+   */
+  portada?: string | null;
+  /** BK-1 · Cuántas escenas tiene el caso (estructura del caso, no una medida). Opcional, como `portada`. */
+  escenas?: number;
 }
 
 /** Por qué el servidor no deja iniciar un caso: la asignación, su ventana o la secuencia lineal (E3-2; RN-04, RF-15). */
@@ -31,6 +39,12 @@ export interface CaseBriefCharacter {
   portraitKey: string;
 }
 
+/** Dónde empieza un caso (BK-1): el título de la escena de inicio y el de su sala (vacío si no tiene sala). */
+export interface CaseBriefStart {
+  escena: string;
+  lugar: string;
+}
+
 /** La ficha del caso (C8, RF-16, CU-07): lo que se lee antes de jugar. Pedirla no crea intento. */
 export interface CaseBrief {
   caseVersionId: number;
@@ -40,6 +54,17 @@ export interface CaseBrief {
   learningObjectives: string[];
   hasSensitiveContent: boolean;
   access: CaseAccess;
+  // BK-1 (todos opcionales: la ficha tiene que verse igual de bien con un servidor que aún no los manda).
+  /** Cuántas escenas tiene el caso: «5 escenas». */
+  escenas?: number;
+  /** Dónde empieza: «Empiezas en {lugar}». `null` si el caso no tiene escena de inicio. */
+  inicio?: CaseBriefStart | null;
+  /** Fondo de la sala de inicio (ver `CatalogItem.portada`). */
+  portada?: string | null;
+  /** Los temas sensibles que declara el caso («En este caso aparecen:»); vacía si no declara ninguno. */
+  temasSensibles?: string[];
+  /** Si el recorrido se valora con una rúbrica (asignada, propia de la versión o la predeterminada del sitio). */
+  conRubrica?: boolean;
 }
 
 /** Por qué ya no hay pista que pedir en la escena: no tiene ninguna, o el intento ya las vio todas (C9). */
@@ -66,6 +91,15 @@ export interface SimulationCaseSummary {
   semanticVersion: string;
   nodeCount: number;
   status: string;
+  // BK-4: solo los trae la lista de autoría (`AuthoringApi.listAuthoringCases`); la del jugador no. Por eso opcionales.
+  /** El caso al que pertenece la versión: agrupa las versiones de un mismo caso (lista del ADMIN). */
+  caseId?: number;
+  /** La última edición (hora de Bogotá, sin zona); en lo editado antes de registrarla, la publicación o la creación. */
+  updatedAt?: string | null;
+  /** Escenas con narración y, si no son un final, al menos una respuesta: «3 de 5 escenas con guion». */
+  escenasConGuion?: number;
+  /** Fondo de la sala de inicio (ver `CatalogItem.portada`). */
+  portada?: string | null;
 }
 
 export interface ProgressMapNode {
@@ -209,7 +243,7 @@ export interface AttemptCompletionReport {
 }
 
 /** Una decisión que sostiene el nivel de una competencia (reporte v3, `competencyLevels[].evidence[]`). */
-export interface CompetencyEvidence {
+export interface CompetencyEvidenceDecision {
   order: number;
   nodeTitle: string;
   optionText: string;
@@ -224,7 +258,7 @@ export interface CompetencyLevelEntry {
   level: FormativeLevel | null;
   /** Con qué se calculó el nivel, en palabras; nulo si ninguna decisión tocó la competencia. */
   basis: string | null;
-  evidence: CompetencyEvidence[];
+  evidence: CompetencyEvidenceDecision[];
 }
 
 /**
@@ -591,6 +625,33 @@ export interface AttemptTrace {
   systemEvaluation: SystemEvaluation | null;
   /** Hay una valoración automática que mostrar cuando el docente registre la suya. */
   systemEvaluationAvailable: boolean;
+  /**
+   * RK-4 (bloque R0) · Por cada competencia de la rúbrica con que se valora el intento, las decisiones registradas que la
+   * tocan: las fichas de «Evidencia» junto a cada criterio. A propósito no trae ningún nivel (ni el de cada decisión ni
+   * el que calculó el sistema): la valoración automática sigue plegada hasta que el docente guarda la suya. Opcional:
+   * sin ella el panel de valoración no pinta las fichas. Vacía si el caso no tiene rúbrica.
+   */
+  evidenceByCompetency?: CompetencyEvidence[];
+}
+
+/** RK-4 · Las decisiones del intento que tocan una competencia de la rúbrica, en el orden en que se tomaron. */
+export interface CompetencyEvidence {
+  /** El mismo código que `RubricCriterionView.competency` y `competencyLevels[].code`: así se emparejan con el criterio. */
+  code: string;
+  /** El nombre de la competencia en el catálogo, para mostrar en vez del código. */
+  name: string;
+  items: CompetencyEvidenceItem[];
+}
+
+/** RK-4 · Una decisión que sirve de evidencia: dónde, qué eligió y su clase. Sin nivel ni puntaje. */
+export interface CompetencyEvidenceItem {
+  /** Su posición entre las decisiones registradas (desde 1): la misma que usa la columna de evidencia para resaltarla. */
+  order: number;
+  nodeTitle: string;
+  optionText: string;
+  class: ResponseClass | null;
+  /** Segundos desde que empezó el intento; nulo si falta alguna de las dos marcas de tiempo. */
+  atSeconds: number | null;
 }
 
 /** La valoración automática del sistema que ve el docente tras registrar la suya: resumen y perfil por competencia. */
@@ -628,12 +689,97 @@ export interface RubricSummary {
   evaluatedAt: string;
 }
 
+/**
+ * BK-3 · El estado de la valoración del docente sobre un intento. `APLICADA`: ya hay una valoración concluida (la que el
+ * estudiante ve). `PENDIENTE`: el intento terminó, el caso se valora con una rúbrica y no hay valoración concluida (una
+ * guardada a medias sigue pendiente). `NO_APLICA`: el intento no terminó o el caso no tiene rúbrica.
+ */
+export type EvaluationStatus = 'PENDIENTE' | 'APLICADA' | 'NO_APLICA';
+
 export interface RecentAttempt {
   attemptId: string;
   studentAlias: string;
   caseTitle: string;
   status: string;
   startedAt: string;
+  // BK-3 (opcionales: el Inicio docente funciona sin ellos, con menos detalle).
+  caseVersionId?: number;
+  /** Cuándo terminó: «terminó hace 2 días». `null` mientras el intento sigue abierto. */
+  endedAt?: string | null;
+  evaluationStatus?: EvaluationStatus;
+}
+
+/** Un intento en la revisión docente (`GET /api/instructor/attempts`). El estudiante va solo por su alias. */
+export interface InstructorAttemptItem {
+  attemptId: string;
+  studentAlias: string;
+  caseVersionId: number;
+  caseVersionStatus: string;
+  caseTitle: string;
+  status: SimulationAttemptState['status'];
+  activeSeconds: number;
+  startedAt: string;
+  endedAt: string | null;
+  /** BK-3. Opcional: sin él la bandeja filtra en el cliente por `status === 'COMPLETED'` (con una nota). */
+  evaluationStatus?: EvaluationStatus;
+}
+
+/** Una página de la revisión docente: los intentos, del más reciente al más antiguo, y cuántos hay en total. */
+export interface InstructorAttemptsPage {
+  items: InstructorAttemptItem[];
+  page: number;
+  pageSize: number;
+  coverage: { shown: number; total: number };
+}
+
+/** Los filtros de `InstructorApi.listAttempts`. Todos opcionales; un filtro ausente no se manda. */
+export interface InstructorAttemptsQuery {
+  grupoId?: number;
+  estudianteId?: number;
+  caseVersionId?: number;
+  estado?: SimulationAttemptState['status'];
+  /** BK-3: `pendiente` = por revisar (terminados sin valoración concluida); `aplicada` = ya valorados. */
+  evaluacion?: 'pendiente' | 'aplicada';
+  page?: number;
+  pageSize?: number;
+}
+
+/** BK-5 · Un criterio de la valoración que lee el dueño del intento: el nivel en palabras, nunca un número (RN-09). */
+export interface OwnerEvaluationCriterion {
+  criterionId: number;
+  title: string;
+  /** Nulo si el criterio quedó sin nivel. */
+  level: FormativeLevel | null;
+  /** La observación del docente para este criterio; vacía si no escribió ninguna. */
+  comment: string;
+  /**
+   * RK-6 (bloque R0) · Qué significa ese nivel en ese criterio, en palabras: el descriptor propio del criterio (RK-2) o,
+   * si no lo tiene, el general del nivel. Nunca un número. Ausente si el criterio no tiene nivel o con un servidor
+   * anterior: la pieza muestra entonces solo el nivel y la observación.
+   */
+  descriptor?: string;
+}
+
+/** BK-5 · Una valoración concluida del docente tal como la lee el estudiante dueño del intento. */
+export interface OwnerEvaluationEntry {
+  rubricName: string;
+  /** Siempre `DOCENTE`: la del sistema le llega al estudiante en su reporte, no aquí. */
+  origin: 'DOCENTE' | 'SISTEMA';
+  evaluatedAt: string | null;
+  /** El comentario general; vacío si no escribió ninguno. */
+  comment: string;
+  /** El nivel global en palabras; nulo si no se puede resumir. */
+  overallLevel: FormativeLevel | null;
+  criteria: OwnerEvaluationCriterion[];
+}
+
+/**
+ * BK-5 · `GET /api/simulation/attempts/{id}/evaluation`: solo el dueño del intento la lee (otro estudiante, 403) y solo
+ * trae las valoraciones CONCLUIDAS del docente, sin ningún número. Lista vacía: aún no hay retroalimentación.
+ */
+export interface OwnerEvaluation {
+  attemptId: string;
+  evaluations: OwnerEvaluationEntry[];
 }
 
 export interface StudentAttemptSummary {
@@ -670,6 +816,33 @@ export interface RubricCriterionView {
   description: string | null;
   weight?: number;
   displayOrder: number;
+  /** Si el criterio cuenta. Lo trae la vista del editor (RK-2); la de valorar solo lista los activos. */
+  active?: boolean;
+  /**
+   * RK-2 (bloque R0) · Qué significa cada nivel EN ESTE criterio. Solo trae los niveles con texto propio: el que falta
+   * se lee con el descriptor general (`RubricLevelOption.descriptor`, ver `descriptorDelNivel`). Ausente con un servidor
+   * anterior, que equivale a `{}`.
+   */
+  levelDescriptors?: LevelDescriptors;
+}
+
+/** RK-2 · Los descriptores propios de un criterio, por nivel. Un nivel ausente usa el descriptor general. */
+export type LevelDescriptors = Partial<Record<FormativeLevel, string>>;
+
+/**
+ * RK-2 · Qué significa `level` en `criterion`: el descriptor propio si lo tiene; si no, el general de `levels`. Es la
+ * misma regla que el servidor aplica al estudiante (RK-6), en un solo sitio para la matriz, el panel de valoración y la
+ * vista «Así la lee el estudiante». `null` sin nivel o si no hay con qué explicarlo.
+ */
+export function descriptorDelNivel(
+  criterion: Pick<RubricCriterionView, 'levelDescriptors'>,
+  level: FormativeLevel | null | undefined,
+  levels: readonly RubricLevelOption[] = [],
+): string | null {
+  if (!level) return null;
+  const propio = criterion.levelDescriptors?.[level]?.trim();
+  if (propio) return propio;
+  return levels.find(option => option.value === level)?.descriptor ?? null;
 }
 
 /** Un nivel que el docente puede elegir en un criterio: valor, nombre y descriptor. */
@@ -923,6 +1096,11 @@ export interface CaseEditorView {
   context: string;
   /** Los objetivos de aprendizaje de la ficha (E3-4). */
   learningObjectives: string[];
+  /**
+   * RK-7 (bloque R0) · Los temas sensibles que el estudiante lee en la ficha antes de empezar. «Datos» los edita con
+   * `updateBrief`. Ausente con un servidor anterior (equivale a ninguno).
+   */
+  contentWarnings?: string[];
   nodes: NodeEditorState[];
   decisions: DecisionEdgeState[];
   maps: MapEditorState[];
@@ -1011,7 +1189,23 @@ export interface CharacterUpsertRequest {
 export interface BriefUpdateRequest {
   context?: string;
   learningObjectives?: string[];
+  /**
+   * RK-7 · Los temas sensibles: hasta 8, de hasta 60 caracteres, texto plano; `[]` los quita. El servidor descarta los
+   * vacíos y los repetidos.
+   */
+  contentWarnings?: string[];
+  /**
+   * RK-8 · El nombre del caso (1 a 255 caracteres). Solo si el caso no tiene otra versión publicada o archivada, que
+   * comparten el nombre: si la tiene, 409 `CASE_TITLE_SHARED`.
+   */
+  title?: string;
 }
+
+/**
+ * RK-1 · Qué rúbrica adopta el caso como copia propia de la versión: una que quien edita ve (`rubricId`) o una nueva con
+ * un criterio por competencia del programa (`fromCompetencies`). Exactamente una de las dos.
+ */
+export type RubricAdoptRequest = { rubricId: number } | { fromCompetencies: true };
 
 export interface MapUpsertRequest {
   nodeId: number;

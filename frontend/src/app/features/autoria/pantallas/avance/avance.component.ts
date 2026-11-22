@@ -6,10 +6,14 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import type { Generation } from '../../../../core/models/generacion.model';
+import { CasoStore } from '../../estado/caso.store';
 import { GeneracionService } from '../../generacion/generacion.service';
 import { rutaDelEditor } from '../../rutas';
 import { anuncioDeLasPartes, esNegativa, parteConError, partesDeLaGeneracion } from './avance-partes';
 import { ParteAvanceComponent, cuantoLleva } from './parte-avance.component';
+import { abrirElCasoNuevo } from '../pasos-crear.component';
+import { MaquetaDelCasoComponent } from './maqueta-del-caso.component';
+import { VistasDelLugar } from './vistas-del-lugar';
 
 /** Desde qué parte del tope de llamadas se le dice a la docente cuántos intentos con la IA lleva. */
 const AVISO_DE_INTENTOS = 0.75;
@@ -29,7 +33,8 @@ type Modo = 'generando' | 'listo' | 'fallo' | 'fatal' | 'cancelada';
 @Component({
   selector: 'app-avance',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [NgTemplateOutlet, RouterLink, ParteAvanceComponent],
+  imports: [NgTemplateOutlet, RouterLink, ParteAvanceComponent, MaquetaDelCasoComponent],
+  providers: [VistasDelLugar],
   template: `
     <div class="pagina avance">
       <div class="encabezado">
@@ -118,6 +123,8 @@ type Modo = 'generando' | 'listo' | 'fallo' | 'fatal' | 'cancelada';
               }
             </div>
           }
+
+          <app-maqueta-del-caso [generacion]="g()" [partes]="partes()" [escenario]="lugar.escenario()" [vistas]="lugar.vistas()" />
 
           <ol class="partes" aria-label="Las partes de tu caso">
             @for (p of partes(); track p.clave) {
@@ -252,10 +259,13 @@ type Modo = 'generando' | 'listo' | 'fallo' | 'fatal' | 'cancelada';
 export class AvanceComponent implements OnInit, OnDestroy {
   private readonly generacion = inject(GeneracionService);
   private readonly router = inject(Router);
+  private readonly store = inject(CasoStore);
   private readonly injector = inject(Injector);
   private readonly anfitrion = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly id = inject(ActivatedRoute).snapshot.paramMap.get('generacionId') ?? '';
   private readonly titulo = viewChild.required<ElementRef<HTMLElement>>('titulo');
+  /** El lugar de la generación, con la imagen de cada sala: alimenta la maqueta escena por escena. */
+  protected readonly lugar = inject(VistasDelLugar);
 
   protected readonly error = this.generacion.error;
   protected readonly cancelando = signal(false);
@@ -264,7 +274,7 @@ export class AvanceComponent implements OnInit, OnDestroy {
   private readonly reintentando = signal<string | null>(null);
 
   /** La generación de esta pantalla: lo que el servicio guarda de otra generación (de una visita anterior) no cuenta. */
-  private readonly g = computed<Generation | null>(() => {
+  protected readonly g = computed<Generation | null>(() => {
     const g = this.generacion.generacion();
     return g && g.id === this.id ? g : null;
   });
@@ -391,6 +401,11 @@ export class AvanceComponent implements OnInit, OnDestroy {
   private readonly ahora = signal(Date.now());
 
   constructor() {
+    // En cuanto la generación dice su lugar, se leen sus salas para la maqueta (una vez; las imágenes llegan solas).
+    effect(() => {
+      const lugarId = this.g()?.lugarId;
+      if (lugarId) untracked(() => void this.lugar.cargar(lugarId));
+    });
     // Al llegar a «listo», «fallo», a una generación que no existe o a una cancelada, el foco va al título con su texto nuevo.
     effect(() => {
       if (this.modo() !== 'generando') afterNextRender(() => this.titulo().nativeElement.focus(), { injector: this.injector });
@@ -441,7 +456,8 @@ export class AvanceComponent implements OnInit, OnDestroy {
 
   protected abrirMiCaso(): void {
     const id = this.g()?.caseVersionId;
-    if (id) void this.router.navigateByUrl(rutaDelEditor('/editor', String(id)));
+    // Lo primero que hay por revisar es el guion de la primera escena: se abre ahí y no en la pantalla del caso.
+    if (id) void abrirElCasoNuevo(this.store, this.router, id);
   }
 
   /**

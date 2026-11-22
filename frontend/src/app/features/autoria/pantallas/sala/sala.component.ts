@@ -5,6 +5,7 @@ import {
 import { RouterLink } from '@angular/router';
 
 import { UiDialog } from '../../../../shared/ui/dialog/ui-dialog';
+import { UiMenu, type UiMenuItem } from '../../../../shared/ui/menu/ui-menu';
 import { CasoStore, type TipoElemento } from '../../estado/caso.store';
 import { CatalogoDePiezas } from '../../estado/catalogo-de-piezas';
 import { claveDeNuevo } from '../../modelo/hacia-api';
@@ -17,6 +18,8 @@ import { piezaDelObjeto } from '../../../simulator/sala/mueble-vivo';
 import { PiezasDelMuroComponent } from './piezas-del-muro.component';
 import { ManijaDeAnchoComponent } from './manija-de-ancho.component';
 import { PanelDeEstructuraComponent } from './panel-de-estructura.component';
+import { BarraDelLienzoComponent } from './barra-del-lienzo.component';
+import { CatalogoDelLugarComponent } from './catalogo-del-lugar.component';
 import { TrayectoDePersonaComponent } from './trayecto-de-persona.component';
 import { rutaArte, rutaRetrato, rutaSpriteKit } from '../../modelo/biblioteca.service';
 import type { MovimientoPersonaje, SalaCaso } from '../../modelo/caso';
@@ -26,6 +29,7 @@ import { NOMBRE_MOVIMIENTO, TEXTO_PERSONA_A_ATENDER, revisarPuntoDeIda, tipoDeMo
 import { respuestasSinForma } from '../../modelo/revision';
 import { ENCUADRE_LEGIBLE, NOMBRE_EXPRESION } from '../../modelo/textos';
 import { RutasAutoria } from '../../rutas';
+import { EstudioRanuraDirective, EstudioHerramientaComponent } from '../../marco/estudio';
 
 interface Pieza {
   clave: string; // «mueble-2»
@@ -56,47 +60,80 @@ const PASO_CHICO = 1;
 /** Lo que se aleja de la persona el punto que se propone al empezar a elegirlo (px de sala), por orden de preferencia. */
 const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
 
+/** Las pestañas del panel de la derecha. */
+type PestanaPanel = 'agregar' | 'detalles' | 'apariencia';
+/** Por debajo de esto la sala es de solo mirar (EDITOR.md §4.5): arrastrar muebles con el dedo no está resuelto. */
+const CONSULTA_ESTRECHA = '(max-width: 63.999rem)';
+
 /**
  * Editor de una sala (tablero 26): mover, quitar y agregar muebles, objetos y personajes,
  * con deshacer siempre a mano y «Volver a la sala original». Todo lo que se arrastra se hace
  * también con teclado (flechas, Supr) y con botones.
+ *
+ * Disposición (E4, EDITOR.md §4.4): el lienzo manda. Tres zonas a la altura de la ventana: «En esta sala» a la izquierda,
+ * el lienzo en el centro (la sala encaja en el ancho Y en el alto que quedan) y un panel con pestañas a la derecha
+ * («Agregar», «Detalles», «Apariencia»; patrón State: elegir algo pasa solo a «Detalles»). La conducta (arrastre,
+ * teclado, deshacer, estructura) no cambia.
  */
 @Component({
   selector: 'app-sala',
-  imports: [RouterLink, LienzoDeSalaComponent, PiezasDelMuroComponent, ManijaDeAnchoComponent, PanelDeEstructuraComponent,
-    TrayectoDePersonaComponent],
+  imports: [EstudioRanuraDirective, EstudioHerramientaComponent, RouterLink, UiMenu, CatalogoDelLugarComponent, LienzoDeSalaComponent, PiezasDelMuroComponent, ManijaDeAnchoComponent,
+    PanelDeEstructuraComponent, TrayectoDePersonaComponent, BarraDelLienzoComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '(document:keydown.escape)': 'atencion.set(null)' },
   template: `
     @if (sala(); as s) {
-      <div class="pagina" [class.pagina-ancha]="s.estructura">
-        <div class="cabeza">
-          <div>
-            <h1>{{ s.nombre }}</h1>
-            <p class="texto-secundario">{{ encuadre(s) }} · Los cambios valen para todas las escenas que pasan en esta sala.</p>
+      <div class="sala" [class.sala--estrecha]="estrecha()">
+        <header class="sala__cabeza">
+          <div class="sala__titulos">
+            <div class="sala__titulo">
+              <a class="sala__miga" [routerLink]="s.estructura ? rutas.a('/editor/plano') : rutas.a('/editor')">
+                <span aria-hidden="true">‹</span> {{ s.estructura ? 'Plano del caso' : 'Escenas y caminos' }}
+              </a>
+              <h1>{{ s.nombre }}</h1>
+            </div>
+            <!-- El aviso sube a la cabecera como nota permanente (EDITOR.md §4.4): no se pierde bajo el lienzo. -->
+            <p class="sala__nota"><span class="sala__encuadre">{{ encuadre(s) }}</span>
+              <span class="sala__aviso">Los cambios valen para todas las escenas que pasan en esta sala.</span></p>
           </div>
-          <div class="acciones">
-            <button type="button" class="boton" data-accion="deshacer" [attr.aria-disabled]="!store.puedeDeshacer()" (click)="store.deshacer()">Deshacer</button>
-            <button type="button" class="boton" [attr.aria-disabled]="!store.puedeRehacer()" (click)="store.rehacer()">Rehacer</button>
-            <button type="button" class="boton" data-accion="volver-sala-original" (click)="volverOriginal()">Volver a la sala original</button>
-            <a [routerLink]="rutas.a('/editor')" class="boton boton-secundario">Volver al caso</a>
-          </div>
-        </div>
+          <ng-template estudioRanura="herramientas">
+          @if (!estrecha()) {
+            <!-- Dos botones y un menú, como mucho (EDITOR.md §4.2, regla 4). -->
+            <div class="sala__acciones">
+              <button type="button" estudioHerramienta="Deshacer" data-accion="deshacer" [attr.aria-disabled]="!store.puedeDeshacer()" (click)="store.deshacer()"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5 3 9l4 4M3 9h8a5 5 0 0 1 5 5" /></svg></button>
+              <button type="button" estudioHerramienta="Rehacer" [attr.aria-disabled]="!store.puedeRehacer()" (click)="store.rehacer()"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m13 5 4 4-4 4m4-4H9a5 5 0 0 0-5 5" /></svg></button>
+              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+              <ui-menu class="sala__mas" data-accion="volver-sala-original" label="Más" variant="secondary" [items]="masAcciones"
+                (itemSelected)="alElegirMas($event)" />
+            </div>
+          }
+          </ng-template>
+        </header>
+        @if (estrecha()) {
+          <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+          <!-- En el teléfono el lienzo es solo una vista (inert): reducido, sus piezas se tapan unas a otras y ninguna llegaba
+               a 24 px tocables. Cada cosa se elige en «En esta sala» (el equivalente de WCAG 2.5.8), que muestra sus detalles. -->
+          <p class="sala__solo-mirar" role="note">Aquí solo se mira: elige algo en «En esta sala» para ver sus detalles. Para mover, agregar o quitar, abre el caso en una pantalla más ancha.</p>
+        }
         <p role="status" class="solo-lector">{{ anuncio() }}</p>
 
-        <div class="tres-columnas">
+        <div class="sala__cuerpo">
+          <ng-template estudioRanura="explorador">
           <section aria-labelledby="en-sala" class="tarjeta columna-lista">
             <h2 id="en-sala">En esta sala</h2>
-            <ul role="listbox" aria-label="Cosas en la sala" class="lista">
+            <!-- Lista con foco itinerante (patrón listbox de ARIA): Tab entra y sale de una vez; las flechas, Inicio y Fin recorren y eligen. -->
+            <ul role="listbox" aria-label="Cosas en la sala" class="lista" (keydown)="recorrerLista($event)">
               @for (g of grupos(); track g.titulo) {
                 <li role="group" [attr.aria-label]="g.titulo" [attr.data-accion]="g.titulo === 'Personajes' ? 'cambiar-expresion como-se-mueve persona-a-atender' : null">
                   <span class="grupo" aria-hidden="true">{{ g.titulo }}</span>
                   <ul role="none">
                     @for (p of g.piezas; track p.clave) {
-                      <li role="option" tabindex="0" [attr.aria-selected]="elegida() === p.clave"
+                      <li role="option" [attr.tabindex]="itinerante() === p.clave ? 0 : -1" [attr.aria-selected]="elegida() === p.clave" [attr.data-clave]="p.clave"
                           (mouseenter)="atencion.set(p.clave)" (mouseleave)="soltarAtencion(p.clave)"
                           (focus)="atencion.set(p.clave)" (blur)="soltarAtencion(p.clave)" (click)="elegir(p.clave)" (keydown.enter)="elegir(p.clave)" (keydown.space)="elegir(p.clave); $event.preventDefault()">
-                        {{ p.nombre }}{{ p.personaClave ? ' · ' + textoPersonaAAtender : '' }}{{ p.marcaIa ? ' · sugerido por la IA' : '' }}
+                        <span class="opcion__nombre">{{ p.nombre }}</span>
+                        @if (p.personaClave) { <span class="opcion__marca">{{ textoPersonaAAtender }}</span> }
+                        @if (p.marcaIa) { <span class="opcion__marca opcion__marca--ia"> · sugerido por la IA</span> }
                       </li>
                     } @empty {
                       <li role="none" class="texto-secundario vacio">Ninguno</li>
@@ -115,33 +152,37 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
             </ul>
           </section>
 
+          </ng-template>
+
+          <!-- El lienzo manda (EDITOR.md §4.4): una tarjeta con su barra fina y la sala encajada en todo el alto y el ancho que quedan. -->
           <section aria-labelledby="la-sala" class="columna-sala">
             <h2 id="la-sala" class="solo-lector">La sala</h2>
+            <app-barra-del-lienzo [salaId]="s.id" [ancho]="s.estructura ? s.estructura.ancho : null" [escala]="escalaPiezas()"
+              [faltas]="s.estructura ? faltasSala() : []" [puertas]="s.estructura ? puertasPendientes() : []" [estrecha]="estrecha()"
+              (escalaCambio)="escalaPiezas.set($event)" (irAFalta)="irAFalta($event)" (irAPuerta)="seleccionarPieza(anclaPuerta($event))" />
+
+            <div class="lienzo-marco" [class.desplazamiento]="s.estructura">
             @if (s.estructura && catalogoPiezas.error()) {
-              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-              <p role="alert">No se pudo cargar el catálogo de piezas.</p>
-              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-              <button type="button" class="boton" (click)="catalogoPiezas.reintentar()">Reintentar</button>
+              <div class="lienzo-estado">
+                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                <p role="alert">No se pudo cargar el catálogo de piezas.</p>
+                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                <button type="button" class="boton" (click)="catalogoPiezas.reintentar()">Reintentar</button>
+              </div>
             }
             @if (s.estructura && !catalogoPiezas.error() && !catalogoPiezas.manifiesto()) {
               <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-              <p role="status">Cargando la sala…</p>
+              <p role="status" class="lienzo-estado">Cargando la sala…</p>
             }
-            @if (s.estructura && s.estructura.ancho <= 960) {
-              <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-              <button type="button" class="boton" (click)="escalaPiezas.set(escalaPiezas() === 1 ? 2 : 1)">
-                {{ escalaPiezas() === 1 ? '×2' : '×1' }}
-              </button>
-            }
-            <div [class.desplazamiento]="s.estructura">
             <div class="escenario" #escenario [id]="'sala-' + s.id" [class.por-piezas]="s.estructura"
-                 [class.encajada]="s.estructura && escalaLienzo() < 1"
+                 [class.encajada]="s.estructura && escalaLienzo() < 1" [class.solo-mirar]="estrecha()"
+                 [attr.inert]="estrecha() ? '' : null"
                  [style.width.px]="s.estructura ? s.estructura.ancho * escalaLienzo() : null"
                  [style.height.px]="s.estructura ? alto * escalaLienzo() : null" tabindex="-1"
                  data-accion="mover-mueble" (keydown)="teclaGeneral($event)" (click)="clicEnSala($event)"
                  [style.--escala]="s.estructura ? escalaLienzo() : escala()" (pointermove)="arrastrar($event)"
                  (pointerup)="soltar()" (pointercancel)="soltar()">
-              @if (s.estructura) {
+              @if (s.estructura && !estrecha()) {
                 <app-manija-de-ancho [ancho]="s.estructura.ancho" [escala]="escalaLienzo()"
                   (cambio)="cambiarAncho($event)" />
               }
@@ -151,7 +192,7 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
                     <app-lienzo-de-sala [sala]="salaLienzoActual" [actores]="actoresLienzo()"
                       [escala]="1" (listo)="plan.set($event.plan)" />
                     <app-piezas-del-muro #capaDePiezas [sala]="s" [plan]="plan()" [faltas]="faltasSala()"
-                      [escala]="escalaLienzo()" (elegida)="piezaDeMuroElegida.set($event)" />
+                      [escala]="escalaLienzo()" [soloMirar]="estrecha()" (elegida)="alElegirEnMuro($event)" />
                   }
                 } @else {
                   <img class="pixel fondo" [src]="arte(s.fondo)" alt="" [width]="ancho" [height]="alto" draggable="false" />
@@ -206,212 +247,174 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
               </div>
             </div>
             </div>
-            @if (s.estructura && (faltasSala().length || puertasPendientes().length)) {
-              <section aria-labelledby="faltas-sala">
-                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-                <h3 id="faltas-sala">Por resolver en esta sala</h3>
-                <ul>
-                  @for (puerta of puertasPendientes(); track puerta.id) {
-                    <li>
-                      <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-                      Esta puerta no se guarda hasta que elijas a qué sala lleva.
-                      <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-                      <button type="button" class="boton" (click)="seleccionarPieza(anclaPuerta(puerta.id))">Ir a la pieza</button>
-                    </li>
-                  }
-                  @for (f of faltasSala(); track $index) {
-                    <li [id]="'falta-' + s.id + '-' + $index">{{ f.regla }}: {{ f.mensaje }}
-                      <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-                      <button type="button" class="boton" (click)="irAFalta(f)">Ir a la pieza</button>
-                    </li>
-                  }
-                </ul>
-              </section>
-            }
-            <p class="texto-secundario ayuda">
-              Elige algo en la sala o en la lista. Muévelo arrastrando, con las flechas del teclado
-              (<kbd>Mayús</kbd> + flecha mueve un poquito) o con los botones «Mover». <kbd>Supr</kbd> lo quita.
-              <kbd>Ctrl</kbd>+<kbd>Z</kbd> deshace.
-            </p>
-
-            @if (!s.estructura) {
-            <section aria-labelledby="catalogo" class="tarjeta catalogo" data-accion="agregar-mueble">
-              <h3 id="catalogo">Catálogo del lugar <span class="texto-secundario">· se agrega en el centro de la sala</span></h3>
-              <div role="tablist" aria-label="Qué quieres agregar" class="acciones">
-                @for (t of pestanas; track t.tipo) {
-                  <button role="tab" type="button" class="boton" [attr.aria-selected]="pestana() === t.tipo" (click)="pestana.set(t.tipo)">
-                    {{ t.nombre }} ({{ cantidad(t.tipo) }})
-                  </button>
-                }
-              </div>
-              <label for="catq" class="etiqueta">Buscar en el catálogo</label>
-              <input id="catq" type="search" class="campo" placeholder="Buscar, por ejemplo «silla»" [value]="busqueda()"
-                     (input)="busqueda.set($any($event.target).value)" />
-              <div role="tabpanel" [attr.aria-label]="nombrePestana()">
-                <ul class="catalogo-lista">
-                  @for (c of catalogo(); track c.ref) {
-                    <li>
-                      <button type="button" class="boton" [attr.aria-label]="'Agregar a la sala: ' + c.nombre"
-                        (click)="agregar(c.ref, c.nombre)">
-                        @if (c.arte) { <img class="pixel" [src]="c.arte" alt="" /> }
-                        {{ c.nombre }}
-                      </button>
-                    </li>
-                  } @empty {
-                    @if (cantidad(pestana()) === 0) {
-                      <li class="texto-secundario" data-sin-catalogo>{{ sinCatalogo() }}</li>
-                    } @else {
-                      <li class="texto-secundario">Nada coincide con «{{ busqueda() }}».</li>
-                    }
-                  }
-                </ul>
-              </div>
-            </section>
-            }
-
           </section>
 
-          <section aria-labelledby="detalles" class="tarjeta columna-detalles" data-accion="quitar-elemento">
-            @if (s.estructura && catalogoPiezas.manifiesto()) {
-              <app-panel-de-estructura [sala]="s" [puertaElegida]="puertaElegida()" [faltas]="faltasSala()"
-                (agregada)="seleccionarPieza($event)">
-            <section aria-labelledby="catalogo" class="tarjeta catalogo" data-accion="agregar-mueble">
-              <h3 id="catalogo">Catálogo del lugar <span class="texto-secundario">· se agrega en el centro de la sala</span></h3>
-              <div role="tablist" aria-label="Qué quieres agregar" class="acciones">
-                @for (t of pestanas; track t.tipo) {
-                  <button role="tab" type="button" class="boton" [attr.aria-selected]="pestana() === t.tipo" (click)="pestana.set(t.tipo)">
-                    {{ t.nombre }} ({{ cantidad(t.tipo) }})
-                  </button>
+          <!-- El panel de la derecha (EDITOR.md §4.4): «Agregar», «Detalles» y, en la sala por piezas, «Apariencia». -->
+          <ng-template estudioRanura="inspector">
+          <aside class="tarjeta panel" aria-label="Panel de la sala">
+            @if (pestanasPanel().length > 1) {
+              <div role="tablist" aria-label="Qué hacer en la sala" class="panel__pestanas" (keydown)="teclaPestanas($event)">
+                @for (t of pestanasPanel(); track t.id) {
+                  <button type="button" role="tab" class="panel__pestana" [id]="'pestana-' + t.id" [attr.aria-controls]="'panel-' + t.id"
+                    [attr.aria-selected]="panelActivo() === t.id" [attr.tabindex]="panelActivo() === t.id ? 0 : -1"
+                    [attr.data-accion]="t.accion" [class.panel__pestana--aviso]="t.id === 'detalles' && algoElegido() && panelActivo() !== 'detalles'"
+                    (click)="panel.set(t.id)">{{ t.nombre }}</button>
                 }
               </div>
-              <label for="catq" class="etiqueta">Buscar en el catálogo</label>
-              <input id="catq" type="search" class="campo" placeholder="Buscar, por ejemplo «silla»" [value]="busqueda()"
-                     (input)="busqueda.set($any($event.target).value)" />
-              <div role="tabpanel" [attr.aria-label]="nombrePestana()">
-                <ul class="catalogo-lista">
-                  @for (c of catalogo(); track c.ref) {
-                    <li>
-                      <button type="button" class="boton" [attr.aria-label]="'Agregar a la sala: ' + c.nombre"
-                        (click)="agregar(c.ref, c.nombre)">
-                        @if (c.arte) { <img class="pixel" [src]="c.arte" alt="" /> }
-                        {{ c.nombre }}
-                      </button>
-                    </li>
-                  } @empty {
-                    @if (cantidad(pestana()) === 0) {
-                      <li class="texto-secundario" data-sin-catalogo>{{ sinCatalogo() }}</li>
-                    } @else {
-                      <li class="texto-secundario">Nada coincide con «{{ busqueda() }}».</li>
-                    }
-                  }
-                </ul>
-              </div>
-            </section>
-              </app-panel-de-estructura>
             }
-            <p class="texto-secundario">Detalles</p>
-            @if (piezaElegida(); as p) {
-              <h2 id="detalles">{{ p.nombre }}</h2>
-              @if (p.marcaIa) {
-                <p class="marca-ia-aviso"><span class="pildora">Sugerido por la IA</span> Lo puso o lo movió el asistente; revísalo y acéptalo.</p>
-                <button type="button" class="boton" data-accion="aceptar-ia" [attr.aria-label]="'Aceptar lo sugerido: ' + p.nombre" (click)="aceptarIa(p)">Aceptar</button>
-              }
-              @if (p.tipo === 'personaje') {
-                @let pj = s.personajes[p.indice];
-                <span id="pmira" class="etiqueta">Hacia dónde mira</span>
-                <div role="radiogroup" aria-labelledby="pmira" class="acciones">
-                  @for (m of miradas; track m.valor) {
-                    <button type="button" role="radio" class="boton" [attr.aria-checked]="pj.mirando === m.valor"
-                            (click)="mirar(p.indice, m.valor)">{{ m.nombre }}</button>
-                  }
-                </div>
-                <label for="expresion" class="etiqueta">Expresión</label>
-                <div class="expresion">
-                  <img class="pixel retrato" [src]="retrato(p, pj.expresion)" alt="" width="96" height="96" />
-                  <select id="expresion" class="campo" [value]="pj.expresion" (change)="expresar(p.indice, $any($event.target).value)">
-                    @for (e of expresiones; track e) { <option [value]="e" [selected]="e === pj.expresion">{{ nombreExpresion[e] }}</option> }
-                  </select>
-                </div>
-                <p class="texto-secundario nota">Las {{ expresiones.length }} caras que tiene este personaje. El retrato cambia al elegir.</p>
 
-                <div class="bloque" data-accion="como-se-mueve">
-                  <span id="pmueve" class="etiqueta">Cómo se mueve</span>
-                  <div role="radiogroup" aria-labelledby="pmueve" class="acciones">
-                    @for (m of movimientos; track m.valor) {
-                      <button type="button" role="radio" class="boton" [attr.aria-checked]="tipoMostrado(p) === m.valor"
-                              (click)="elegirMovimiento(p, m.valor)">{{ m.nombre }}</button>
-                    }
-                  </div>
-                  @if (tipoMostrado(p) === 'va-y-viene') {
-                    <div role="group" aria-labelledby="phasta" class="hasta-donde">
-                      <span id="phasta" class="etiqueta">Hasta dónde va</span>
-                      @if (punto()) {
-                        <p class="texto-secundario nota">Mueve el punto con las flechas del teclado o con estos botones, o haz clic en la sala. «Listo» lo fija.</p>
-                        <div role="group" aria-label="Mover el punto" class="flechas">
-                          <button type="button" class="boton" aria-label="Mover el punto a la izquierda" (click)="moverPunto(-8, 0)">←</button>
-                          <button type="button" class="boton" aria-label="Mover el punto hacia arriba" (click)="moverPunto(0, -8)">↑</button>
-                          <button type="button" class="boton" aria-label="Mover el punto hacia abajo" (click)="moverPunto(0, 8)">↓</button>
-                          <button type="button" class="boton" aria-label="Mover el punto a la derecha" (click)="moverPunto(8, 0)">→</button>
-                        </div>
-                        <p role="status" class="nota aviso-punto" data-aviso-punto>{{ avisoPunto() }}</p>
-                        <div class="acciones">
-                          <button type="button" class="boton boton-primario" [attr.aria-disabled]="avisoPunto() !== ''" (click)="fijarPunto()">Listo</button>
-                          <button type="button" class="boton" (click)="cancelarPunto(true)">Cancelar</button>
-                        </div>
-                      } @else {
-                        <p class="texto-secundario nota">{{ textoDelPunto(p) }}</p>
-                        <p role="status" class="nota aviso-punto" data-aviso-ida>{{ avisoDeIda() }}</p>
-                        <button type="button" class="boton" data-ir-punto (click)="empezarPunto(p)">Elegir el punto</button>
+            <div [attr.role]="pestanasPanel().length > 1 ? 'tabpanel' : null" id="panel-agregar" [attr.aria-labelledby]="pestanasPanel().length > 1 ? 'pestana-agregar' : null" class="panel__hoja" [hidden]="panelActivo() !== 'agregar'">
+              @if (!estrecha()) {
+                @if (s.estructura && catalogoPiezas.manifiesto()) {
+                  <app-panel-de-estructura parte="agregar" [sala]="s" [faltas]="faltasSala()" (agregada)="piezaAgregada($event)">
+                    <app-catalogo-del-lugar [items]="catalogo()" [pestanas]="pestanas" [pestana]="pestana()" [cantidades]="cantidades()"
+                      [busqueda]="busqueda()" [sinCatalogo]="sinCatalogo()" (pestanaCambio)="pestana.set($event)"
+                      (busquedaCambio)="busqueda.set($event)" (agregar)="agregar($event.ref, $event.nombre)" />
+                  </app-panel-de-estructura>
+                } @else if (!s.estructura) {
+                  <app-catalogo-del-lugar [items]="catalogo()" [pestanas]="pestanas" [pestana]="pestana()" [cantidades]="cantidades()"
+                      [busqueda]="busqueda()" [sinCatalogo]="sinCatalogo()" (pestanaCambio)="pestana.set($event)"
+                      (busquedaCambio)="busqueda.set($event)" (agregar)="agregar($event.ref, $event.nombre)" />
+                }
+              }
+            </div>
+
+            <div [attr.role]="pestanasPanel().length > 1 ? 'tabpanel' : null" id="panel-detalles" [attr.aria-labelledby]="pestanasPanel().length > 1 ? 'pestana-detalles' : null" class="panel__hoja" [hidden]="panelActivo() !== 'detalles'">
+              <section aria-labelledby="detalles" class="columna-detalles">
+                @if (piezaElegida(); as p) {
+                  <h2 id="detalles">{{ p.nombre }}</h2>
+                  <fieldset class="detalles__campos" [disabled]="estrecha()">
+                  @if (p.marcaIa) {
+                    <p class="marca-ia-aviso"><span class="pildora">Sugerido por la IA</span> Lo puso o lo movió el asistente; revísalo y acéptalo.</p>
+                    <button type="button" class="boton" data-accion="aceptar-ia" [attr.aria-label]="'Aceptar lo sugerido: ' + p.nombre" (click)="aceptarIa(p)">Aceptar</button>
+                  }
+                  @if (p.tipo === 'personaje') {
+                    @let pj = s.personajes[p.indice];
+                    <span id="pmira" class="etiqueta">Hacia dónde mira</span>
+                    <div role="radiogroup" aria-labelledby="pmira" class="segmento">
+                      @for (m of miradas; track m.valor) {
+                        <button type="button" role="radio" class="boton" [attr.aria-checked]="pj.mirando === m.valor"
+                                (click)="mirar(p.indice, m.valor)">{{ m.nombre }}</button>
                       }
                     </div>
-                  }
-                  @if (p.movimiento && typeof p.movimiento === 'object' && p.movimiento.tipo === 'ruta') {
-                    <app-trayecto-de-persona [ruta]="p.movimiento" [seleccionado]="puntoDeRuta()"
-                      (elegir)="puntoDeRuta.set($event)" (cambio)="cambiarRuta(p, $event)" (keydown)="teclaTrayecto($event)" />
-                  }
-                </div>
+                    <label for="expresion" class="etiqueta">Expresión</label>
+                    <div class="expresion">
+                      <img class="pixel retrato" [src]="retrato(p, pj.expresion)" alt="" width="96" height="96" />
+                      <select id="expresion" class="campo" [value]="pj.expresion" (change)="expresar(p.indice, $any($event.target).value)">
+                        @for (e of expresiones; track e) { <option [value]="e" [selected]="e === pj.expresion">{{ nombreExpresion[e] }}</option> }
+                      </select>
+                    </div>
+                    <p class="texto-secundario nota">Las {{ expresiones.length }} caras que tiene este personaje. El retrato cambia al elegir.</p>
 
-                <div class="bloque" data-accion="persona-a-atender">
-                  <label class="casilla" for="patender">
-                    <input id="patender" type="checkbox" data-persona-a-atender aria-describedby="patender-nota" [checked]="p.personaClave === true"
-                           (change)="marcarPersonaAAtender(p, $any($event.target).checked)" />
-                    Persona a atender
-                  </label>
-                  <p id="patender-nota" class="texto-secundario nota">El estudiante la ve señalada con una marca sobre la cabeza. Solo puede haber una por sala.</p>
-                  <p role="status" class="nota" data-aviso-persona>{{ avisoPersona() }}</p>
-                </div>
-              }
-              @if (p.tipo === 'mueble') {
-                <button type="button" class="boton" (click)="store.voltearMueble(s.id, p.indice)">Voltear</button>
-              }
-              @if (p.tipo === 'objeto' && (store.caso()?.herramientas?.length ?? 0) > 0) {
-                <!-- El estudiante consigue la herramienta al revisar el objeto (el servidor la entrega por su toolCode). -->
-                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-                <label class="etiqueta" for="pentrega">Al revisarlo, entrega la herramienta</label>
-                <select id="pentrega" class="campo" data-accion="entrega-herramienta"
-                        (change)="store.herramientaDeObjeto(s.id, p.indice, $any($event.target).value || null)">
-                  <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-                  <option value="" [selected]="!s.objetos[p.indice]?.toolCode">Ninguna</option>
-                  @for (h of store.caso()?.herramientas ?? []; track h.codigo) {
-                    <option [value]="h.codigo" [selected]="s.objetos[p.indice]?.toolCode === h.codigo">{{ h.nombre }}</option>
+                    <div class="bloque" data-accion="como-se-mueve">
+                      <span id="pmueve" class="etiqueta">Cómo se mueve</span>
+                      <div role="radiogroup" aria-labelledby="pmueve" class="opciones">
+                        @for (m of movimientos; track m.valor) {
+                          <button type="button" role="radio" class="boton" [attr.aria-checked]="tipoMostrado(p) === m.valor"
+                                  (click)="elegirMovimiento(p, m.valor)">{{ m.nombre }}</button>
+                        }
+                      </div>
+                      @if (tipoMostrado(p) === 'va-y-viene') {
+                        <div role="group" aria-labelledby="phasta" class="hasta-donde">
+                          <span id="phasta" class="etiqueta">Hasta dónde va</span>
+                          @if (punto()) {
+                            <p class="texto-secundario nota">Mueve el punto con las flechas del teclado o con estos botones, o haz clic en la sala. «Listo» lo fija.</p>
+                            <div role="group" aria-label="Mover el punto" class="flechas">
+                              <button type="button" class="boton" aria-label="Mover el punto a la izquierda" (click)="moverPunto(-8, 0)">←</button>
+                              <button type="button" class="boton" aria-label="Mover el punto hacia arriba" (click)="moverPunto(0, -8)">↑</button>
+                              <button type="button" class="boton" aria-label="Mover el punto hacia abajo" (click)="moverPunto(0, 8)">↓</button>
+                              <button type="button" class="boton" aria-label="Mover el punto a la derecha" (click)="moverPunto(8, 0)">→</button>
+                            </div>
+                            <p role="status" class="nota aviso-punto" data-aviso-punto>{{ avisoPunto() }}</p>
+                            <div class="acciones">
+                              <button type="button" class="boton boton-primario" [attr.aria-disabled]="avisoPunto() !== ''" (click)="fijarPunto()">Listo</button>
+                              <button type="button" class="boton" (click)="cancelarPunto(true)">Cancelar</button>
+                            </div>
+                          } @else {
+                            <p class="texto-secundario nota">{{ textoDelPunto(p) }}</p>
+                            <p role="status" class="nota aviso-punto" data-aviso-ida>{{ avisoDeIda() }}</p>
+                            <button type="button" class="boton" data-ir-punto (click)="empezarPunto(p)">Elegir el punto</button>
+                          }
+                        </div>
+                      }
+                      @if (p.movimiento && typeof p.movimiento === 'object' && p.movimiento.tipo === 'ruta') {
+                        <app-trayecto-de-persona [ruta]="p.movimiento" [seleccionado]="puntoDeRuta()"
+                          (elegir)="puntoDeRuta.set($event)" (cambio)="cambiarRuta(p, $event)" (keydown)="teclaTrayecto($event)" />
+                      }
+                    </div>
+
+                    <div class="bloque" data-accion="persona-a-atender">
+                      <label class="casilla" for="patender">
+                        <input id="patender" type="checkbox" data-persona-a-atender aria-describedby="patender-nota" [checked]="p.personaClave === true"
+                               (change)="marcarPersonaAAtender(p, $any($event.target).checked)" />
+                        Persona a atender
+                      </label>
+                      <p id="patender-nota" class="texto-secundario nota">El estudiante la ve señalada con una marca sobre la cabeza. Solo puede haber una por sala.</p>
+                      <p role="status" class="nota" data-aviso-persona>{{ avisoPersona() }}</p>
+                    </div>
                   }
-                </select>
-              }
-              <span id="pmov" class="etiqueta">Mover</span>
-              <div role="group" aria-labelledby="pmov" class="flechas">
-                <button type="button" class="boton" aria-label="Mover a la izquierda" (click)="desplazar(p, -8, 0)">←</button>
-                <button type="button" class="boton" aria-label="Mover hacia arriba" (click)="desplazar(p, 0, -8)">↑</button>
-                <button type="button" class="boton" aria-label="Mover hacia abajo" (click)="desplazar(p, 0, 8)">↓</button>
-                <button type="button" class="boton" aria-label="Mover a la derecha" (click)="desplazar(p, 8, 0)">→</button>
+                  @if (p.tipo === 'mueble') {
+                    <button type="button" class="boton" (click)="store.voltearMueble(s.id, p.indice)">Voltear</button>
+                  }
+                  @if (p.tipo === 'objeto' && (store.caso()?.herramientas?.length ?? 0) > 0) {
+                    <!-- El estudiante consigue la herramienta al revisar el objeto (el servidor la entrega por su toolCode). -->
+                    <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                    <label class="etiqueta" for="pentrega">Al revisarlo, entrega la herramienta</label>
+                    <select id="pentrega" class="campo" data-accion="entrega-herramienta"
+                            (change)="store.herramientaDeObjeto(s.id, p.indice, $any($event.target).value || null)">
+                      <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                      <option value="" [selected]="!s.objetos[p.indice]?.toolCode">Ninguna</option>
+                      @for (h of store.caso()?.herramientas ?? []; track h.codigo) {
+                        <option [value]="h.codigo" [selected]="s.objetos[p.indice]?.toolCode === h.codigo">{{ h.nombre }}</option>
+                      }
+                    </select>
+                  }
+                  </fieldset>
+                  @if (!estrecha()) {
+                    <span id="pmov" class="etiqueta">Mover</span>
+                    <div role="group" aria-labelledby="pmov" class="flechas">
+                      <button type="button" class="boton" aria-label="Mover a la izquierda" (click)="desplazar(p, -8, 0)">←</button>
+                      <button type="button" class="boton" aria-label="Mover hacia arriba" (click)="desplazar(p, 0, -8)">↑</button>
+                      <button type="button" class="boton" aria-label="Mover hacia abajo" (click)="desplazar(p, 0, 8)">↓</button>
+                      <button type="button" class="boton" aria-label="Mover a la derecha" (click)="desplazar(p, 8, 0)">→</button>
+                    </div>
+                    <button type="button" class="boton boton-texto quitar" (click)="quitar(p)">Quitar de la sala</button>
+                  }
+                } @else if (puertaElegida(); as idPuerta) {
+                  <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                  <h2 id="detalles">{{ nombreDePuerta(idPuerta) }}</h2>
+                  <fieldset class="detalles__campos" [disabled]="estrecha()">
+                    <app-panel-de-estructura parte="puerta" [sala]="s" [puertaElegida]="idPuerta" [faltas]="faltasSala()" />
+                  </fieldset>
+                  @if (!estrecha()) {
+                    <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                    <p class="texto-secundario nota">Muévela arrastrando o con las flechas del teclado. <kbd>Supr</kbd> la quita.</p>
+                  }
+                } @else if (piezaDeMuro(); as nombre) {
+                  <h2 id="detalles">{{ nombre }}</h2>
+                  @if (!estrecha()) {
+                    <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                    <p class="texto-secundario nota">Muévela arrastrando o con las flechas del teclado; en la esquina pasa al otro muro. <kbd>Supr</kbd> la quita.</p>
+                  }
+                } @else {
+                  <h2 id="detalles">Nada elegido</h2>
+                  <p class="texto-secundario">Elige algo en la sala o en la lista «En esta sala».</p>
+                }
+              </section>
+            </div>
+
+            @if (s.estructura && catalogoPiezas.manifiesto() && !estrecha()) {
+              <div [attr.role]="pestanasPanel().length > 1 ? 'tabpanel' : null" id="panel-apariencia" [attr.aria-labelledby]="pestanasPanel().length > 1 ? 'pestana-apariencia' : null" class="panel__hoja" [hidden]="panelActivo() !== 'apariencia'">
+                <app-panel-de-estructura parte="apariencia" [sala]="s" />
+                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                <p class="texto-secundario nota">El ancho de la sala se cambia con la manija del borde derecho del lienzo.</p>
               </div>
-              <button type="button" class="boton boton-texto quitar" (click)="quitar(p)">Quitar de la sala</button>
-            } @else {
-              <h2 id="detalles">Nada elegido</h2>
-              <p>Elige algo en la sala o en la lista «En esta sala».</p>
             }
-          </section>
+          </aside>
+          </ng-template>
         </div>
       </div>
+
     } @else {
       <div class="pagina">
         <h1>Esta sala no está en el caso</h1>
@@ -419,82 +422,7 @@ const DISTANCIAS_INICIALES = [96, -96, 160, -160, 48, -48];
       </div>
     }
   `,
-  styles: `
-    .cabeza { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; }
-    .cabeza p { margin: 4px 0 0; }
-    /* Una sala por piezas usa más ancho en pantallas grandes: el lienzo encajado se ve más grande (a 1366 no cambia nada). */
-    .pagina.pagina-ancha { max-width: 1680px; }
-    .tres-columnas { display: grid; grid-template-columns: minmax(200px, 240px) minmax(0, 1fr) minmax(220px, 280px); gap: 16px; align-items: start; }
-    @media (max-width: 1100px) { .tres-columnas { grid-template-columns: 1fr; } }
-    h2 { margin: 0 0 8px; font-size: var(--autoria-texto-20); line-height: 28px; }
-    .lista, .lista ul { list-style: none; margin: 0; padding: 0; }
-    .grupo { display: block; margin-top: 8px; font-weight: 700; font-size: var(--autoria-texto-16); color: var(--texto-secundario); }
-    [role='option'] { min-height: 44px; display: flex; align-items: center; padding: 0 8px; border-radius: 8px; cursor: pointer; font-size: var(--autoria-texto-16); }
-    @media (hover: hover) and (pointer: fine) { [role='option']:hover { background: var(--fondo); } }
-    [role='option'][aria-selected='true'] { background: var(--primario-tinte); outline: 2px solid var(--primario); }
-    .vacio, .puerta { font-size: var(--autoria-texto-16); padding: 4px 8px; }
-    .columna-sala { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-    .desplazamiento { max-width: 100%; overflow-x: auto; }
-    .escenario.por-piezas { aspect-ratio: auto; overflow: hidden; flex: none; touch-action: pan-x pan-y; }
-    .dibujo-en-lienzo > img, .dibujo-en-lienzo > .personaje { visibility: hidden; }
-    .escenario { position: relative; width: 100%; aspect-ratio: 960 / 528; overflow: hidden; border-radius: 10px; border: 1px solid var(--linea); background: var(--juego-escenario); touch-action: none; }
-    .lienzo { position: absolute; left: 0; top: 0; width: 960px; height: 528px; transform: scale(var(--escala, 1)); transform-origin: 0 0; }
-    .fondo { position: absolute; inset: 0; width: 960px; height: 528px; }
-    .pieza.marca-ia { outline: 2px dashed var(--borde-control); outline-offset: 2px; }
-    .marca-ia-aviso { margin: 0; }
-    .pieza {
-      position: absolute; transform: translate(-50%, -100%); padding: 0; margin: 0; border: 0; background: none;
-      cursor: grab; touch-action: none; line-height: 0; display: flex; align-items: flex-end; justify-content: center;
-      /* La sala se dibuja escalada: el mínimo de 24 px tiene que valer en pantalla, no en el dibujo. */
-      min-width: calc(24px / var(--escala, 1)); min-height: calc(24px / var(--escala, 1));
-    }
-    .pieza:active { cursor: grabbing; }
-    /* La persona a atender: un chevrón y su rótulo sobre la cabeza, en el acento del juego (nunca el morado de la guía). */
-    .marca-atender { position: absolute; bottom: calc(100% + 2px); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; pointer-events: none; line-height: 1.2; }
-    .marca-atender .chevron { display: block; fill: var(--juego-acento); stroke: var(--juego-escenario); stroke-width: 1.5; }
-    .marca-atender .texto-marca { padding: 1px 5px; border-radius: 4px; background: var(--juego-escenario); color: var(--juego-acento); font-weight: 700; white-space: nowrap; font-size: calc(16px / var(--escala, 1)); }
-    .trazos { position: absolute; inset: 0; width: 960px; height: 528px; pointer-events: none; z-index: var(--autoria-capa-3); overflow: visible; }
-    .trazos .ida { stroke: var(--tinta); stroke-width: 3; stroke-dasharray: 8 6; opacity: 0.55; }
-    .trazos .ida.borrador { stroke: var(--foco); opacity: 0.9; }
-    .trazos .hasta { fill: var(--superficie); stroke: var(--tinta); stroke-width: 3; }
-    .punto-ida {
-      position: absolute; transform: translate(-50%, -50%); padding: 0; margin: 0; cursor: crosshair;
-      width: calc(32px / var(--escala, 1)); height: calc(32px / var(--escala, 1)); min-width: 24px; min-height: 24px; border-radius: 50%;
-      background: var(--superficie); border: 3px dashed var(--tinta); box-shadow: 0 0 0 3px var(--foco);
-    }
-    .punto-ida:active { opacity: 0.7; }
-    .punto-ida:focus-visible { outline: 3px solid var(--foco); outline-offset: 4px; }
-    .bloque, .hasta-donde { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
-    .casilla { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; font-size: var(--autoria-texto-16); font-weight: 700; }
-    .casilla input { width: 24px; height: 24px; flex: none; accent-color: var(--primario); }
-    .aviso-punto:not(:empty) { color: var(--aviso-texto); font-weight: 700; }
-    .pieza.elegida { outline: 3px dashed var(--foco); outline-offset: 3px; }
-    /* La atención (cursor o foco en la lista) señala la pieza con un trazo sólido; lo elegido pesa más y conserva el suyo. */
-    .pieza.atendida:not(.elegida) { outline: 3px solid var(--primario); outline-offset: 3px; }
-    .pieza img { image-rendering: pixelated; pointer-events: none; }
-    /* Encajada (menos de 1:1) el arte se reduce suave: el vecino más próximo borraría las líneas finas. */
-    :host ::ng-deep .escenario.encajada canvas, .escenario.encajada .pieza img, .escenario.encajada .personaje { image-rendering: auto !important; }
-    .pieza img.espejo { transform: scaleX(-1); }
-    /* El cuadro de la pieza (el primero de su hoja), no la hoja entera: así mide el botón lo que dibuja el lienzo. */
-    .pieza img.cuadro { object-fit: none; object-position: 0 100%; }
-    .personaje { display: block; width: 48px; height: 72px; background-repeat: no-repeat; image-rendering: pixelated; pointer-events: none; }
-    .ayuda { margin: 0; font-size: var(--autoria-texto-16); line-height: 24px; }
-    .catalogo { display: flex; flex-direction: column; gap: 8px; }
-    .catalogo h3 { margin: 0; font-size: var(--autoria-texto-18); }
-    .catalogo-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; max-height: 220px; overflow: auto; }
-    .catalogo-lista img { max-height: 28px; max-width: 40px; }
-    .etiqueta { font-weight: 700; font-size: var(--autoria-texto-16); }
-    .campo { min-height: 48px; padding: 0 12px; font: inherit; font-size: var(--autoria-texto-16); border: 2px solid var(--borde-control); border-radius: var(--radio-control); background: var(--superficie); }
-    .columna-detalles { display: flex; flex-direction: column; gap: 8px; }
-    .columna-detalles p { margin: 0; }
-    .boton[aria-checked='true'], .boton[aria-selected='true'] { background: var(--primario-tinte); border-color: var(--primario); }
-    .expresion { display: flex; gap: 12px; align-items: center; }
-    .retrato { border-radius: 8px; border: 1px solid var(--linea); background: var(--fondo); }
-    .nota { font-size: var(--autoria-texto-16); }
-    .flechas { display: grid; grid-template-columns: repeat(4, 48px); gap: 6px; }
-    .flechas .boton { padding: 0; }
-    .quitar { color: var(--peligro); align-self: flex-start; }
-  `,
+  styleUrl: './sala.component.scss',
 })
 export class SalaComponent {
   protected readonly rutas = inject(RutasAutoria);
@@ -515,10 +443,44 @@ export class SalaComponent {
   protected readonly piezaDeMuroElegida = signal<string | null>(null);
   protected readonly puertaElegida = computed(() => this.sala()?.puertas.find(p =>
     anclaDeElemento(this.salaId(), { tipo: 'puerta', id: p.id }) === this.piezaDeMuroElegida())?.id ?? null);
+  /** Una pieza de muro elegida que no es puerta: su nombre, para «Detalles». */
+  protected readonly piezaDeMuro = computed(() => {
+    const id = this.piezaDeMuroElegida(), sala = this.sala();
+    if (!id || !sala?.estructura || this.puertaElegida()) return null;
+    const pieza = (sala.estructura.piezas ?? []).find(p => p.id && anclaDeElemento(sala.id, { tipo: 'pieza', id: p.id }) === id);
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    return pieza ? this.catalogoPiezas.manifiesto()?.piezas[`${pieza.tipo}/${pieza.modelo}`]?.nombre ?? 'Pieza del muro' : null;
+  });
+  protected readonly algoElegido = computed(() => this.elegida() !== null || this.piezaDeMuroElegida() !== null);
+  /** Las pestañas de esta sala en este ancho: en una pantalla angosta solo se mira («Detalles»). */
+  protected readonly pestanasPanel = computed(() => {
+    const s = this.sala();
+    if (this.estrecha()) return [{ id: 'detalles' as const, nombre: 'Detalles', accion: 'quitar-elemento' }];
+    return [
+      // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+      { id: 'agregar' as const, nombre: 'Agregar', accion: 'agregar-mueble' },
+      { id: 'detalles' as const, nombre: 'Detalles', accion: 'quitar-elemento' },
+      ...(s?.estructura && this.catalogoPiezas.manifiesto() ? [{ id: 'apariencia' as const, nombre: 'Aspecto', accion: null }] : []),
+    ];
+  });
+  protected readonly panelActivo = computed<PestanaPanel>(() => {
+    const ids = this.pestanasPanel().map(t => t.id) as PestanaPanel[];
+    return ids.includes(this.panel()) ? this.panel() : ids[0];
+  });
+  // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+  protected readonly masAcciones: UiMenuItem[] = [{ value: 'original', label: 'Volver a la sala original', icon: 'restart_alt' }];
   protected readonly plan = signal<PlanDeSala | null>(null);
   protected readonly escalaPiezas = signal<1 | 2>(1);
   /** Ancho de la columna de la sala en pantalla (lo mide un ResizeObserver; 0 hasta medirlo). */
   private readonly disponible = signal(0);
+  /** Alto del marco del lienzo (0 hasta medirlo o cuando la página se desplaza, en pantallas angostas). */
+  private readonly disponibleAlto = signal(0);
+  /** Pantalla de menos de 1024 px: la sala se mira y se eligen cosas, pero no se mueve ni se agrega nada. */
+  protected readonly estrecha = signal(false);
+  /** La pestaña que pidió la docente; `panelActivo` la corrige si no existe en esta sala o en este ancho. */
+  protected readonly panel = signal<PestanaPanel>('agregar');
+  /** Tras agregar una pieza de muro se queda en «Agregar»: así se ponen varias seguidas. */
+  private quedarseEnAgregar = false;
   /**
    * La escala a la que se ve una sala por piezas: entera en la columna (una sala de 1200 o 1920 px se ve completa a 1366 y a
    * 1920, sin desplazarse), nunca más grande que 1:1; con «×2» (salas de hasta 960) se ve al doble y la columna se desplaza.
@@ -526,8 +488,14 @@ export class SalaComponent {
   protected readonly escalaLienzo = computed(() => {
     const ancho = this.sala()?.estructura?.ancho;
     if (!ancho) return 1;
+    // Solo mirar (menos de 1024 px): la sala entera a la vista. Nada se arrastra, y elegir tiene su equivalente de 44 px en
+    // la lista «En esta sala» (WCAG 2.5.8, excepción por equivalente), así que no hace falta el piso de ×0,8 de edición.
+    if (this.estrecha() && this.escalaPiezas() === 1 && this.disponible() > 0) return Math.min(1, this.disponible() / ancho);
+    // En escritorio la sala encaja también en el alto del marco: se pasa el ancho que deja ese alto si es el menor.
     // En una columna de teléfono, no menos de ×0,8: la sala se desplaza en su columna y las piezas no se pisan (WCAG 2.5.8).
-    return escalaDeSala(ancho, this.disponible(), this.escalaPiezas() === 2);
+    const alto = this.estrecha() ? 0 : this.disponibleAlto();
+    const disponible = alto > 0 && this.disponible() > 0 ? Math.min(this.disponible(), (alto * ancho) / ALTO_SALA) : this.disponible();
+    return escalaDeSala(ancho, disponible, this.escalaPiezas() === 2);
   });
   protected readonly faltas = signal(new Map<string, FaltaDeSala[]>());
   protected readonly faltasSala = computed(() => this.faltas().get(this.salaId()) ?? []);
@@ -584,7 +552,6 @@ export class SalaComponent {
   protected readonly atencion = signal<string | null>(null);
   protected readonly anuncio = signal('');
   protected readonly pestana = signal<TipoElemento>('mueble');
-  protected readonly nombrePestana = computed(() => this.pestanas.find((t) => t.tipo === this.pestana())?.nombre ?? '');
   protected readonly busqueda = signal('');
   /** La persona que se eligió «Va y viene» y aún no tiene su punto (su movimiento guardado no cambia hasta fijarlo). */
   protected readonly pendiente = signal<string | null>(null);
@@ -742,6 +709,14 @@ export class SalaComponent {
       }, 100);
     });
     inject(DestroyRef).onDestroy(() => clearTimeout(temporizador));
+    // Por debajo de 1024 px la sala es de solo mirar; se sigue el ancho en vivo (girar la tableta, el zoom al 200 %).
+    if (typeof matchMedia === 'function') {
+      const consulta = matchMedia(CONSULTA_ESTRECHA);
+      this.estrecha.set(consulta.matches);
+      const cambio = (e: MediaQueryListEvent) => this.estrecha.set(e.matches);
+      consulta.addEventListener?.('change', cambio);
+      inject(DestroyRef).onDestroy(() => consulta.removeEventListener?.('change', cambio));
+    }
     // Lo que se está decidiendo de una persona (el punto, el aviso) no pasa a la siguiente cosa que se elige.
     effect(() => {
       this.elegida();
@@ -759,7 +734,13 @@ export class SalaComponent {
       const columna = el.parentElement;
       const medir = () => {
         this.escala.set(el.clientWidth / ANCHO_SALA || 1);
-        if (columna) this.disponible.set(columna.clientWidth);
+        if (!columna) return;
+        // El marco del lienzo tiene relleno: lo que cabe es su caja de contenido.
+        const estilo = getComputedStyle(columna);
+        const horizontal = (parseFloat(estilo.paddingLeft) || 0) + (parseFloat(estilo.paddingRight) || 0);
+        const vertical = (parseFloat(estilo.paddingTop) || 0) + (parseFloat(estilo.paddingBottom) || 0);
+        this.disponible.set(columna.clientWidth > 0 ? Math.max(0, columna.clientWidth - horizontal) : 0);
+        this.disponibleAlto.set(columna.clientHeight > 0 ? Math.max(0, columna.clientHeight - vertical) : 0);
       };
       medir();
       const observador = new ResizeObserver(medir);
@@ -781,6 +762,11 @@ export class SalaComponent {
     return p.sprite!.url.replace('idle.png', `portrait-${expresion}.png`);
   }
 
+  /** Cuántas piezas de cada tipo tiene el catálogo del caso (las cuentas de las pestañas del catálogo). */
+  protected readonly cantidades = computed(() => ({
+    mueble: this.cantidad('mueble'), objeto: this.cantidad('objeto'), personaje: this.cantidad('personaje'),
+  }) as Record<TipoElemento, number>);
+
   protected cantidad(tipo: TipoElemento): number {
     const caso = this.store.caso();
     if (!caso) return 0;
@@ -793,9 +779,35 @@ export class SalaComponent {
     return a && a.clave === p.clave ? { x: a.x, y: a.y } : { x: p.x, y: p.y };
   }
 
+  /** La opción de la lista que recibe el Tab: la elegida si está en la lista, o la primera. */
+  protected readonly itinerante = computed(() => {
+    const claves = this.grupos().flatMap((g) => g.piezas.map((p) => p.clave));
+    const elegida = this.elegida();
+    return elegida !== null && claves.includes(elegida) ? elegida : (claves[0] ?? null);
+  });
+
+  /** Flechas, Inicio y Fin en la lista «En esta sala»: mueven el foco a otra opción y la eligen (la selección sigue al foco). */
+  protected recorrerLista(evento: KeyboardEvent): void {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(evento.key)) return;
+    const lista = evento.currentTarget as HTMLElement;
+    const opciones = [...lista.querySelectorAll<HTMLElement>('[role="option"]')];
+    if (!opciones.length) return;
+    evento.preventDefault();
+    const actual = opciones.indexOf(document.activeElement as HTMLElement);
+    const destino = evento.key === 'Home' ? 0
+      : evento.key === 'End' ? opciones.length - 1
+        : Math.min(opciones.length - 1, Math.max(0, actual + (evento.key === 'ArrowDown' ? 1 : -1)));
+    const opcion = opciones[destino];
+    const clave = opcion.dataset['clave'];
+    if (clave) this.elegir(clave);
+    opcion.focus();
+  }
+
   protected elegir(clave: string): void {
     if (clave !== this.elegida()) this.puntoDeRuta.set(null);
     this.elegida.set(clave);
+    this.soltarMuro();
+    this.panel.set('detalles');
     const p = this.piezas().find((x) => x.clave === clave);
     if (p) this.anuncio.set(`Elegido: ${p.nombre}.`);
   }
@@ -849,6 +861,8 @@ export class SalaComponent {
     this.store.agregarElemento(this.salaId(), tipo, ref);
     const indice = (tipo === 'mueble' ? this.sala()!.muebles : tipo === 'objeto' ? this.sala()!.objetos : this.sala()!.personajes).length - 1;
     this.elegir(`${tipo}-${indice}`);
+    // Lo agregado queda elegido (su pestaña lo señala), pero el catálogo sigue a la vista para agregar otra cosa.
+    this.panel.set('agregar');
     this.anuncio.set(`${nombre} se agregó en el centro de la sala.`);
   }
 
@@ -1001,6 +1015,51 @@ export class SalaComponent {
     afterNextRender(() => this.capaDePiezas()?.seleccionar(id), { injector: this.injector });
   }
 
+  /** Una pieza de muro recién agregada desde el panel: queda elegida y el panel sigue en «Agregar». */
+  protected piezaAgregada(id: string): void {
+    this.quedarseEnAgregar = true;
+    this.seleccionarPieza(id);
+  }
+
+  /** La capa de piezas del muro eligió (o soltó) una pieza: lo elegido en la lista se suelta y se muestran sus detalles. */
+  protected alElegirEnMuro(id: string | null): void {
+    this.piezaDeMuroElegida.set(id);
+    if (id) {
+      this.elegida.set(null);
+      if (!this.quedarseEnAgregar) this.panel.set('detalles');
+    }
+    this.quedarseEnAgregar = false;
+  }
+
+  private soltarMuro(): void {
+    if (this.piezaDeMuroElegida() === null) return;
+    this.piezaDeMuroElegida.set(null);
+    this.capaDePiezas()?.soltar();
+  }
+
+  protected nombreDePuerta(id: string): string {
+    const puerta = this.sala()?.puertas.find(p => p.id === id);
+    // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+    return puerta?.etiqueta ? `Puerta: ${puerta.etiqueta}` : 'Puerta';
+  }
+
+  /** Flechas, Inicio y Fin entre las pestañas del panel (patrón de pestañas de ARIA: el foco y la pestaña van juntos). */
+  protected teclaPestanas(evento: KeyboardEvent): void {
+    const ids = this.pestanasPanel().map(t => t.id) as PestanaPanel[];
+    const actual = ids.indexOf(this.panelActivo());
+    const destino = evento.key === 'ArrowRight' ? (actual + 1) % ids.length : evento.key === 'ArrowLeft' ? (actual - 1 + ids.length) % ids.length
+      : evento.key === 'Home' ? 0 : evento.key === 'End' ? ids.length - 1 : -1;
+    if (destino < 0) return;
+    evento.preventDefault();
+    this.panel.set(ids[destino]);
+    (evento.currentTarget as HTMLElement).querySelector<HTMLElement>(`#pestana-${ids[destino]}`)?.focus();
+  }
+
+  protected alElegirMas(valor: string | undefined): void {
+    if (valor === 'original') void this.volverOriginal();
+  }
+
+
   protected cambiarAncho(ancho: number): void {
     // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
     this.store.cambiarEstructura(this.salaId(), 'Cambiaste el ancho de la sala', e => { e.ancho = ancho; });
@@ -1014,6 +1073,7 @@ export class SalaComponent {
   }
 
   protected teclaPieza(evento: KeyboardEvent, p: Pieza): void {
+    if (this.estrecha()) return;
     const paso = evento.shiftKey ? 1 : 8;
     const mover: Record<string, [number, number]> = {
       ArrowLeft: [-paso, 0], ArrowRight: [paso, 0], ArrowUp: [0, -paso], ArrowDown: [0, paso],
@@ -1021,7 +1081,7 @@ export class SalaComponent {
     if (mover[evento.key]) {
       evento.preventDefault();
       evento.stopPropagation();
-      this.elegida.set(p.clave);
+      if (this.elegida() !== p.clave) this.elegir(p.clave);
       const actual = this.piezas().find((x) => x.clave === p.clave) ?? p;
       this.desplazar(actual, ...mover[evento.key]);
     } else if (evento.key === 'Delete' || evento.key === 'Supr') {
@@ -1038,7 +1098,7 @@ export class SalaComponent {
   }
 
   protected teclaGeneral(evento: KeyboardEvent): void {
-    if (!(evento.ctrlKey || evento.metaKey)) return;
+    if (this.estrecha() || !(evento.ctrlKey || evento.metaKey)) return;
     const k = evento.key.toLowerCase();
     if (k === 'z' && !evento.shiftKey) {
       evento.preventDefault();
@@ -1058,8 +1118,9 @@ export class SalaComponent {
   }
 
   protected empezarArrastre(evento: PointerEvent, p: Pieza): void {
-    if (evento.button !== 0) return;
-    this.elegida.set(p.clave);
+    // Solo mirar (pantalla angosta): el toque elige, nunca arrastra.
+    if (evento.button !== 0 || this.estrecha()) return;
+    if (this.elegida() !== p.clave) this.elegir(p.clave);
     (evento.target as HTMLElement).setPointerCapture?.(evento.pointerId);
     this.arrastre.set({ clave: p.clave, x: p.x, y: p.y, movio: false });
     this.desfase = (() => {

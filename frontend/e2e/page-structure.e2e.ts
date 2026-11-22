@@ -67,8 +67,11 @@ test.describe('@estructura un h1 y un <main> por pantalla', () => {
       await expect(h1s(page), path).toHaveCount(1);
       await expect(page.getByRole('main'), path).toHaveCount(1);
     }
-    await expect(h1s(page)).toHaveText('Página no encontrada');
+    // Rediseño 2026-11-20: la 404 pública habla en primera persona del plural y ofrece el inicio y el acceso.
+    await expect(h1s(page)).toHaveText('No encontramos esta página');
     await expect(page.locator('header.cromo')).toBeVisible();
+    await expect(page.getByRole('main').getByRole('link', { name: 'Volver al inicio' })).toHaveAttribute('href', '/');
+    await expect(page.getByRole('main').getByRole('link', { name: 'Iniciar sesión' })).toHaveAttribute('href', '/login');
 
     await loginAs(page, 'estudiante');
     await page.goto('/portal/no-existe');
@@ -82,7 +85,7 @@ test.describe('@estructura un h1 y un <main> por pantalla', () => {
 
   test('sesión vencida: el acceso lo dice y, al entrar, vuelve a la ruta pedida', async ({ page }) => {
     await page.goto('/login?returnUrl=%2Fportal%2Fpersonaje&motivo=sesion-expirada');
-    await expect(page.getByRole('status').filter({ hasText: 'Tu sesión expiró. Inicia sesión nuevamente.' })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'Tu sesión terminó. Entra de nuevo y volverás a donde estabas.' })).toBeVisible();
     await page.locator('input[type="email"]').last().fill('estudiante@psychosim.edu.co');
     await page.locator('input[type="password"]').last().fill('Estudiante123!');
     await page.getByRole('button', { name: /^ingresar$/i }).click();

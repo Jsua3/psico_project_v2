@@ -1,7 +1,7 @@
 import { Component, provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { EMPTY_STATE_COPY } from './state-copy';
+import { EMPTY_STATE_COPY, FIGURAS_VACIO } from './state-copy';
 import { UiEmptyKind, UiEmptyState } from './ui-empty-state';
 
 /**
@@ -101,5 +101,32 @@ describe('ui-empty-state', () => {
   it('el título es un párrafo destacado, no un encabezado que rompa la jerarquía de la página', async () => {
     expect(root().querySelector('h1, h2, h3, h4, h5, h6')).toBeNull();
     expect(root().querySelector('p.ui-empty-state__title')).not.toBeNull();
+  });
+
+  // req: DISENO C12 (personaje del kit en el vacío; la figura es decorativa)
+  it('con figura pinta el personaje del kit a ×3 en lugar del mueble, y la firma bajo el título', async () => {
+    const otra = TestBed.createComponent(UiEmptyState);
+    otra.componentRef.setInput('figura', FIGURAS_VACIO.estudiante);
+    otra.componentRef.setInput('title', 'Aún no tienes casos asignados');
+    otra.componentRef.setInput('description', 'Cuando tu docente te asigne un caso, aparecerá aquí.');
+    await otra.whenStable();
+    const vacio = otra.nativeElement as HTMLElement;
+    expect(vacio.querySelector('img.ui-empty-state__art')).toBeNull();
+    const figura = vacio.querySelector('ui-figura-pixel')!;
+    expect(figura.classList).toContain('ui-figura-pixel--x3');
+    expect(figura.getAttribute('aria-hidden')).toBe('true');
+    expect(vacio.classList).toContain('ui-empty-state--figura');
+    const firma = vacio.querySelector('.ui-empty-state__firma')!;
+    expect(firma.getAttribute('aria-hidden')).toBe('true');
+    expect(firma.previousElementSibling?.classList).toContain('ui-empty-state__title');
+  });
+
+  it('cada rol tiene su figura del kit, siempre la misma (una sola tabla)', () => {
+    expect(FIGURAS_VACIO).toEqual({
+      estudiante: 'camila/bata',
+      docente: 'docente-universidad',
+      admin: 'funcionaria-recepcion',
+      revision: 'supervisor-clinico',
+    });
   });
 });

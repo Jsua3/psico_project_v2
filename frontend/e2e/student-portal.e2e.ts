@@ -40,30 +40,31 @@ test.describe('@estudiante panel', () => {
     test(`con historial: sin desborde y Axe sin hallazgos serios (${viewport.width})`, async ({ page }) => {
       await page.setViewportSize(viewport);
       await openPanel(page);
-      await expect(page.getByRole('heading', { name: 'Tu evolución' })).toBeVisible();
+      await expect(page.locator('app-student-dashboard').getByRole('heading', { level: 1, name: /^Hola,/ })).toBeVisible();
       expect(await overflowX(page)).toBeLessThanOrEqual(0);
       expect(await blockingViolations(page, 'app-student-dashboard')).toEqual([]);
     });
   }
 
   test('primer uso: un solo vacío y Axe sin hallazgos serios', async ({ page }) => {
+    await page.route('**/api/simulation/catalog', route => route.fulfill({ json: { success: true, data: [] } }));
     await openPanel(page, []);
     await expect(page.locator('app-student-dashboard ui-empty-state')).toHaveCount(1);
     await expect(page.locator('app-student-dashboard ui-stat, app-student-dashboard table')).toHaveCount(0);
     expect(await blockingViolations(page, 'app-student-dashboard')).toEqual([]);
   });
 
-  test('el ratón sobre la barra de progreso muestra el dato exacto: intentos completados, no un puntaje', async ({ page }) => {
+  test('el progreso dice los intentos completados exactos, no un puntaje', async ({ page }) => {
     await openPanel(page);
-    await page.locator('.sd-bar').first().hover();
-    // Tres intentos del caso y uno solo terminado: la barra cuenta intentos (un hecho), nunca puntos.
-    await expect(page.locator('ui-tooltip-panel')).toHaveText(`${CASE_TITLE}: 1 de 3 intentos completados`);
+    const panel = page.locator('app-student-dashboard');
+    await expect(panel.getByText('1 de 3 intentos completados', { exact: true })).toBeVisible();
+    expect(await panel.innerText()).not.toMatch(/puntaje|puntos|%/i);
   });
 
   test('ninguna cifra de desempeño en el panel del estudiante: ni puntaje, ni estrés, ni porcentajes', async ({ page }) => {
     await openPanel(page);
     const panel = page.locator('app-student-dashboard');
-    await expect(panel.getByRole('heading', { name: 'Tu evolución' })).toBeVisible();
+    await expect(panel.getByRole('heading', { level: 1, name: /^Hola,/ })).toBeVisible();
     const text = (await panel.innerText()).replace(/\s+/g, ' ');
     expect(text).not.toMatch(/puntaje|puntos|estr[eé]s|ranking|desempe[nñ]o|%/i);
     await expect(panel.locator('[role="progressbar"], [role="meter"], progress, meter')).toHaveCount(0);
@@ -92,7 +93,7 @@ async function openCatalog(page: Page): Promise<void> {
   await page.route('**/api/simulation/attempts/history', route => route.fulfill({ json: { success: true, data: HISTORY } }));
   await page.route('**/api/simulation/attempts/*/student-report', route => route.fulfill({ json: { success: true, data: REPORT } }));
   await page.goto('/portal/simulador');
-  await expect(page.locator('.catalog-history tbody tr').first()).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Tus casos' })).toBeVisible();
 }
 
 /** Recorre el lienzo y devuelve el cursor de cada punto (Phaser lo pone en el estilo del canvas al pasar sobre algo). */
@@ -186,7 +187,7 @@ async function openEditor(page: Page): Promise<void> {
   await loginAs(page, 'estudiante');
   await page.evaluate(() => localStorage.removeItem('psychosim_avatar'));
   await page.goto('/portal/personaje');
-  await expect(page.locator('fieldset').filter({ hasText: 'Elenco' }).locator('input[type="radio"]').first()).toBeAttached({ timeout: scaled(15_000) });
+  await expect(page.locator('fieldset').filter({ hasText: 'Elige tu personaje' }).locator('input[type="radio"]').first()).toBeAttached({ timeout: scaled(15_000) });
 }
 
 // req: BLOQUE-H, RNF-04 (plan visual F5-4)
@@ -195,7 +196,7 @@ test.describe('@estudiante personaje', () => {
     test(`piel portal con escenario oscuro: sin desborde, opciones ≥ 44 px y Axe sin hallazgos serios (${viewport.width})`, async ({ page }) => {
       await page.setViewportSize(viewport);
       await openEditor(page);
-      await page.locator('fieldset').filter({ hasText: 'Elenco' }).getByText('Personalizado').click();
+      await page.locator('fieldset').filter({ hasText: 'Elige tu personaje' }).getByText('Personalizado').click();
       await expect(page.locator('fieldset').filter({ hasText: 'Peinado' })).toBeVisible();
       expect(await overflowX(page)).toBeLessThanOrEqual(0);
       const small = await page.locator('.ce-option').evaluateAll(options => options
@@ -208,7 +209,7 @@ test.describe('@estudiante personaje', () => {
 
   test('los grupos son radios nativos: las flechas cambian la elección', async ({ page }) => {
     await openEditor(page);
-    const radios = page.locator('fieldset').filter({ hasText: 'Elenco' }).locator('input[type="radio"]');
+    const radios = page.locator('fieldset').filter({ hasText: 'Elige tu personaje' }).locator('input[type="radio"]');
     await radios.first().focus();
     await page.keyboard.press('ArrowRight');
     await expect(radios.nth(1)).toBeChecked();
@@ -218,15 +219,15 @@ test.describe('@estudiante personaje', () => {
 
   test('salir con cambios sin guardar pregunta: «Seguir editando» se queda y «Salir sin guardar» sale', async ({ page }) => {
     await openEditor(page);
-    await page.locator('fieldset').filter({ hasText: 'Elenco' }).locator('input[type="radio"]').nth(2).check({ force: true });
-    await page.locator('header.cromo').getByRole('link', { name: 'Panel', exact: true }).click();
+    await page.locator('fieldset').filter({ hasText: 'Elige tu personaje' }).locator('input[type="radio"]').nth(2).check({ force: true });
+    await page.locator('header.cromo').getByRole('link', { name: 'Inicio', exact: true }).click();
     const dialog = page.getByRole('alertdialog', { name: 'Tienes cambios sin guardar' });
     await expect(dialog).toBeVisible();
     await dialog.getByRole('button', { name: 'Seguir editando' }).click();
     await expect(dialog).toBeHidden();
     await expect(page).toHaveURL(/\/portal\/personaje$/);
 
-    await page.locator('header.cromo').getByRole('link', { name: 'Panel', exact: true }).click();
+    await page.locator('header.cromo').getByRole('link', { name: 'Inicio', exact: true }).click();
     await page.getByRole('alertdialog', { name: 'Tienes cambios sin guardar' }).getByRole('button', { name: 'Salir sin guardar' }).click();
     await page.waitForURL(/\/portal\/dashboard$/);
   });
@@ -248,14 +249,17 @@ test.describe('@estudiante estados de ruta', () => {
     // Sin intentos abiertos: uno abierto (que dejara otra prueba) se puede continuar aunque el caso esté bloqueado.
     await page.route('**/api/simulation/attempts/history', route => route.fulfill({ json: { success: true, data: [] } }));
     await page.goto('/portal/simulador');
-    await expect(page.locator('.case-card').first()).toBeVisible({ timeout: scaled(15_000) });
+    await expect(page.locator('ui-card.cs-tarjeta').first()).toBeVisible({ timeout: scaled(15_000) });
     await page.goto(`/portal/simulador/${lockedId}`);
     await page.waitForURL(new RegExp(`/portal/simulador\\?bloqueado=${lockedId}$`), { timeout: scaled(15_000) });
-    await expect(page.locator('.catalog-notice')).toContainText('todavía está bloqueado', { timeout: scaled(15_000) });
-    const card = page.locator('.case-card').first();
-    await expect(card.locator('.case-card__lock')).toHaveText('Bloqueado');
+    // El aviso visible (el servicio de avisos también lo repite en una región de estado para lectores de pantalla).
+    await expect(page.getByRole('region', { name: 'Mensajes del sistema' }).getByText(/todavía está bloqueado/)).toBeVisible({ timeout: scaled(15_000) });
+    const card = page.locator('ui-card.cs-tarjeta').first();
+    await expect(card.getByText('Bloqueado', { exact: true })).toBeVisible();
+    // El motivo visible (el botón deshabilitado lo repite en una descripción oculta, a propósito).
+    await expect(card.getByRole('paragraph').filter({ hasText: /Se abre al terminar el caso anterior/ })).toBeVisible();
     // «Iniciar…» o «Continuar» si otra prueba dejó un intento abierto: bloqueado igual (coherente con la guardia).
-    await expect(card.locator('.case-card__actions button').first()).toHaveAttribute('aria-disabled', 'true');
+    await expect(card.getByRole('button', { name: 'Ver ficha' })).toBeDisabled();
     expect(await blockingViolations(page, 'app-simulation-catalog')).toEqual([]);
   });
 
@@ -275,7 +279,7 @@ test.describe('@estudiante catálogo', () => {
     test(`con un intento en pausa: «Continuar» en la tarjeta, sin desborde y Axe sin hallazgos serios (${viewport.width})`, async ({ page }) => {
       await page.setViewportSize(viewport);
       await openCatalog(page);
-      const card = page.locator('.case-card').first();
+      const card = page.locator('ui-card.cs-tarjeta').filter({ has: page.getByRole('heading', { name: CASE_TITLE, exact: true }) });
       await expect(card.getByRole('button', { name: 'Continuar' })).toBeVisible();
       await expect(card.getByRole('button', { name: /iniciar/i })).toHaveCount(0);
       expect(await overflowX(page)).toBeLessThanOrEqual(0);
@@ -283,20 +287,20 @@ test.describe('@estudiante catálogo', () => {
     });
   }
 
-  test('«Ver resumen» abre el reporte en un diálogo; Esc lo cierra y el foco vuelve al botón', async ({ page }) => {
+  test('«Ver tu recorrido» abre la página y al volver el foco regresa al catálogo', async ({ page }) => {
     await openCatalog(page);
-    const button = page.locator('.catalog-history').getByRole('button', { name: 'Ver resumen' }).first();
-    await button.focus();
-    await page.keyboard.press('Enter');
-    const dialog = page.getByRole('dialog', { name: CASE_TITLE });
-    await expect(dialog).toBeVisible();
-    await expect(dialog).toContainText('Revisa cómo valorar el riesgo de feminicidio');
-    // El resumen del estudiante dice qué hizo (hitos) y no cuánto sacó.
-    await expect(dialog).toContainText('Recomendar medidas de protección');
-    expect(((await dialog.innerText()).replace(/\s+/g, ' '))).not.toMatch(/puntaje|puntos|estr[eé]s|ranking|desempe[nñ]o|%/i);
-    expect(await blockingViolations(page, '.cdk-dialog-container')).toEqual([]);
-    await page.keyboard.press('Escape');
-    await expect(dialog).toBeHidden();
-    await expect(button).toBeFocused();
+    const card = page.locator('ui-card.cs-tarjeta').filter({ has: page.getByRole('heading', { name: CASE_TITLE, exact: true }) });
+    await card.locator('summary').click();
+    await card.getByRole('button', { name: /^Ver tu recorrido del intento del/ }).first().click();
+    await expect(page).toHaveURL(/\/cierre\//);
+    const cierre = page.locator('app-cierre-caso');
+    await expect(cierre.getByRole('heading', { level: 1, name: CASE_TITLE })).toBeVisible();
+    await expect(cierre).toContainText('Revisa cómo valorar el riesgo de feminicidio');
+    await expect(cierre).toContainText('Recomendar medidas de protección');
+    expect((await cierre.innerText()).replace(/\s+/g, ' ')).not.toMatch(/puntaje|puntos|estr[eé]s|ranking|desempe[nñ]o|%/i);
+    expect(await blockingViolations(page, 'app-cierre-caso')).toEqual([]);
+    await cierre.getByRole('link', { name: 'Tus casos', exact: true }).click();
+    await expect(page).toHaveURL(/\/portal\/simulador$/);
+    await expect(card.locator('.cs-acciones button').first()).toBeFocused();
   });
 });

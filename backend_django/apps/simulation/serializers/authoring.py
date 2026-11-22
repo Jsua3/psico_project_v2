@@ -263,6 +263,21 @@ class BriefRequest(serializers.Serializer):
         child=serializers.CharField(allow_blank=True, trim_whitespace=False),
         required=False, allow_null=True,
     )
+    # Bloque R0 (aditivos; «ausente = no tocar», como los de arriba). RK-7: los temas sensibles de la ficha del estudiante.
+    contentWarnings = serializers.ListField(
+        child=serializers.CharField(allow_blank=True, trim_whitespace=False),
+        required=False, allow_null=True,
+    )
+    # RK-8: el nombre del caso; el servicio exige que no esté vacío y que el caso no tenga otra versión publicada o archivada.
+    title = serializers.CharField(required=False, allow_blank=True, trim_whitespace=False)
+
+
+class RubricAdoptRequest(serializers.Serializer):
+    """RK-1 · Adoptar una rúbrica en el caso: ``rubricId`` (una que quien edita ve) o ``fromCompetencies: true`` (una
+    nueva con las competencias del programa). Una de las dos; el servicio lo comprueba y nombra el campo."""
+
+    rubricId = serializers.IntegerField(required=False, allow_null=True)
+    fromCompetencies = serializers.BooleanField(required=False)
 
 
 class HintRequest(serializers.Serializer):

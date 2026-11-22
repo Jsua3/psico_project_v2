@@ -38,6 +38,7 @@ def assignment_dto(assignment, now=None):
     data = {
         "id": assignment.id,
         "caseVersionId": assignment.case_version_id,
+        "caseTitle": assignment.case_version.simulation_case.title or None,
         "target": target,
         "state": assignment_state(assignment, now),
         "active": assignment.active,
@@ -112,7 +113,7 @@ def _assignable_version(case_version_id):
 
 
 def _load_to_manage(assignment_id, actor, *, lock=False):
-    queryset = CaseAssignment.objects.select_related("grupo")
+    queryset = CaseAssignment.objects.select_related("grupo", "case_version__simulation_case")
     if lock:
         queryset = queryset.select_for_update(of=("self",))
     row = queryset.filter(pk=assignment_id).first()
@@ -180,7 +181,7 @@ def create_assignment(actor, payload):
 
 def list_assignments(actor, group_id=None, case_version_id=None):
     """Las asignaciones que el actor puede listar: las de un grupo suyo (el ADMIN, todas)."""
-    queryset = CaseAssignment.objects.select_related("grupo")
+    queryset = CaseAssignment.objects.select_related("grupo", "case_version__simulation_case")
     if group_id is not None:
         grupo = Grupo.objects.filter(pk=group_id).first()
         if grupo is None or not policies.can(actor, "assignment", "list", owner_id=grupo.profesor_id):

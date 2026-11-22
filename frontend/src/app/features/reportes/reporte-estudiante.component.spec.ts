@@ -124,21 +124,20 @@ describe('reporte de un estudiante (F10-7)', () => {
   describe('los intentos', () => {
     it('cada intento dice caso, número de intento, estado en palabras, inicio y los dos tiempos', async () => {
       await render(of(report([
-        attempt({ attemptId: 'a2', ordinal: 2, status: 'IN_PROGRESS', clockSeconds: null, activeSeconds: 125, caseTitle: 'Otro caso' }),
+        attempt({ attemptId: 'a2', ordinal: 2, status: 'IN_PROGRESS', clockSeconds: null, activeSeconds: 125, caseTitle: 'Otro caso', caseVersionId: 9 }),
         attempt(),
       ])));
 
       const rows = [...host().querySelectorAll('tbody tr')].map(row => text(row));
       expect(rows).toHaveLength(2);
-      expect(rows[0]).toContain('Otro caso');
+      expect(host().textContent).toContain('Otro caso');
       expect(rows[0]).toContain('2');
       expect(rows[0]).toContain('En curso');
       expect(rows[0]).toContain('2 min');
-      expect(rows[0]).toContain('—');
-      expect(rows[1]).toContain('Duelo en la comisaría');
+      expect(rows[0]).toContain('Reloj');
+      expect(host().textContent).toContain('Duelo en la comisaría');
       expect(rows[1]).toContain('Finalizado');
       expect(rows[1]).toContain('10 min');
-      expect(rows[1]).toContain('15 min');
       expect(rows[1]).not.toMatch(/COMPLETED|IN_PROGRESS/);
     });
 
@@ -146,9 +145,54 @@ describe('reporte de un estudiante (F10-7)', () => {
       await render();
 
       const headers = [...host().querySelectorAll('thead th')].map(text);
-      expect(headers).toEqual(['Caso', 'Intento', 'Estado', 'Inicio', 'Tiempo activo', 'Tiempo de reloj']);
+      expect(headers).toEqual(['Intento', 'Estado', 'Inicio', 'Tiempo activo']);
       expect(host().querySelector('[role="region"][aria-label="Intentos del estudiante"]')).not.toBeNull();
     });
+  });
+
+  describe('estado del caso, encabezado de fila y tiempo de reloj', () => {
+    const statusFor = async (status: string) => {
+      await render(of(report([attempt({ status })])));
+      return text(host().querySelector('.re-status'));
+    };
+
+    it.each([
+      ['COMPLETED', 'Último intento: finalizado. 1 intento en este corte, 1 finalizado.'],
+      ['IN_PROGRESS', 'Último intento: en curso. 1 intento en este corte, ninguno finalizado.'],
+      ['PAUSED', 'Último intento: en pausa (reanudable). 1 intento en este corte, ninguno finalizado.'],
+      ['SAFE_EXITED', 'Último intento: cerrado con salida segura. 1 intento en este corte, ninguno finalizado.'],
+    ])('dice el estado %s en palabras antes de la tabla', async (status, expected) => {
+      expect(await statusFor(status)).toBe(expected);
+      const card = host().querySelector('.re-case-card')!;
+      expect(card.querySelector('.re-status')!.compareDocumentPosition(card.querySelector('ui-table')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('toma el intento más reciente (el de mayor número) para el estado', async () => {
+      await render(of(report([attempt({ attemptId: 'b', ordinal: 2, status: 'IN_PROGRESS' }), attempt({ attemptId: 'a', ordinal: 1 })])));
+      expect(text(host().querySelector('.re-status'))).toBe('Último intento: en curso. 2 intentos en este corte, 1 finalizado.');
+    });
+
+    it('cada fila conserva un encabezado de fila accesible: el número de intento', async () => {
+      await render(of(report([attempt({ attemptId: 'b', ordinal: 2 }), attempt({ attemptId: 'a', ordinal: 1 })])));
+      const heads = [...host().querySelectorAll('tbody tr th[scope="row"]')].map(text);
+      expect(heads).toEqual(['2', '1']);
+      expect(host().querySelector('tbody tr th[scope="row"]')!.className).not.toContain('re-case');
+    });
+
+    it('el tiempo de reloj es auxiliar, se alcanza con el teclado y dice el dato o su ausencia', async () => {
+      await render(of(report([attempt({ clockSeconds: 900 }), attempt({ attemptId: 'x', ordinal: 2, clockSeconds: null })])));
+      const clocks = [...host().querySelectorAll<HTMLElement>('.re-clock')];
+      expect(clocks.map(el => el.getAttribute('aria-label'))).toEqual(['Tiempo de reloj: 15 min', 'Tiempo de reloj: sin dato']);
+      expect(clocks.every(el => el.tabIndex === 0)).toBe(true);
+    });
+  });
+
+  it('apila la tabla y solo enlaza a la revisión general, sin identificar un intento', async () => {
+    await render();
+    expect(host().querySelector('ui-table')?.classList.contains('ui-table--apilar')).toBe(true);
+    const link = host().querySelector('.re-privacy a');
+    expect(link?.getAttribute('href')).toBe('/portal/docente/trazabilidad');
+    expect(link?.getAttribute('href')).not.toContain('a1');
   });
 
   // req: RF-25, CU-14, RQ-NEG-006

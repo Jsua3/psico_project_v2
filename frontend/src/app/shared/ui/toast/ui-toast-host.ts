@@ -3,6 +3,7 @@ import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { MatIconModule } from '@angular/material/icon';
 
 import { LiveRegionAnnouncer } from '../../../core/a11y/live-announcer.service';
+import { TemaService } from '../../../core/tema/tema.service';
 import { NotificationMessage, NotificationService, NotificationType } from '../../../core/notifications/notification.service';
 import { UiIconButton } from '../button/ui-icon-button';
 
@@ -27,7 +28,13 @@ const ICONS: Record<NotificationType, string> = {
   selector: 'ui-toast-host',
   imports: [MatIconModule, UiIconButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'ui-toast-host', '[class.ui-toast-host--game]': "placement() === 'game'" },
+  // La piel va en el anfitrión (un contenedor, nunca `body`: REGLA-010). Vive en `app.component`, fuera del shell del
+  // portal, así que no la hereda: en el juego, siempre oscura; en el portal y la portada, la del tema (DISENO C13).
+  host: {
+    class: 'ui-toast-host',
+    '[class.ui-toast-host--game]': "placement() === 'game'",
+    '[attr.data-skin]': "placement() === 'game' ? 'game' : tema.piel()",
+  },
   template: `
     <section #region class="ui-toast-host__region" popover="manual" aria-label="Mensajes del sistema">
       @for (message of messages(); track message.id) {
@@ -51,6 +58,7 @@ export class UiToastHost {
    */
   readonly placement = input<'portal' | 'game'>('portal');
   protected readonly notifications = inject(NotificationService);
+  protected readonly tema = inject(TemaService);
   protected readonly messages = toSignal(this.notifications.messages$, { initialValue: [] });
   protected readonly icons = ICONS;
   private readonly announcer = inject(LiveRegionAnnouncer);

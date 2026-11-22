@@ -1,284 +1,139 @@
 import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
 import {
-  ChangeDetectionStrategy, Component, ElementRef, Injector, TemplateRef, afterNextRender, computed, effect, inject, input, output,
-  signal, viewChild,
+  ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Injector, TemplateRef, afterNextRender, computed, effect, inject, input,
+  output, signal, viewChild,
 } from '@angular/core';
 
+import { esCampoDeTexto } from '../../marco/estudio/atajos';
+import { EstudioHerramientaComponent } from '../../marco/estudio/estudio-herramienta.component';
+import { EstudioRanuraDirective, injectComandos } from '../../marco/estudio/estudio.service';
 import { rutaArte } from '../../modelo/biblioteca.service';
 import { NOMBRE_AVISO, type Aviso } from '../../modelo/caminos';
-import { NOMBRE_INTENSIDAD, plural } from '../../modelo/textos';
 import type { CasoBorrador, Escena } from '../../modelo/caso';
+import { escenasEnOrden } from '../../modelo/progreso';
+import { NOMBRE_INTENSIDAD, plural } from '../../modelo/textos';
 import { ALTO_ESCENA, ANCHO_ESCENA } from '../../modelo/trazado';
+import { type Camara, type Punto, centrarEn, encuadrar, encuadrarLegible, seVe, ventana, zoomEn } from './camara';
+import { caminoIluminado } from './iluminar';
+import { MinimapaComponent, type NodoMini } from './minimapa.component';
+import { type Flecha, trazo } from './trazo-flecha';
 
 export type AccionEscena =
   | { tipo: 'duplicar' | 'conectar' | 'borrar'; escenaId: string }
   | { tipo: 'final'; escenaId: string; esFinal: boolean }
   | { tipo: 'mover'; escenaId: string; x: number; y: number };
 
-interface Flecha {
-  id: string;
-  origen: string;
-  destino: string;
-  texto: string;
-  /** A dónde lleva la respuesta, dicho con palabras. */
-  hacia: string;
-  d: string;
-  medio: { x: number; y: number };
-  deElegida: boolean;
-}
-
 const MARGEN = 32;
 const PASO_MOVER = 24;
+/** Por debajo de este zoom la tarjeta pasa a su forma compacta (a 75 % el texto de 16 px queda en 12: el mínimo legible, D-38). */
+const UMBRAL_COMPACTO = 0.75;
+/**
+ * Al abrir, el mapa nunca baja de aquí: con 8 escenas en un lienzo entre dos paneles, «ver todo» quedaba en 48 % y los
+ * títulos en 7 px (QA del líder). Si el caso no cabe, se ve el comienzo y el minimapa lleva al resto.
+ */
+const ZOOM_AL_ABRIR = 0.75;
+/** Mantiene legibles los títulos; el minimapa permite llegar al resto. */
+const ZOOM_VER_TODO = 0.75;
+const ALTO_MINIMO = 320;
+/** Lo que dura la cámara animada (igual que `--ds-dur-slow`). */
+const DURACION_CAMARA = 420;
+const PASOS_ZOOM = [0.3, 0.4, 0.5, 0.6, 0.75, 0.9, 1, 1.25, 1.5, 2];
 
 /**
- * Mapa de escenas (tablero 25): cada escena es una tarjeta, cada respuesta una flecha.
- * Al pasar el cursor o enfocar una escena se ve su sala, y al hacerlo con una respuesta, qué dice y a dónde lleva (estados de
- * atención, tablero 50). Esc pliega lo que se muestra sin quitar el foco ni el cursor de donde están (WCAG 1.4.13); volver a
- * entrar o a enfocar lo muestra otra vez. Las acciones están en el clic derecho, en Mayús+F10 o la tecla de menú, y en el
- * botón «Acciones».
+ * Lienzo de Caminos (EDITOR-PRO.md, punto 3): cada escena es una tarjeta con la miniatura real de su sala; cada respuesta,
+ * una flecha curva que sale de un puerto lleno y entra en un aro.
+ *
+ * Patrón: componente de presentación (Composite del editor). Recibe el caso y los avisos y cuenta lo que pasa por sus
+ * salidas; no conoce el store. Su cámara (`camara.ts`) es un valor inmutable en una señal.
+ *
+ * - Cámara: Ctrl+rueda (o pellizco) acerca en el cursor; la rueda mueve; arrastrar el fondo, Espacio+arrastrar o el botón
+ *   central mueven; «Ver todo» (F) encuadra con una cámara suave. Al abrirse, se centra el inicio con escala legible.
+ * - Al pasar por una escena se ilumina el camino desde el inicio hasta ella y lo que sale de ella; lo demás se aparta.
+ * - Minimapa en la esquina con la ventana visible; pulsarlo lleva la cámara ahí.
+ * - Sus herramientas van a la barra del estudio (ranura `herramientas`); sin estudio, se pintan aquí.
+ * - Por debajo del 75 % las tarjetas pasan a su forma compacta; el título completo, en el globo y el nombre accesible.
  */
 @Component({
   selector: 'app-mapa-escenas',
-  imports: [CdkMenu, CdkMenuItem, CdkMenuTrigger],
+  imports: [CdkMenu, CdkMenuItem, CdkMenuTrigger, EstudioRanuraDirective, EstudioHerramientaComponent, MinimapaComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { '(document:keydown.escape)': 'plegarAtencion()' },
-  template: `
-    <div class="barra">
-      <p id="mapa-ayuda" class="texto-secundario">
-        Mapa del caso: {{ plural(caso().escenas.length, 'escena', 'escenas') }}. Con el foco en una escena, las flechas van a la escena conectada;
-        <kbd>Enter</kbd> abre su guion; <kbd>Mayús</kbd>+<kbd>F10</kbd> abre las acciones.
-      </p>
-      <div class="acciones">
-        <button type="button" class="boton" data-accion="conectar-escenas marcar-final" [cdkMenuTriggerFor]="elegidaEscena() ? menu : null"
-                #trigger="cdkMenuTriggerFor" (click)="!elegidaEscena() && pista.set('Primero elige una escena en el mapa.')"
-                [attr.aria-label]="elegidaEscena() ? 'Acciones de la escena ' + elegidaEscena()!.titulo : 'Acciones de la escena'"
-                [attr.aria-disabled]="elegidaEscena() ? null : 'true'">Acciones</button>
-        <div role="group" aria-label="Zoom del mapa" class="acciones">
-          <button type="button" class="boton cuadrado" aria-label="Alejar" (click)="zoomar(-0.1)">−</button>
-          <span class="zoom">{{ porcentaje() }} %</span>
-          <button type="button" class="boton cuadrado" aria-label="Acercar" (click)="zoomar(0.1)">+</button>
-          <button type="button" class="boton" (click)="verTodo()">Ver todo el mapa</button>
-        </div>
-      </div>
-    </div>
-
-    <p role="status" class="texto-secundario pista">{{ pista() }}</p>
-
-    @if (moviendo(); as m) {
-      <div role="group" aria-label="Moviendo una escena" class="tarjeta moviendo">
-        <p role="status"><strong>Moviendo: {{ tituloDe(m.escenaId) }}</strong></p>
-        <p class="texto-secundario">Usa las flechas del teclado o estos botones. <kbd>Enter</kbd> o «Listo» confirma; <kbd>Esc</kbd> cancela.</p>
-        <div class="acciones">
-          <button type="button" class="boton cuadrado" aria-label="Mover a la izquierda" (click)="empujar(-PASO, 0)">←</button>
-          <button type="button" class="boton cuadrado" aria-label="Mover hacia arriba" (click)="empujar(0, -PASO)">↑</button>
-          <button type="button" class="boton cuadrado" aria-label="Mover hacia abajo" (click)="empujar(0, PASO)">↓</button>
-          <button type="button" class="boton cuadrado" aria-label="Mover a la derecha" (click)="empujar(PASO, 0)">→</button>
-          <button type="button" class="boton boton-primario" (click)="terminarMover(true)">Listo</button>
-          <button type="button" class="boton" (click)="terminarMover(false)">Dejar donde estaba</button>
-        </div>
-      </div>
-    }
-
-    <!-- En solo lectura las escenas quedan deshabilitadas (fieldset del editor): el mapa mismo toma el foco para desplazarlo con el teclado. -->
-    <div class="marco" #marco (wheel)="rueda($event)" (keydown.escape)="vista.set(null)"
-         [attr.tabindex]="soloLectura() ? 0 : null" [attr.role]="soloLectura() ? 'region' : null"
-         [attr.aria-label]="soloLectura() ? 'Mapa del caso (solo lectura): desplázalo con las flechas' : null">
-      <div class="plano" role="group" aria-label="Mapa del caso" aria-describedby="mapa-ayuda"
-           [style.width.px]="limites().ancho * zoom()" [style.height.px]="limites().alto * zoom()">
-        <div class="escala" [style.transform]="'scale(' + zoom() + ')'" [style.width.px]="limites().ancho" [style.height.px]="limites().alto">
-          <svg class="flechas" [attr.width]="limites().ancho" [attr.height]="limites().alto" aria-hidden="false">
-            <defs>
-              <marker id="punta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-                <path d="M0,0 L10,5 L0,10 z" fill="#6B7C84" />
-              </marker>
-              <marker id="punta-elegida" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-                <path d="M0,0 L10,5 L0,10 z" fill="#0B5563" />
-              </marker>
-            </defs>
-            @for (f of flechas(); track f.id) {
-              <path class="flecha" [class.de-elegida]="f.deElegida" [attr.d]="f.d" tabindex="0" role="img"
-                    [attr.marker-end]="f.deElegida ? 'url(#punta-elegida)' : 'url(#punta)'"
-                    [attr.aria-label]="'Respuesta: ' + (f.texto || 'sin escribir')"
-                    (mouseenter)="flechaActiva.set(f.id)" (mouseleave)="flechaActiva.set(null)"
-                    (focus)="flechaActiva.set(f.id)" (blur)="flechaActiva.set(null)" />
-            }
-          </svg>
-
-          @for (e of caso().escenas; track e.id; let i = $index) {
-            <button type="button" class="escena" [attr.data-escena]="e.id"
-                    [class.elegida]="elegida() === e.id" [class.final]="e.esFinal" [class.con-aviso]="avisosDe(e.id).length" [class.marca-ia]="e.marcaIa"
-                    [style.left.px]="pos(e).x" [style.top.px]="pos(e).y" [attr.tabindex]="tabParada() === e.id ? 0 : -1"
-                    [attr.aria-pressed]="elegida() === e.id"
-                    (click)="elegir(e.id)" (dblclick)="abrirGuion.emit(e.id)"
-                    (contextmenu)="menuContextual($event, e.id)" (keydown)="tecla($event, e)"
-                    (mouseenter)="vista.set(e.id)" (mouseleave)="vista.set(null)" (focus)="vista.set(e.id)" (blur)="vista.set(null)">
-              <!-- El nombre de la tarjeta es su propio texto (lo que se ve) más un final que solo oye el lector. -->
-              <span class="etiquetas">
-                @if (caso().inicioId === e.id) { <span class="pildora pildora-primaria">Inicio</span> }
-                @if (e.esFinal) { <span class="pildora pildora-adecuada">Final</span> }
-                @if (e.marcaIa) { <span class="pildora">Sugerido por la IA</span> }
-                @if (avisosDe(e.id).length === 1) {
-                  <span class="pildora aviso">⚠ {{ nombreAviso[avisosDe(e.id)[0].tipo] }}</span>
-                } @else if (avisosDe(e.id).length > 1) {
-                  <span class="pildora aviso">⚠ {{ avisosDe(e.id).length }} avisos</span>
-                }
-              </span>
-              <span class="titulo">{{ i + 1 }} · {{ e.titulo }}</span>
-              <span class="sala texto-secundario">{{ nombreSala(e.salaId) }}</span>
-              <span class="intensidad-marca" [attr.data-intensidad]="e.intensidad">
-                <span aria-hidden="true">{{ simboloIntensidad[e.intensidad] }}</span> Intensidad {{ nombreIntensidad[e.intensidad].toLowerCase() }}
-              </span>
-              <span class="solo-lector">{{ detalle(e, i) }}</span>
-            </button>
-          }
-
-          @if (vistaEscena(); as v) {
-            <div class="vista tarjeta" role="tooltip" [attr.id]="'vista-' + v.escena.id"
-                 [style.left.px]="pos(v.escena).x" [style.top.px]="pos(v.escena).y + altoEscena + 8">
-              <img class="pixel" [src]="v.fondo" alt="" width="960" height="528" />
-              <strong>{{ v.sala }}</strong>
-              <span class="texto-secundario">{{ v.resumen }}</span>
-            </div>
-          }
-
-          @if (flechaElegida(); as f) {
-            <div class="tarjeta-flecha" role="status" [style.left.px]="f.medio.x" [style.top.px]="f.medio.y">
-              <strong>{{ f.texto || 'Respuesta sin escribir' }}</strong>
-              <span class="hacia">{{ f.hacia }}</span>
-            </div>
-          }
-        </div>
-      </div>
-
-    </div>
-
-    <svg class="minivista" viewBox="0 0 160 90" role="img" aria-label="Minivista del mapa">
-      @for (e of caso().escenas; track e.id) {
-        <rect [attr.x]="mini(e).x" [attr.y]="mini(e).y" [attr.width]="mini(e).w" [attr.height]="mini(e).h"
-              [attr.fill]="elegida() === e.id ? '#0B5563' : '#CBD5D8'" />
-      }
-    </svg>
-
-
-    <ng-template #menu>
-      <div cdkMenu class="menu" aria-label="Acciones de la escena">
-        <button cdkMenuItem class="item" (cdkMenuItemTriggered)="abrirGuion.emit(elegida()!)">Abrir guion <kbd>Enter</kbd></button>
-        @if (elegidaEscena()?.salaId; as salaId) {
-          <button cdkMenuItem class="item" (cdkMenuItemTriggered)="abrirSala.emit(salaId)">Abrir sala</button>
-        }
-        <button cdkMenuItem class="item" (cdkMenuItemTriggered)="empezarMover()">Mover</button>
-        <button cdkMenuItem class="item" (cdkMenuItemTriggered)="accion.emit({ tipo: 'duplicar', escenaId: elegida()! })">Duplicar</button>
-        <button cdkMenuItem class="item" (cdkMenuItemTriggered)="accion.emit({ tipo: 'conectar', escenaId: elegida()! })">Conectar con…</button>
-        <button cdkMenuItem class="item" (cdkMenuItemTriggered)="accion.emit({ tipo: 'final', escenaId: elegida()!, esFinal: !elegidaEscena()!.esFinal })">
-          {{ elegidaEscena()?.esFinal ? 'Quitar la marca de final' : 'Marcar como final' }}
-        </button>
-        <hr role="separator" />
-        <button cdkMenuItem class="item peligro" (cdkMenuItemTriggered)="accion.emit({ tipo: 'borrar', escenaId: elegida()! })">Borrar <kbd>Supr</kbd></button>
-      </div>
-    </ng-template>
-  `,
-  styles: `
-    :host { display: flex; flex-direction: column; gap: 8px; position: relative; min-width: 0; }
-    .barra { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
-    .barra p { margin: 0; font-size: var(--autoria-texto-16); line-height: 24px; flex: 1 1 320px; }
-    .cuadrado { width: 48px; padding: 0; }
-    .zoom { min-width: 56px; text-align: center; font-size: var(--autoria-texto-16); }
-    .marco { position: relative; overflow: auto; height: 460px; border: 1px solid var(--linea); border-radius: 12px; background: var(--fondo-hundido); }
-    .plano { position: relative; }
-    .escala { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-    .flechas { position: absolute; inset: 0; overflow: visible; }
-    .flecha { fill: none; stroke: var(--borde-control); stroke-width: 2.5; cursor: pointer; }
-    .flecha.de-elegida { stroke: var(--primario); stroke-width: 3.5; }
-    .flecha:focus-visible { outline: none; stroke: var(--foco); stroke-width: 5; }
-    .escena {
-      position: absolute; width: ${ANCHO_ESCENA}px; height: ${ALTO_ESCENA}px; display: flex; flex-direction: column; align-items: flex-start;
-      gap: 2px; padding: 8px 10px; text-align: left; font: inherit; color: var(--tinta); background: var(--superficie);
-      border: 2px solid var(--borde-control); border-radius: 12px; cursor: pointer; overflow: hidden;
-    }
-    .escena:active { scale: 0.98; }
-    .escena.elegida { border: 3px solid var(--primario); box-shadow: 0 0 0 3px var(--primario-tinte); }
-    .escena.final { border-style: double; border-width: 4px; }
-    .escena.con-aviso { border-color: var(--aviso); }
-    .escena.marca-ia { border-style: dashed; }
-    .etiquetas { display: flex; flex-wrap: wrap; gap: 4px; min-height: 26px; }
-    .etiquetas .pildora { min-height: 24px; padding: 0 8px; font-size: var(--autoria-texto-14); }
-    .etiquetas { flex-wrap: nowrap; overflow: hidden; max-width: 100%; }
-    .titulo, .sala { max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-box-orient: vertical; }
-    .titulo { -webkit-line-clamp: 2; }
-    .sala { -webkit-line-clamp: 1; }
-    .aviso { border-color: var(--aviso); color: var(--aviso-texto); background: var(--aviso-tinte); }
-    .intensidad-marca { font-size: var(--autoria-texto-14); line-height: 20px; font-weight: 700; color: var(--texto-secundario); }
-    .intensidad-marca[data-intensidad='HIGH'] { color: var(--aviso-texto); }
-    .titulo { font-weight: 700; font-size: var(--autoria-texto-16); line-height: 22px; }
-    .sala { font-size: var(--autoria-texto-14); line-height: 20px; }
-    .tarjeta-flecha {
-      position: absolute; transform: translate(-50%, -120%); max-width: 260px; padding: 6px 10px; font-size: var(--autoria-texto-16); line-height: 22px;
-      background: var(--tinta); color: var(--sobre-primario); border-radius: 8px; pointer-events: none;
-      display: flex; flex-direction: column; gap: 2px;
-    }
-    .tarjeta-flecha .hacia { font-weight: 400; }
-
-    .vista { position: absolute; width: 260px; display: flex; flex-direction: column; gap: 4px; z-index: var(--autoria-capa-3); pointer-events: none; box-shadow: var(--sombra-menu); }
-    .vista img { width: 100%; height: auto; border-radius: 8px; }
-    .vista span { font-size: var(--autoria-texto-16); }
-    .minivista { position: absolute; right: 16px; bottom: 16px; width: 160px; height: 90px; background: var(--superficie); border: 1px solid var(--linea); border-radius: 8px; }
-    .moviendo { display: flex; flex-direction: column; gap: 8px; }
-    .moviendo p { margin: 0; }
-    .menu { display: flex; flex-direction: column; min-width: 240px; padding: 6px; background: var(--superficie); border: 1px solid var(--linea); border-radius: 12px; box-shadow: var(--sombra-menu); }
-    .item { display: flex; justify-content: space-between; gap: 16px; min-height: 44px; padding: 0 12px; font: inherit; font-size: var(--autoria-texto-16); text-align: left; border: 0; background: none; border-radius: 8px; cursor: pointer; color: var(--tinta); align-items: center; }
-    .item:focus, .item:active { background: var(--primario-tinte); }
-    @media (hover: hover) and (pointer: fine) { .item:hover { background: var(--primario-tinte); } }
-    .item.peligro { color: var(--peligro); }
-    hr { width: 100%; border: 0; border-top: 1px solid var(--linea); margin: 4px 0; }
-    .pista { margin: 0; font-size: var(--autoria-texto-16); line-height: 24px; }
-    .pista:empty { display: none; }
-  `,
+  host: { '(document:keydown)': 'teclaGlobal($event)', '(document:keyup)': 'soltarTecla($event)' },
+  templateUrl: './mapa-escenas.component.html',
+  styleUrl: './mapa-escenas.component.scss',
 })
 export class MapaEscenasComponent {
   readonly caso = input.required<CasoBorrador>();
-  /** El caso ya no es un borrador: el editor deshabilita las escenas y el mapa tiene que poder desplazarse con el teclado. */
+  /** El caso ya no es un borrador: el editor deshabilita las escenas y el mapa tiene que poder moverse con el teclado. */
   readonly soloLectura = input(false);
   readonly avisos = input<Aviso[]>([]);
   /** Escena elegida desde fuera (por ejemplo, «Llévame ahí»). */
   readonly elegidaInicial = input<string | null>(null);
+  /** La imagen de cada sala (fondo dibujado o cuarto compuesto por piezas), por id de sala; la da el contenedor. */
+  readonly miniaturas = input<ReadonlyMap<string, string | null>>(new Map());
 
   readonly abrirGuion = output<string>();
   readonly abrirSala = output<string>();
   readonly seleccion = output<string>();
   readonly accion = output<AccionEscena>();
+  readonly agregar = output<void>();
+  readonly ordenar = output<void>();
 
   protected readonly PASO = PASO_MOVER;
-  protected readonly altoEscena = ALTO_ESCENA;
   protected readonly nombreIntensidad = NOMBRE_INTENSIDAD;
   /** La intensidad también se ve en la forma (no solo en el color): una, dos o tres barras. */
   protected readonly simboloIntensidad: Record<Escena['intensidad'], string> = { LOW: '▁', MEDIUM: '▃', HIGH: '▇' };
   protected readonly nombreAviso = NOMBRE_AVISO;
+  protected readonly plural = plural;
+  protected readonly tamNodo = { w: ANCHO_ESCENA, h: ALTO_ESCENA };
   protected readonly elegida = signal<string | null>(null);
   protected readonly pista = signal('');
-  protected readonly plural = plural;
   protected readonly vista = signal<string | null>(null);
   protected readonly flechaActiva = signal<string | null>(null);
-  protected readonly zoom = signal(1);
+  protected readonly tecladoAbierto = signal(false);
   protected readonly moviendo = signal<{ escenaId: string; x: number; y: number } | null>(null);
+  protected readonly altoLienzo = signal<number | null>(null);
+  protected readonly camara = signal<Camara>({ x: 0, y: 0, z: 1 });
+  protected readonly animando = signal(false);
+  protected readonly espacio = signal(false);
+  protected readonly arrastre = signal<{ x: number; y: number; cam: Camara; id: number } | null>(null);
+  private readonly tamMarco = signal({ w: 0, h: 0 });
+  /** La docente movió o acercó a mano: un cambio de ventana ya no reencuadra. */
+  private camaraManual = false;
+  private finAnimacion: ReturnType<typeof setTimeout> | undefined;
+  private limpiarMenuPendiente: (() => void) | undefined;
   private readonly trigger = viewChild.required<CdkMenuTrigger>('trigger');
   private readonly plantillaMenu = viewChild.required<TemplateRef<unknown>>('menu');
-  private readonly injector = inject(Injector);
   private readonly marco = viewChild.required<ElementRef<HTMLElement>>('marco');
-  private readonly raiz: HTMLElement;
+  private readonly lienzo = viewChild.required<ElementRef<HTMLElement>>('lienzo');
+  private readonly injector = inject(Injector);
+  private readonly raiz: HTMLElement = inject(ElementRef).nativeElement;
 
-  protected readonly porcentaje = computed(() => Math.round(this.zoom() * 100));
+  protected readonly porcentaje = computed(() => Math.round(this.camara().z * 100));
+  protected readonly compacto = computed(() => this.camara().z < UMBRAL_COMPACTO);
+  protected readonly transformacion = computed(() => {
+    const c = this.camara();
+    return `translate(${c.x}px, ${c.y}px) scale(${c.z})`;
+  });
   protected readonly elegidaEscena = computed(() => this.caso().escenas.find((e) => e.id === this.elegida()) ?? null);
+  private readonly numeros = computed(() => new Map(escenasEnOrden(this.caso()).map((e, i) => [e.id, i + 1])));
   /** La escena que recibe el Tab: la elegida si todavía existe; si no, el inicio o la primera. */
   protected readonly tabParada = computed(() => {
     const ids = new Set(this.caso().escenas.map((e) => e.id));
     return [this.elegida(), this.caso().inicioId, this.caso().escenas[0]?.id].find((id) => !!id && ids.has(id)) ?? null;
   });
 
+  /** El mapa se dibuja desde la primera escena, no desde el origen: «Ver todo» no desperdicia espacio. */
+  private readonly origen = computed<Punto>(() => {
+    const ps = this.caso().escenas.map((e) => this.base(e));
+    return ps.length ? { x: Math.min(...ps.map((p) => p.x)), y: Math.min(...ps.map((p) => p.y)) } : { x: 0, y: 0 };
+  });
+
   protected readonly limites = computed(() => {
     const es = this.caso().escenas.map((e) => this.pos(e));
-    const ancho = Math.max(640, ...es.map((p) => p.x + ANCHO_ESCENA + MARGEN));
-    const alto = Math.max(360, ...es.map((p) => p.y + ALTO_ESCENA + MARGEN));
-    return { ancho, alto };
+    return {
+      ancho: Math.max(ANCHO_ESCENA + 2 * MARGEN, ...es.map((p) => p.x + ANCHO_ESCENA + MARGEN)),
+      alto: Math.max(ALTO_ESCENA + 2 * MARGEN, ...es.map((p) => p.y + ALTO_ESCENA + MARGEN)),
+    };
   });
 
   protected readonly flechas = computed<Flecha[]>(() => {
@@ -286,74 +141,107 @@ export class MapaEscenasComponent {
     const porId = new Map(caso.escenas.map((e) => [e.id, e]));
     const lista: Flecha[] = [];
     for (const e of caso.escenas) {
-      const a = this.pos(e);
       for (const r of e.respuestas) {
         const destino = r.destinoId ? porId.get(r.destinoId) : undefined;
         if (!destino) continue;
-        const b = this.pos(destino);
-        let d: string;
-        let medio: { x: number; y: number };
-        if (destino.id === e.id) {
-          const x = a.x + ANCHO_ESCENA - 30, y = a.y;
-          d = `M${x},${y} C${x + 10},${y - 50} ${x + 60},${y - 30} ${x + 30},${y + 4}`;
-          medio = { x: x + 30, y: y - 30 };
-        } else {
-          const x1 = a.x + ANCHO_ESCENA, y1 = a.y + ALTO_ESCENA / 2;
-          const x2 = b.x, y2 = b.y + ALTO_ESCENA / 2;
-          const c = Math.max(40, Math.abs(x2 - x1) / 2);
-          d = `M${x1},${y1} C${x1 + c},${y1} ${x2 - c},${y2} ${x2 - 2},${y2}`;
-          medio = { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
-        }
-        const hacia = destino.id === e.id ? 'Vuelve a esta misma escena' : `Lleva a la escena ${caso.escenas.indexOf(destino) + 1} · ${destino.titulo}`;
-        lista.push({ id: r.id, origen: e.id, destino: destino.id, texto: r.texto, hacia, d, medio, deElegida: e.id === this.elegida() });
+        const t = trazo(this.pos(e), this.pos(destino), destino.id === e.id);
+        const hacia = destino.id === e.id ? 'Vuelve a esta misma escena' : `Lleva a la escena ${this.numero(destino.id)} · ${destino.titulo}`;
+        lista.push({ id: r.id, origen: e.id, destino: destino.id, texto: r.texto, hacia, ...t, deElegida: e.id === this.elegida() });
       }
     }
     return lista;
   });
 
-  protected readonly flechaElegida = computed(() => this.flechas().find((f) => f.id === this.flechaActiva()) ?? null);
+  /** Las flechas que se iluminan: el camino hasta la escena bajo el cursor (o la flecha bajo el cursor). */
+  protected readonly resaltadas = computed<Set<string>>(() => {
+    const f = this.flechaActiva();
+    if (f) return new Set([f]);
+    const v = this.vista();
+    return v ? caminoIluminado(this.caso(), v) : new Set();
+  });
+  /** Las escenas por las que pasa ese camino (su filo también se enciende). */
+  protected readonly enCamino = computed(() => {
+    const ids = new Set<string>();
+    for (const f of this.flechas()) if (this.resaltadas().has(f.id)) ids.add(f.origen).add(f.destino);
+    return ids;
+  });
 
+  protected readonly flechaElegida = computed(() => this.flechas().find((f) => f.id === this.flechaActiva()) ?? null);
+  protected readonly nodosMini = computed<NodoMini[]>(() =>
+    this.caso().escenas.map((e) => ({ id: e.id, ...this.pos(e), elegida: e.id === this.elegida(), aviso: this.avisosDe(e.id).length > 0 })));
+  protected readonly ventanaMundo = computed(() => ventana(this.camara(), this.tamMarco()));
+  /** El caso entero no se ve: solo entonces el minimapa ayuda a ubicarse (si todo cabe, sería ruido en una esquina). */
+  protected readonly desborda = computed(() => {
+    const { ancho, alto } = this.limites();
+    return this.tamMarco().w > 0 && !seVe(this.camara(), { x: 0, y: 0, w: ancho, h: alto }, this.tamMarco(), 0);
+  });
+
+  /** El globo de una escena: su sala (con la miniatura solo si tiene fondo: nunca un `src` vacío) y dónde se dibuja. */
   protected readonly vistaEscena = computed(() => {
     const e = this.caso().escenas.find((x) => x.id === this.vista());
-    const sala = e ? this.caso().salas.find((s) => s.id === e.salaId) : undefined;
-    if (!e || !sala) return null;
-    const personajes = sala.personajes.length;
-    const muebles = sala.muebles.length;
+    if (!e || this.arrastre()) return null;
+    const sala = this.caso().salas.find((s) => s.id === e.salaId);
+    const c = this.camara();
+    const p = this.aPantalla(this.pos(e));
+    const abajo = p.y + ALTO_ESCENA * c.z + 8;
+    const arriba = abajo + 300 > this.tamMarco().h && p.y > 300;
     return {
       escena: e,
-      fondo: rutaArte(this.caso().lugarId, sala.fondo),
-      sala: sala.nombre,
-      resumen: `${personajes} ${personajes === 1 ? 'personaje' : 'personajes'} · ${muebles} ${muebles === 1 ? 'mueble' : 'muebles'}`,
+      titulo: `${this.numero(e.id)} · ${e.titulo}`,
+      fondo: sala?.fondo ? rutaArte(this.caso().lugarId, sala.fondo) || null : null,
+      sala: sala?.nombre ?? 'Sin sala',
+      resumen: sala ? `${plural(sala.personajes.length, 'personaje', 'personajes')} · ${plural(sala.muebles.length, 'mueble', 'muebles')}` : 'Esta escena no tiene sala.',
+      arriba,
+      x: Math.max(8, Math.min(p.x, this.tamMarco().w - 268)),
+      y: arriba ? p.y - 8 : abajo,
     };
   });
 
-  constructor(host: ElementRef<HTMLElement>) {
-    this.raiz = host.nativeElement;
+  constructor() {
+    injectComandos(() => [
+      { id: 'mapa:todo', grupo: 'Caminos', titulo: 'Ver todo el mapa', atajo: 'F', ejecutar: () => this.verTodo() },
+      { id: 'mapa:inicio', grupo: 'Caminos', titulo: 'Volver al inicio', ejecutar: () => this.volverAlInicio() },
+    ]);
+    // La primera escena elegida (el inicio, al entrar) solo se marca; las siguientes («Llévame ahí») llevan el foco.
+    let primera = true;
     effect(() => {
       const id = this.elegidaInicial();
-      if (id) this.elegirYEnfocar(id);
+      if (!id) return;
+      if (primera) this.elegir(id);
+      else this.elegirYEnfocar(id);
+      primera = false;
     });
+    afterNextRender(() => this.observarTamano());
+    inject(DestroyRef).onDestroy(() => { clearTimeout(this.finAnimacion); this.limpiarMenuPendiente?.(); });
   }
 
-  /**
-   * Esc pliega lo que la atención mostró (la vista de una sala y el detalle de una respuesta), esté el foco o solo el cursor encima.
-   * No suelta nada más: la escena elegida, el foco y el menú abierto siguen como estaban.
-   */
-  protected plegarAtencion(): void {
-    if (this.vista() !== null) this.vista.set(null);
-    if (this.flechaActiva() !== null) this.flechaActiva.set(null);
+  // ── Datos de la tarjeta ───────────────────────────────────────────────────
+
+  protected miniatura(e: Escena): string | null {
+    if (!e.salaId) return null;
+    const compuesta = this.miniaturas().get(e.salaId);
+    if (compuesta) return compuesta;
+    const fondo = this.caso().salas.find((s) => s.id === e.salaId)?.fondo;
+    return fondo ? rutaArte(this.caso().lugarId, fondo) || null : null;
   }
 
-  protected pos(e: Escena): { x: number; y: number } {
+  private base(e: Escena): Punto {
     const m = this.moviendo();
-    const base = m && m.escenaId === e.id ? { x: m.x, y: m.y } : e.posicion;
-    return { x: base.x + MARGEN, y: base.y + MARGEN };
+    return m && m.escenaId === e.id ? { x: m.x, y: m.y } : e.posicion;
   }
 
-  protected mini(e: Escena) {
-    const { ancho, alto } = this.limites();
-    const p = this.pos(e);
-    return { x: (p.x / ancho) * 160, y: (p.y / alto) * 90, w: Math.max(4, (ANCHO_ESCENA / ancho) * 160), h: Math.max(3, (ALTO_ESCENA / alto) * 90) };
+  protected pos(e: Escena): Punto {
+    const b = this.base(e), o = this.origen();
+    return { x: b.x - o.x + MARGEN, y: b.y - o.y + MARGEN };
+  }
+
+  protected aPantalla(m: Punto): Punto {
+    const c = this.camara();
+    return { x: m.x * c.z + c.x, y: m.y * c.z + c.y };
+  }
+
+  protected numero(id: string): number {
+    return this.numeros().get(id) ?? 0;
   }
 
   protected avisosDe(id: string): Aviso[] {
@@ -365,19 +253,25 @@ export class MapaEscenasComponent {
   }
 
   protected tituloDe(id: string): string {
-    const i = this.caso().escenas.findIndex((e) => e.id === id);
-    return i >= 0 ? `${i + 1} · ${this.caso().escenas[i].titulo}` : '';
+    const e = this.caso().escenas.find((x) => x.id === id);
+    return e ? `${this.numero(id)} · ${e.titulo}` : '';
   }
 
   /** Lo que el lector de pantalla oye después del texto visible de la tarjeta. */
-  protected detalle(e: Escena, i: number): string {
-    const partes = [`escena ${i + 1} de ${this.caso().escenas.length}`];
-    if (e.marcaIa) partes.push('sin revisar');
-    partes.push(`intensidad ${NOMBRE_INTENSIDAD[e.intensidad].toLowerCase()}`);
+  protected detalle(e: Escena): string {
+    const partes = [`escena ${this.numero(e.id)} de ${this.caso().escenas.length}`];
+    if (e.marcaIa) partes.push('sugerida por la IA, sin revisar');
     const avisos = this.avisosDe(e.id);
     if (avisos.length > 1) partes.push(`avisos: ${avisos.map((a) => NOMBRE_AVISO[a.tipo].toLowerCase()).join(', ')}`);
     return `, ${partes.join(', ')}`;
   }
+
+  /** La piel del contenedor de quien abre el menú (`app-shell.portal[data-skin]`); `null` fuera del portal. */
+  protected piel(): string | null {
+    return this.raiz.closest('[data-skin]')?.getAttribute('data-skin') ?? null;
+  }
+
+  // ── Elegir, menú y teclado de las escenas ─────────────────────────────────
 
   protected elegir(id: string): void {
     this.elegida.set(id);
@@ -387,110 +281,107 @@ export class MapaEscenasComponent {
 
   elegirYEnfocar(id: string): void {
     this.elegir(id);
-    // Después de pintar: una escena recién creada todavía no está en la pantalla.
-    afterNextRender(() => this.raiz.querySelector<HTMLElement>(`[data-escena="${id}"]`)?.focus(), { injector: this.injector });
+    // Después de pintar: una escena recién creada todavía no está en la pantalla. Si queda fuera de la vista, la cámara va.
+    afterNextRender(() => {
+      this.mostrar(id);
+      this.raiz.querySelector<HTMLElement>(`[data-escena="${id}"]`)?.focus({ preventScroll: true });
+    }, { injector: this.injector });
   }
 
   /** Lleva el foco a la escena que recibe el Tab (por ejemplo, después de borrar la elegida). */
   enfocarParada(): void {
     afterNextRender(() => {
       const id = this.tabParada();
-      if (id) this.raiz.querySelector<HTMLElement>(`[data-escena="${id}"]`)?.focus();
+      if (id) this.raiz.querySelector<HTMLElement>(`[data-escena="${id}"]`)?.focus({ preventScroll: true });
     }, { injector: this.injector });
+  }
+
+  /** Esc pliega lo que la atención mostró (vista de la sala, detalle de una respuesta, teclas) sin soltar el foco (WCAG 1.4.13). */
+  protected plegarAtencion(): void {
+    this.vista.set(null);
+    this.flechaActiva.set(null);
+    this.tecladoAbierto.set(false);
   }
 
   protected menuContextual(evento: MouseEvent, id: string): void {
     evento.preventDefault();
-    // Linux y macOS mandan `contextmenu` al PULSAR (con el botón aún abajo; en Windows llega al soltar). Abierto ahí, el
-    // `auxclick` (o el `click` de Ctrl+clic) de soltarlo cae sobre la escena, fuera del menú, y el CDK lo cierra en el acto.
-    // El `CdkContextMenuTrigger` del CDK se salta ese primer clic; este menú es un `CdkMenuTrigger` común, así que se abre
-    // al soltar, cuando ese clic ya pasó.
+    // Linux y macOS mandan `contextmenu` al PULSAR: abierto ahí, el clic de soltar lo cerraría. Se abre al soltar.
     if (evento.buttons !== 0) this.abrirAlSoltar(id);
     else this.abrirMenu(id);
   }
 
   private abrirAlSoltar(id: string): void {
     const vista = this.raiz.ownerDocument.defaultView;
-    if (!vista) {
-      this.abrirMenu(id);
-      return;
-    }
+    if (!vista) return this.abrirMenu(id);
+    this.limpiarMenuPendiente?.();
+    let temporizador: ReturnType<typeof setTimeout> | undefined;
+    const limpiar = () => {
+      vista.removeEventListener('pointerup', soltar, true);
+      vista.removeEventListener('pointercancel', cancelar, true);
+      clearTimeout(temporizador);
+      this.limpiarMenuPendiente = undefined;
+    };
     const soltar = () => {
       vista.removeEventListener('pointerup', soltar, true);
-      vista.removeEventListener('pointercancel', soltar, true);
-      // El `auxclick`/`click` llega en la misma tarea que el `pointerup`: se abre en la siguiente.
-      setTimeout(() => this.abrirMenu(id));
+      vista.removeEventListener('pointercancel', cancelar, true);
+      temporizador = setTimeout(() => { this.limpiarMenuPendiente = undefined; this.abrirMenu(id); });
     };
+    const cancelar = () => soltar();
+    this.limpiarMenuPendiente = limpiar;
     vista.addEventListener('pointerup', soltar, true);
-    vista.addEventListener('pointercancel', soltar, true);
+    vista.addEventListener('pointercancel', cancelar, true);
   }
 
   private abrirMenu(id: string): void {
     this.elegir(id);
     const trigger = this.trigger();
-    // El menú solo queda enlazado con una escena elegida; aquí se elige y se abre de una vez.
     trigger.menuTemplateRef = this.plantillaMenu();
     trigger.open();
-    // El CDK cierra el menú si el foco no está en él: se lleva al primer elemento, como el teclado.
     this.enfocarMenu(trigger, 0);
   }
 
   private enfocarMenu(trigger: CdkMenuTrigger, intento: number): void {
     const menu = trigger.getMenu();
-    if (menu) {
-      menu.focusFirstItem('keyboard');
-    } else if (intento < 5) {
-      queueMicrotask(() => this.enfocarMenu(trigger, intento + 1));
-    }
+    if (menu) menu.focusFirstItem('keyboard');
+    else if (intento < 5) queueMicrotask(() => this.enfocarMenu(trigger, intento + 1));
   }
 
   protected tecla(evento: KeyboardEvent, e: Escena): void {
-    if (this.moviendo()) {
-      this.teclaMover(evento);
-      return;
-    }
+    if (this.moviendo()) return this.teclaMover(evento);
     if (evento.key === 'ContextMenu' || (evento.key === 'F10' && evento.shiftKey)) {
       evento.preventDefault();
-      this.abrirMenu(e.id);
-      return;
+      return this.abrirMenu(e.id);
     }
+    if (evento.altKey) return; // con Alt las flechas son del riel
     const caso = this.caso();
-    let destino: string | undefined;
-    switch (evento.key) {
-      case 'Enter':
-        evento.preventDefault();
-        this.abrirGuion.emit(e.id);
-        return;
-      case 'Delete':
-        evento.preventDefault();
-        this.accion.emit({ tipo: 'borrar', escenaId: e.id });
-        return;
-      case 'ArrowRight':
-        destino = e.respuestas.find((r) => r.destinoId && r.destinoId !== e.id)?.destinoId ?? undefined;
-        break;
-      case 'ArrowLeft':
-        destino = caso.escenas.find((x) => x.respuestas.some((r) => r.destinoId === e.id) && x.id !== e.id)?.id;
-        break;
-      case 'ArrowDown':
-        destino = caso.escenas[caso.escenas.indexOf(e) + 1]?.id;
-        break;
-      case 'ArrowUp':
-        destino = caso.escenas[caso.escenas.indexOf(e) - 1]?.id;
-        break;
-      default:
-        return;
+    const orden = escenasEnOrden(caso);
+    const i = orden.findIndex((x) => x.id === e.id);
+    const destinos: Record<string, () => string | undefined> = {
+      ArrowRight: () => e.respuestas.find((r) => r.destinoId && r.destinoId !== e.id)?.destinoId ?? undefined,
+      ArrowLeft: () => caso.escenas.find((x) => x.id !== e.id && x.respuestas.some((r) => r.destinoId === e.id))?.id,
+      ArrowDown: () => orden[i + 1]?.id,
+      ArrowUp: () => orden[i - 1]?.id,
+    };
+    if (evento.key === 'Enter') {
+      evento.preventDefault();
+      this.abrirGuion.emit(e.id);
+    } else if (evento.key === 'Delete') {
+      evento.preventDefault();
+      this.accion.emit({ tipo: 'borrar', escenaId: e.id });
+    } else if (destinos[evento.key]) {
+      evento.preventDefault();
+      const destino = destinos[evento.key]();
+      if (destino) this.elegirYEnfocar(destino);
     }
-    evento.preventDefault();
-    if (destino) this.elegirYEnfocar(destino);
   }
 
-  // ── Mover con teclado o botones ───────────────────────────────────────────
+  // ── Mover una escena con teclado o botones ────────────────────────────────
 
   protected empezarMover(): void {
     const e = this.elegidaEscena();
     if (!e) return;
     this.moviendo.set({ escenaId: e.id, x: e.posicion.x, y: e.posicion.y });
-    queueMicrotask(() => this.raiz.querySelector<HTMLElement>(`[data-escena="${e.id}"]`)?.focus());
+    queueMicrotask(() => this.raiz.querySelector<HTMLElement>(`[data-escena="${e.id}"]`)?.focus({ preventScroll: true }));
   }
 
   protected empujar(dx: number, dy: number): void {
@@ -504,12 +395,9 @@ export class MapaEscenasComponent {
     if (pasos[evento.key]) {
       evento.preventDefault();
       this.empujar(...pasos[evento.key]);
-    } else if (evento.key === 'Enter') {
+    } else if (evento.key === 'Enter' || evento.key === 'Escape') {
       evento.preventDefault();
-      this.terminarMover(true);
-    } else if (evento.key === 'Escape') {
-      evento.preventDefault();
-      this.terminarMover(false);
+      this.terminarMover(evento.key === 'Enter');
     }
   }
 
@@ -520,22 +408,181 @@ export class MapaEscenasComponent {
     if (m) this.elegirYEnfocar(m.escenaId);
   }
 
-  // ── Zoom ─────────────────────────────────────────────────────────────────
+  // ── Cámara ────────────────────────────────────────────────────────────────
 
-  protected zoomar(delta: number): void {
-    this.zoom.update((z) => Math.min(1.5, Math.max(0.4, Math.round((z + delta) * 10) / 10)));
+  /** Cambia la cámara; con `suave`, la transición dura `--ds-dur-slow` (con movimiento reducido, el CSS la anula). */
+  private mover(c: Camara, suave = false): void {
+    clearTimeout(this.finAnimacion);
+    this.animando.set(suave);
+    this.camara.set(c);
+    if (suave) this.finAnimacion = setTimeout(() => this.animando.set(false), DURACION_CAMARA);
   }
 
-  protected rueda(evento: WheelEvent): void {
-    if (!evento.ctrlKey) return;
-    evento.preventDefault();
-    this.zoomar(evento.deltaY > 0 ? -0.1 : 0.1);
+  /** Un paso de zoom (+1 acerca, −1 aleja) centrado en la vista. */
+  zoomar(sentido: 1 | -1): void {
+    const z = this.camara().z;
+    const siguiente = sentido > 0 ? PASOS_ZOOM.find((p) => p > z + 0.001) : [...PASOS_ZOOM].reverse().find((p) => p < z - 0.001);
+    if (siguiente) this.zoomA(siguiente);
   }
 
-  protected verTodo(): void {
+  zoomA(z: number): void {
+    this.camaraManual = true;
+    const { w, h } = this.tamMarco();
+    this.mover(zoomEn(this.camara(), { x: w / 2, y: h / 2 }, z), true);
+  }
+
+  /** «Ver todo el mapa» (F): el caso entero, sin pasar del 100 % ni bajar de la escala legible, con una cámara suave. */
+  verTodo(): void {
+    this.camaraManual = true;
+    this.mover(encuadrar({ w: this.limites().ancho, h: this.limites().alto }, this.tamMarco()), true);
+  }
+
+  /** Recupera el encuadre legible del comienzo de la historia. */
+  volverAlInicio(): void {
+    this.camaraManual = false;
+    this.mover(this.encuadreLegible(ZOOM_AL_ABRIR), true);
+  }
+
+  /** El encuadre con un mínimo de escala, anclado en la escena de inicio (o en la primera) si el caso no cabe. */
+  private encuadreLegible(minimo: number): Camara {
+    const caso = this.caso();
+    const inicio = caso.escenas.find((e) => e.id === caso.inicioId) ?? caso.escenas[0];
+    const p = inicio ? this.pos(inicio) : { x: 0, y: 0 };
+    const ancla = { x: p.x + ANCHO_ESCENA / 2, y: p.y + ALTO_ESCENA / 2 };
+    return encuadrarLegible({ w: this.limites().ancho, h: this.limites().alto }, this.tamMarco(), ancla, minimo);
+  }
+
+  /** Vuelve a encuadrar el caso entero (después de ordenar el mapa, por ejemplo). */
+  encuadrar(): void {
+    this.verTodo();
+  }
+
+  /** Si la escena no se ve entera, la cámara la centra. */
+  private mostrar(id: string): void {
+    const e = this.caso().escenas.find((x) => x.id === id);
+    if (!e || !this.tamMarco().w) return;
+    const p = this.pos(e);
+    if (seVe(this.camara(), { ...p, w: ANCHO_ESCENA, h: ALTO_ESCENA }, this.tamMarco())) return;
+    this.mover(centrarEn(this.camara(), { x: p.x + ANCHO_ESCENA / 2, y: p.y + ALTO_ESCENA / 2 }, this.tamMarco()), true);
+  }
+
+  protected irA(m: Punto): void {
+    this.camaraManual = true;
+    this.mover(centrarEn(this.camara(), m, this.tamMarco()));
+  }
+
+  protected rueda(e: WheelEvent): void {
+    e.preventDefault();
+    this.camaraManual = true;
+    const c = this.camara();
+    if (e.ctrlKey || e.metaKey) {
+      const caja = this.marco().nativeElement.getBoundingClientRect();
+      this.mover(zoomEn(c, { x: e.clientX - caja.left, y: e.clientY - caja.top }, c.z * Math.exp(-e.deltaY * 0.002)));
+    } else {
+      const dx = e.shiftKey ? e.deltaY : e.deltaX, dy = e.shiftKey ? 0 : e.deltaY;
+      this.mover({ ...c, x: c.x - dx, y: c.y - dy });
+    }
+  }
+
+  /** Arrastrar mueve el lienzo: el botón central, Espacio + arrastrar, o el fondo (no una escena ni una flecha). */
+  protected empezarArrastre(e: PointerEvent): void {
+    const sobreAlgo = e.target instanceof Element && !!e.target.closest('.escena, .flecha, .vista');
+    if (!(e.button === 1 || (e.button === 0 && (this.espacio() || !sobreAlgo)))) return;
+    e.preventDefault();
+    this.marco().nativeElement.setPointerCapture?.(e.pointerId);
+    this.arrastre.set({ x: e.clientX, y: e.clientY, cam: this.camara(), id: e.pointerId });
+  }
+
+  protected arrastrar(e: PointerEvent): void {
+    const a = this.arrastre();
+    if (!a || a.id !== e.pointerId) return;
+    this.camaraManual = true;
+    this.mover({ ...a.cam, x: a.cam.x + e.clientX - a.x, y: a.cam.y + e.clientY - a.y });
+  }
+
+  protected soltarArrastre(e: PointerEvent): void {
+    if (this.arrastre()?.id !== e.pointerId) return;
+    this.marco().nativeElement.releasePointerCapture?.(e.pointerId);
+    this.arrastre.set(null);
+  }
+
+  /** El navegador desplaza un contenedor `overflow: hidden` al enfocar algo de dentro: eso lo hace la cámara, no él. */
+  protected alEnfocar(e: FocusEvent): void {
     const marco = this.marco().nativeElement;
-    const { ancho, alto } = this.limites();
-    const z = Math.min(1.5, Math.max(0.4, Math.min(marco.clientWidth / ancho, marco.clientHeight / alto)));
-    this.zoom.set(Math.floor(z * 10) / 10 || 1);
+    marco.scrollTop = 0;
+    marco.scrollLeft = 0;
+    const id = e.target instanceof HTMLElement ? e.target.dataset['escena'] : undefined;
+    if (id) this.mostrar(id);
+  }
+
+  /** En solo lectura el marco toma el foco: las flechas mueven el lienzo. */
+  protected teclaMarco(e: KeyboardEvent): void {
+    if (e.target !== this.marco().nativeElement) return;
+    const d: Record<string, [number, number]> = { ArrowLeft: [48, 0], ArrowRight: [-48, 0], ArrowUp: [0, 48], ArrowDown: [0, -48] };
+    if (!d[e.key]) return;
+    e.preventDefault();
+    const c = this.camara();
+    this.mover({ ...c, x: c.x + d[e.key][0], y: c.y + d[e.key][1] });
+  }
+
+  /** F, + y − en todo el mapa (nunca dentro de un campo ni con modificadores); Espacio sostenido = mano; Esc pliega globos. */
+  protected teclaGlobal(e: KeyboardEvent): void {
+    if (e.key === 'Escape') return this.plegarAtencion();
+    if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || esCampoDeTexto(e.target)) return;
+    if (e.target instanceof Element && e.target.closest('[role="dialog"], [role="menu"], [role="listbox"], [role="alertdialog"]')) return;
+    const acciones: Record<string, () => void> = {
+      f: () => this.verTodo(), F: () => this.verTodo(), '+': () => this.zoomar(1), '=': () => this.zoomar(1), '-': () => this.zoomar(-1),
+    };
+    if (e.key === ' ' && !(e.target instanceof HTMLButtonElement) && !(e.target instanceof HTMLAnchorElement)) {
+      e.preventDefault();
+      this.espacio.set(true);
+    } else if (acciones[e.key]) {
+      e.preventDefault();
+      acciones[e.key]();
+    }
+  }
+
+  protected soltarTecla(e: KeyboardEvent): void {
+    if (e.key === ' ') this.espacio.set(false);
+  }
+
+  // ── Medidas ───────────────────────────────────────────────────────────────
+
+  /** El lienzo ocupa lo que queda de la zona que se desplaza (en el teléfono, el alto de la hoja de estilos). */
+  private medirAlto(): void {
+    const zona = this.zonaQueSeDesplaza();
+    if (!zona) return this.altoLienzo.set(null);
+    const lienzo = this.lienzo().nativeElement;
+    const arriba = lienzo.getBoundingClientRect().top - zona.getBoundingClientRect().top + zona.scrollTop;
+    const alto = Math.max(ALTO_MINIMO, Math.floor(zona.clientHeight - arriba - 12));
+    if (this.altoLienzo() !== alto) this.altoLienzo.set(alto);
+  }
+
+  private zonaQueSeDesplaza(): HTMLElement | null {
+    for (let el = this.raiz.parentElement; el && el !== document.body; el = el.parentElement) {
+      const desborde = getComputedStyle(el).overflowY;
+      if (desborde === 'auto' || desborde === 'scroll') return el;
+    }
+    return null;
+  }
+
+  private observarTamano(): void {
+    const marco = this.marco().nativeElement;
+    const ajustar = () => {
+      this.tamMarco.set({ w: marco.clientWidth, h: marco.clientHeight });
+      if (!this.camaraManual) this.mover(this.encuadreLegible(ZOOM_AL_ABRIR));
+    };
+    this.medirAlto();
+    afterNextRender(ajustar, { injector: this.injector });
+    if (typeof ResizeObserver === 'undefined') return;
+    const zona = this.zonaQueSeDesplaza();
+    const observador = new ResizeObserver(() => {
+      this.medirAlto();
+      afterNextRender(ajustar, { injector: this.injector });
+    });
+    observador.observe(marco);
+    if (zona) observador.observe(zona);
+    if (this.raiz.parentElement) observador.observe(this.raiz.parentElement);
+    this.injector.get(DestroyRef).onDestroy(() => observador.disconnect());
   }
 }

@@ -1,146 +1,81 @@
-import { provideZonelessChangeDetection } from '@angular/core';
+import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Router, provideRouter } from '@angular/router';
-import { Observable, Subject, of, throwError } from 'rxjs';
-
+import { provideRouter } from '@angular/router';
+import { Subject, of, throwError } from 'rxjs';
 import { AuthoringApi } from '../../core/api/authoring.api';
+import { AuthService } from '../../core/auth/auth.service';
 import { SimulationCaseSummary } from '../../core/models/simulation.model';
 import { CaseAuthoringHubComponent } from './case-authoring-hub.component';
 
-/**
- * Hub de edición de casos en el sistema de la biblioteca (plan visual F7-7): estados de la lista de a uno (esqueleto,
- * error con «Reintentar», vacío con su acción) y el estado del caso con su etiqueta humana («Borrador», nunca `DRAFT`).
- * P6: todo caso nuevo empieza eligiendo un lugar (`casos/nuevo`); ya no hay formulario de caso en blanco.
- */
-const borrador = {
-  caseVersionId: 1, code: 'CASO-PSICO-001', title: 'Violencia familiar', description: 'Contexto del caso.',
-  semanticVersion: '0.1.0', status: 'DRAFT', nodeCount: 6,
-} as unknown as SimulationCaseSummary;
-const publicado = {
-  caseVersionId: 2, code: 'CASO-PSICO-002', title: 'Duelo y pérdida', description: 'Otro contexto.',
-  semanticVersion: '1.0.0', status: 'PUBLISHED', nodeCount: 1,
-} as unknown as SimulationCaseSummary;
+const caso = (id: number, status: string, caseId = id): SimulationCaseSummary => ({
+  caseVersionId: id, caseId, status, title: `Caso ${id}`, code: `COD-${id}`,
+  description: '', semanticVersion: '0.1.0', nodeCount: 5, escenasConGuion: 3,
+});
 
-describe('hub de edición de casos (F7-7)', () => {
+describe('Lista de casos de autoría', () => {
   let fixture: ComponentFixture<CaseAuthoringHubComponent>;
-  let api: { listAuthoringCases: ReturnType<typeof vi.fn> };
-
+  const usuario = signal<{role: string} | null>({ role: 'PROFESOR' });
+  const api = { listAuthoringCases: vi.fn() };
   const host = () => fixture.nativeElement as HTMLElement;
-  const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-  const labelled = (label: string) => [...host().querySelectorAll('button, a')]
-    .find(el => text(el.querySelector('.ui-button__label')) === label) as HTMLElement | undefined;
-  const cards = () => [...host().querySelectorAll('.hub-card')];
-
-  async function render(list?: () => Observable<SimulationCaseSummary[]>, { stable = true } = {}) {
-    api = {
-      listAuthoringCases: vi.fn(list ?? (() => of([borrador, publicado]))),
-    };
-    TestBed.configureTestingModule({
-      imports: [CaseAuthoringHubComponent],
-      providers: [provideZonelessChangeDetection(), provideRouter([]), { provide: AuthoringApi, useValue: api }],
-    });
+  async function render(esperar = true) {
+    TestBed.configureTestingModule({ imports: [CaseAuthoringHubComponent], providers: [
+      provideZonelessChangeDetection(), provideRouter([]),
+      { provide: AuthoringApi, useValue: api }, { provide: AuthService, useValue: { currentUser: usuario } },
+    ] });
     fixture = TestBed.createComponent(CaseAuthoringHubComponent);
-    if (stable) await fixture.whenStable();
-    else fixture.detectChanges();
+    if (esperar) await fixture.whenStable();
     fixture.detectChanges();
   }
+  beforeEach(() => { usuario.set({ role: 'PROFESOR' }); api.listAuthoringCases.mockReset(); });
+  afterEach(() => TestBed.resetTestingModule());
 
-  afterEach(() => {
-    vi.useRealTimers();
-    TestBed.resetTestingModule();
+  it('conserva una sola entrada de creación también en el vacío', async () => {
+    api.listAuthoringCases.mockReturnValue(of([])); await render();
+    expect(host().querySelectorAll('a[href="/portal/casos/nuevo"]')).toHaveLength(1);
+    expect(host().textContent).toContain('Aún no tienes casos');
+    expect(host().querySelector('ui-vacio-ilustrado button')).toBeNull();
   });
-
-  // req: RNF-04, BLOQUE-H
-  describe('estados', () => {
-    it('un solo h1 «Edición de casos», la región de estado siempre presente y la acción en la cabecera', async () => {
-      await render();
-      expect(host().querySelectorAll('h1')).toHaveLength(1);
-      expect(text(host().querySelector('h1'))).toBe('Edición de casos');
-      expect(host().querySelector('[role="status"].ds-sr-only')).not.toBeNull();
-      const crear = labelled('Crear un caso nuevo')!;
-      expect(crear.getAttribute('href')).toBe('/portal/casos/nuevo');
-    });
-
-    it('ya no hay formulario de caso en blanco: ni botón «Agregar nuevo caso» ni campos de título', async () => {
-      await render();
-      expect(labelled('Agregar nuevo caso')).toBeUndefined();
-      expect(host().querySelector('form, [formControlName]')).toBeNull();
-    });
-
-    // F8-0 abrió «Editar casos» al docente (E2-4): el antetítulo ya no puede decir «Modalidad administrador».
-    it('el antetítulo no dice «administrador»: el docente también autora sus casos', async () => {
-      await render();
-      expect(text(host().querySelector('.ui-page-header__eyebrow'))).toBe('Autoría de casos');
-    });
-
-    it('con casos: una tarjeta por caso con su estado en lenguaje humano y sus dos acciones', async () => {
-      await render();
-      expect(cards()).toHaveLength(2);
-      expect(text(cards()[0].querySelector('ui-badge'))).toBe('Borrador');
-      expect(text(cards()[1].querySelector('ui-badge'))).toBe('Publicado');
-      expect(text(cards()[0])).toContain('Violencia familiar');
-      expect(text(cards()[0])).toContain('6 nodos');
-      expect(text(cards()[1])).toContain('1 nodo');
-      expect(text(host())).not.toMatch(/\bDRAFT\b|\bPUBLISHED\b/);
-      const edit = cards()[0].querySelector('a[href="/portal/casos/1/editor"]');
-      expect(text(edit)).toContain('Abrir entorno de edición');
-      // ED-5: el hub es del administrador y el administrador no juega: probar el caso es la «Vista previa» del editor,
-      // no un enlace a la sala (que lo mandaba a «Sin permiso» desde su propia pantalla).
-      expect(cards()[0].querySelector('a[href^="/portal/simulador"]')).toBeNull();
-      expect(text(cards()[0])).not.toContain('Probar caso');
-    });
-
-    it('mientras carga: esqueleto con aria-busy, el estado leído y ninguna tarjeta', async () => {
-      vi.useFakeTimers();
-      const pending = new Subject<SimulationCaseSummary[]>();
-      await render(() => pending, { stable: false });
-      await vi.advanceTimersByTimeAsync(200);
-      fixture.detectChanges();
-
-      expect(host().querySelectorAll('ui-skeleton').length).toBeGreaterThan(0);
+  it('ofrece la acción correspondiente a cada estado y el ensayo en otra pestaña', async () => {
+    api.listAuthoringCases.mockReturnValue(of([caso(1, 'DRAFT'), caso(2, 'IN_REVIEW'), caso(3, 'PUBLISHED'), caso(4, 'ARCHIVED')])); await render();
+    const texto = host().textContent ?? '';
+    for (const accion of ['Seguir editando', 'Ver revisión', 'Abrir en el editor', 'Probar', 'Ver']) expect(texto).toContain(accion);
+    expect(host().querySelector('a[href="/portal/casos/2/editor/revision"]')).not.toBeNull();
+    expect(host().querySelector('a[href="/portal/casos/3/ensayo"]')?.getAttribute('target')).toBe('_blank');
+    expect(texto).toContain('3 de 5 escenas con guion');
+    expect(texto).not.toContain('nodos'); expect(texto).not.toContain('v0.1.0');
+  });
+  it('agrupa para administración, prioriza la publicada y conserva versiones sin caseId', async () => {
+    usuario.set({ role: 'ADMIN' });
+    const sinId = { ...caso(3, 'DRAFT'), caseId: undefined };
+    api.listAuthoringCases.mockReturnValue(of([caso(1, 'DRAFT', 8), caso(2, 'PUBLISHED', 8), sinId])); await render();
+    expect(fixture.componentInstance.grupos()).toHaveLength(2);
+    expect(fixture.componentInstance.grupos()[0][0].caseVersionId).toBe(2);
+    expect(host().querySelector('summary')?.textContent).toContain('Otras versiones (1)');
+  });
+  it('filtra por estado y búsqueda y permite limpiar', async () => {
+    api.listAuthoringCases.mockReturnValue(of(Array.from({length: 7}, (_, i) => caso(i + 1, i === 0 ? 'DRAFT' : 'PUBLISHED')))); await render();
+    fixture.componentInstance.filtro.set('DRAFT'); fixture.componentInstance.busqueda.set('Caso 1'); fixture.detectChanges();
+    expect(fixture.componentInstance.filtrados()).toHaveLength(1);
+    expect(host().querySelector('input[type="search"]')).not.toBeNull();
+    fixture.componentInstance.busqueda.set('inexistente'); fixture.detectChanges();
+    expect(host().textContent).toContain('No hay resultados');
+  });
+  it('mantiene carga y error con reintento', async () => {
+    const pendiente = new Subject<SimulationCaseSummary[]>();
+    // El esqueleto y el error aparecen tras una pequeña espera (evita parpadeos): se adelanta el reloj.
+    vi.useFakeTimers();
+    try {
+      api.listAuthoringCases.mockReturnValueOnce(pendiente).mockReturnValueOnce(of([caso(1, 'DRAFT')]));
+      await render(false);
+      await vi.advanceTimersByTimeAsync(400); fixture.detectChanges();
       expect(host().querySelector('[aria-busy="true"]')).not.toBeNull();
-      expect(cards()).toHaveLength(0);
-      expect(text(host().querySelector('[role="status"].ds-sr-only'))).toBe('Cargando casos…');
-    });
-
-    it('si la lista falla: UN error con «Reintentar» que la vuelve a pedir, y NO el vacío', async () => {
-      let calls = 0;
-      await render(() => (++calls === 1 ? throwError(() => new Error('HTTP 500')) : of([borrador])));
-      const errors = host().querySelectorAll('ui-error-state');
-      expect(errors).toHaveLength(1);
-      expect(text(errors[0])).toContain('No fue posible cargar los casos disponibles.');
-      expect(host().querySelector('ui-empty-state')).toBeNull();
-
-      (errors[0].querySelector('button') as HTMLButtonElement).click();
-      await fixture.whenStable();
-      fixture.detectChanges();
-      expect(calls).toBe(2);
-      expect(host().querySelector('ui-error-state')).toBeNull();
-      expect(cards()).toHaveLength(1);
-    });
-
-    it('sin casos: vacío con la acción «Crear un caso nuevo», que lleva a elegir un lugar', async () => {
-      await render(() => of([]));
-      const navegar = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
-      const empty = host().querySelector('ui-empty-state')!;
-      expect(text(empty)).toContain('Aún no hay casos');
-      expect(text(empty)).toContain('eliges un lugar');
-      const action = [...empty.querySelectorAll('button')].find(button => text(button.querySelector('.ui-button__label')) === 'Crear un caso nuevo')!;
-      action.click();
-      expect(navegar).toHaveBeenCalledWith(['/portal/casos/nuevo']);
-    });
-  });
-
-  // req: RNF-04, BLOQUE-H
-  describe('estructura', () => {
-    it('ninguna región repite el nombre de otra y no quedan restos de Material', async () => {
-      await render();
-      const names = [...host().querySelectorAll('section[aria-labelledby], [role="region"][aria-label]')].map(el => {
-        const labelledBy = el.getAttribute('aria-labelledby');
-        return labelledBy ? text(host().querySelector(`#${labelledBy}`)) : el.getAttribute('aria-label');
-      });
-      expect(new Set(names).size).toBe(names.length);
-      expect(host().querySelector('mat-progress-bar, mat-card, .psy-button, .state-message')).toBeNull();
-    });
+      pendiente.error(new Error('red'));
+      await vi.advanceTimersByTimeAsync(400); fixture.detectChanges();
+      expect(host().querySelector('ui-error-state')).not.toBeNull();
+      (host().querySelector('ui-error-state button') as HTMLButtonElement).click();
+      await vi.advanceTimersByTimeAsync(400); fixture.detectChanges();
+    } finally { vi.useRealTimers(); }
+    expect(host().querySelector('ui-error-state')).toBeNull();
+    expect(host().textContent).toContain('Caso 1');
   });
 });

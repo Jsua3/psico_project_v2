@@ -50,7 +50,21 @@ def unlock_states(actor, now=None):
 
 
 def build_catalog(actor):
-    return unlock_states(actor)
+    """El catálogo del actor: ``unlock_states`` más cómo se presenta cada caso (BK-1, aditivo).
+
+    ``portada`` (el fondo de la sala donde empieza, o nulo) y ``escenas`` (cuántas tiene) salen de
+    ``case_brief.presentacion_de_versiones``, en las mismas tres consultas para todo el catálogo. Solo los suma el
+    catálogo: ``is_case_unlocked`` sigue leyendo ``unlock_states`` sin ese costo.
+    """
+    from apps.simulation.services.case_brief import presentacion_de_versiones  # perezoso, como ``CasesView``
+
+    items = unlock_states(actor)
+    presentacion = presentacion_de_versiones([item["caseVersionId"] for item in items])
+    for item in items:
+        extra = presentacion[item["caseVersionId"]]
+        item["portada"] = extra["portada"]
+        item["escenas"] = extra["escenas"]
+    return items
 
 
 def is_case_unlocked(actor, case_version_id):

@@ -49,12 +49,50 @@ describe('bloque H: login (contraste)', () => {
     expect(contrastRatio('#6F8296', '#FFFFFF')).toBeGreaterThanOrEqual(3);
   });
 
-  it('el texto pequeño del panel del simulador llega a 4,5:1 (F4-2: piel juego en vez del panel índigo)', () => {
-    // Antes: rgba(255,255,255,.82) = 3,85:1 sobre #5c6bc0 (panel índigo, retirado).
+  it('el texto pequeño del panel del simulador llega a 4,5:1 en los dos modos (rediseño Metafrónesis 2026-11-20)', () => {
+    // Antes: rgba(255,255,255,.82) = 3,85:1 sobre #5c6bc0 (panel índigo, retirado); F4-2 lo fijó en la piel juego
+    // (data-skin="game"). Rediseño 2026-11-20: el panel sigue el tema de la página, así que se mide en claro y en
+    // oscuro sobre su vidrio (--l-vidrio-alto: superficie-2 al 78 % en oscuro, superficie-1 al 90 % en claro) encima
+    // del resplandor de marca (acento al 20 %), con la luz de arriba (texto-1 al 7 %) y sobre las baldosas de los pilares.
     const html = source('../app/features/login/login.component.html');
-    expect(html).toMatch(/<aside class="acceso__panel" data-skin="game"/);
+    expect(html).toMatch(/<aside class="acceso__panel" aria-label="Sobre el simulador">/);
     expect(scss).toMatch(/\.acceso__panel p \{[^}]*color: var\(--ds-text-2\);/);
+    expect(scss).toMatch(/\.acceso__pillars span \{[^}]*color: var\(--ds-text-2\);/);
+    const panel = (vidrio: string, alfa: number, texto1: string, acento: string, pagina: string) =>
+      blend(texto1, 0.07, blend(vidrio, alfa, blend(acento, 0.2, pagina)));
+    const oscuro = panel('#1D2540', 0.78, '#E8ECF8', '#B69CFF', '#0E1322');
+    const claro = panel('#FFFFFF', 0.9, '#14202E', '#5B3FD1', '#F5F7FA');
+    expect(contrastRatio('#A9B3CC', oscuro)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#A9B3CC', blend('#E8ECF8', 0.05, oscuro))).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#C9B3FF', blend('#E8ECF8', 0.05, oscuro))).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(muted, claro)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(muted, blend('#14202E', 0.035, claro))).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#5B3FD1', blend('#14202E', 0.035, claro))).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio('#A9B3CC', '#0E1322')).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe('bloque H: 404 pública (rediseño Metafrónesis 2026-11-20)', () => {
+  const ts = source('../app/features/public/not-found.component.ts');
+  const estado = source('../app/shared/layout/pagina-estado/pagina-estado.component.ts');
+
+  it('sigue al tema en su contenedor y su texto secundario y su acción llegan a 4,5:1 en los dos modos', () => {
+    // B3 pasó la 404 a la plantilla común de estados (`app-pagina-estado`): ya no hay tarjeta de vidrio ni enlace
+    // subrayado; el texto va directo sobre la página (con el resplandor de marca, acento al 20 %) y la salida es un
+    // `ui-button`, que tiene su propio contrato de contraste.
+    expect(ts).toContain('<div class="perdida publico" [attr.data-skin]="tema.piel()">');
+    expect(ts).toContain('<app-pagina-estado tipo="no-encontrada"');
+    expect(ts).toMatch(/<a ui-button routerLink="\/">Volver a la portada<\/a>/);
+    expect(estado).toMatch(/p \{[^}]*color: var\(--ds-text-2\);/);
+    const pagina = (acento: string, fondo: string) => blend(acento, 0.2, fondo);
+    const oscuro = pagina('#B69CFF', '#0E1322');
+    const claro = pagina('#5B3FD1', '#F5F7FA');
+    expect(contrastRatio('#A9B3CC', oscuro)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#E8ECF8', oscuro)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#C9B3FF', oscuro)).toBeGreaterThanOrEqual(3); // anillo de foco de la piel juego
+    expect(contrastRatio('#4A5A6A', claro)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#14202E', claro)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio('#004876', claro)).toBeGreaterThanOrEqual(3); // anillo de foco de la piel portal
   });
 });
 
@@ -149,5 +187,53 @@ describe('bloque H: semántica del HUD y de la tarjeta de contexto', () => {
     expect(hud).not.toContain('hud-patient');
     expect(hud).not.toContain('Seguimiento formativo');
     expect(play).toContain('<div class="case-intro-card__body" tabindex="0" role="region" aria-label="Datos de la primera escena">');
+  });
+});
+
+// Rediseño 2026-11-20 (pedido del usuario): «Ingresar» es el módulo de cuenta entero de la barra pública (_glass-bar.scss
+// §10). Lo que el lector y el teclado necesitan: 44 px de alto, la ampliación también con el foco de teclado (no solo con
+// el ratón) y, con movimiento reducido, sin escala ni empuje (el ancho y el texto siguen cambiando: invariante 12).
+describe('bloque H: el módulo «Ingresar» de la barra pública', () => {
+  const barra = source('./components/_glass-bar.scss');
+  const bloque = (selector: string) => {
+    const desde = barra.indexOf(`${selector} {`);
+    return desde < 0 ? '' : barra.slice(desde, barra.indexOf('\n}', desde));
+  };
+
+  it('mide 44 px de alto como mínimo y su área de reacción extra no lo tapa al lector ni al teclado', () => {
+    expect(bloque('.cromo.barra-publica .cta-modulo')).toContain('min-height: var(--ds-target-min);');
+    expect(bloque('.cromo.barra-publica .cta-modulo > .cta-modulo__alcance')).toContain('display: none;');
+  });
+
+  it('se amplía con :focus-visible igual que con el cursor, y el cursor solo cuenta con un puntero fino', () => {
+    expect(barra).toMatch(/\.modulo\.cta-modulo:focus-visible \{\s*@include cta-amplio;/);
+    expect(barra).toMatch(/@media \(hover: hover\) and \(pointer: fine\) \{[^@]*\.modulo\.cta-modulo:hover \{\s*@include cta-amplio;/);
+  });
+
+  it('con movimiento reducido no escala ni empuja la flecha, y no toca las duraciones', () => {
+    const reducido = barra.match(/@media \(prefers-reduced-motion: reduce\) \{\s*\.barra-publica \{([^}]*)\}/)?.[1] ?? '';
+    expect(reducido).toContain('--cta-escala: 1;');
+    expect(reducido).toContain('--cta-escala-pulsada: 1;');
+    expect(reducido).toContain('--cta-empuje-flecha: 0rem;');
+    expect(reducido).not.toContain('duracion');
+  });
+
+  it('con colores forzados el rótulo se ve: LinkText sobre Canvas en todos sus estados, con borde LinkText', () => {
+    // Revisión 2026-11-20: el sistema repintaba el rótulo y su capa con el mismo color (texto invisible en Alto
+    // contraste). El módulo toma las riendas y sus tokens de capa valen Canvas también al posarse, con foco y al pulsar.
+    const forzado = barra.match(/@media \(forced-colors: active\) \{\s*\.cromo\.barra-publica \.modulo\.cta-modulo \{([^}]*)\}/)?.[1] ?? '';
+    expect(forzado).toContain('forced-color-adjust: none;');
+    expect(forzado).toContain('color: LinkText;');
+    for (const capa of ['--cta-velo: Canvas;', '--cta-velo-fuerte: Canvas;', '--cta-fondo-fuerte: Canvas;', '--cta-canto: LinkText;']) {
+      expect(forzado).toContain(capa);
+    }
+  });
+
+  it('en la píldora es el remate morado de su extremo derecho (no una cápsula suelta), sin asomar por fuera', () => {
+    const inicial = barra.match(/\.cromo\.barra-publica\[data-estado='inicial'\] \.cta-modulo \{([^}]*)\}/)?.[1] ?? '';
+    expect(inicial).toContain('margin-block: -0.5rem;');
+    expect(inicial).toContain('margin-inline-end: -0.75rem;');
+    expect(inicial).toContain('--cta-escala: 1;');
+    expect(bloque('  .cromo.barra-publica .cta-modulo')).toContain('align-self: stretch;');
   });
 });

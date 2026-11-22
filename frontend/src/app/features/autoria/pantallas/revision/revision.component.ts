@@ -1,21 +1,46 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
 import type { CaseLifecycle, ValidationIssue } from '../../../../core/models/simulation.model';
+import { UiStat } from '../../../../shared/ui/stat/ui-stat';
 import { CaseReviewPanelComponent } from '../../../simulator/case-review-panel.component';
+import { UiDialog } from '../../../../shared/ui/dialog/ui-dialog';
 import { AutoriaApiService } from '../../api/autoria-api.service';
 import { CasoStore } from '../../estado/caso.store';
 import { GuiaService } from '../../guia/guia.service';
+import { PanelPendientesComponent } from '../../marco/panel-pendientes.component';
+import { ProgresoDelCaso } from '../../marco/progreso.service';
+import type { Etapa } from '../../modelo/pendientes';
 import { type Falta, avisosDeLectura, faltasDelServidor, puedeEnviar, sugerencias } from '../../modelo/revision';
 import { RutasAutoria, rutaDelEditor } from '../../rutas';
+import { RUTA_ENSAYO, alPulsarProbar } from '../../ensayo';
+import {
+  type Comando, EstudioHerramientaComponent, EstudioRanuraDirective, EstudioService, injectComandos,
+} from '../../marco/estudio';
+import type { Pendiente } from '../../modelo/pendientes';
 
 /** Cómo se nombra el estado del caso ante el docente. */
 const NOMBRE_ESTADO: Record<string, string> = {
   DRAFT: 'Borrador', IN_REVIEW: 'En revisión', PUBLISHED: 'Publicado', ARCHIVED: 'Archivado',
 };
+
+/** Las etapas que resume esta pantalla, en el orden del hilo (la etapa «Enviar» es esta misma pantalla). */
+const ETAPAS_DE_ENVIO: ReadonlyArray<{ etapa: Etapa; nombre: string }> = [
+  { etapa: 'datos', nombre: 'Datos del caso' }, { etapa: 'lugar', nombre: 'Lugar y salas' },
+  { etapa: 'historia', nombre: 'Historia' }, { etapa: 'evaluacion', nombre: 'Evaluación' },
+];
+
+/** Dónde está un problema, como el «archivo:línea» de un IDE: «Escena 3 · Recepción», o nada si no es de una escena. */
+function dondeEsta(p: Pendiente, escenas: ReadonlyArray<{ id: string; titulo: string }>): string | null {
+  if (!p.escenaId) return null;
+  const i = escenas.findIndex((e) => e.id === p.escenaId);
+  if (i < 0) return null;
+  const titulo = escenas[i].titulo.trim();
+  return titulo ? `Escena ${i + 1} · ${titulo}` : `Escena ${i + 1}`;
+}
 
 /** Cómo se nombra el motivo con el que Psicología devuelve un caso. */
 const NOMBRE_MOTIVO: Record<string, string> = { FORMA: 'Forma', CONTENIDO: 'Contenido' };
@@ -28,186 +53,20 @@ const NO_SE_PUDO_ENVIAR = 'No se pudo enviar el caso. No se cambió nada: vuelve
  * Enviar a revisión (tablero 32): qué falta resolver (lo mismo que mide la compuerta de publicación, en lenguaje del docente
  * y con «Llévame ahí» a lo concreto), sugerencias (no bloquean), lo que ya está listo y el envío a Psicología. Una vez enviado,
  * el caso queda «En revisión»: se puede ver, pero no editar.
+ *
+ * Disposición del estudio (EDITOR-PRO.md): el lienzo es un panel de «Problemas» como el de un IDE, agrupado por etapa, con
+ * una fila por problema que lleva a él con un clic (↑/↓ para moverse entre filas); el Inspector lleva el caso, su recorrido
+ * (Borrador → En revisión → Publicado), la lista de verificación y el envío, que es la única acción primaria de la vista.
+ * Patrón: State (lo que se muestra sale del estado del ciclo del caso) y Observer (señales); el envío pasa por la Facade
+ * del store y el servidor por el Adapter de `AutoriaApiService`.
  */
 @Component({
   selector: 'app-revision',
-  imports: [RouterLink, CaseReviewPanelComponent],
+  imports: [RouterLink, CaseReviewPanelComponent, UiStat, EstudioRanuraDirective, EstudioHerramientaComponent],
   host: { '(document:visibilitychange)': 'alCambiarVisibilidad()' },
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    @if (store.caso(); as caso) {
-      <div class="pagina">
-        <div>
-          <h1>Enviar a revisión</h1>
-          <p class="texto-secundario">Psicología revisa el caso antes de publicarlo. Mientras esté en revisión se puede ver, pero no editar.</p>
-        </div>
-
-        <section aria-label="El caso" class="tarjeta resumen">
-          <h2>{{ caso.titulo }}</h2>
-          <p class="texto-secundario">@if (lugar(); as nombre) { {{ nombre }} · }{{ caso.escenas.length }} {{ caso.escenas.length === 1 ? 'escena' : 'escenas' }} · {{ textoFinales() }}</p>
-          <span class="pildora estado">{{ nombreEstado() }}</span>
-        </section>
-
-        @if (store.soloLectura()) {
-          <p role="status" class="listo">{{ textoSoloLectura() }}</p>
-          <section aria-labelledby="dc" class="tarjeta bloque" data-accion="decision-caso">
-            <h2 id="dc">Estado y decisión del caso</h2>
-            <app-case-review-panel [caseVersionId]="casoId()" [revision]="caso.revision" [editable]="false" />
-            @if (puedeCrearVersion()) {
-              <div class="version-nueva">
-                <p class="texto-secundario">Un caso publicado o archivado no se cambia: se crea una versión nueva, que sí se puede editar.</p>
-                <button type="button" class="boton" [attr.aria-disabled]="creandoVersion()" aria-describedby="vnp" (click)="crearVersion()">Crear una versión nueva</button>
-                <p role="status" id="vnp" [class.error]="!!falloVersion()">
-                  @if (falloVersion(); as fallo) { {{ fallo }} } @else if (creandoVersion()) { Creando la versión nueva… }
-                </p>
-              </div>
-            }
-          </section>
-        } @else {
-          @if (devuelto(); as d) {
-            <section aria-labelledby="dv" class="tarjeta bloque devuelto" data-accion="devuelto-por-psicologia">
-              <h2 id="dv">Psicología devolvió el caso</h2>
-              <p>Motivo: {{ d.motivo }}.</p>
-              @if (d.nota) { <p>Nota: {{ d.nota }}</p> }
-            </section>
-          }
-          <section aria-labelledby="fl" class="bloque por-resolver">
-            <h2 id="fl">Por resolver ({{ faltas().length }})</h2>
-            @if (consultando()) {
-              <p class="texto-secundario" role="status">Comprobando el caso…</p>
-            }
-            @if (faltas().length) {
-              <ul class="lista">
-                @for (f of faltas(); track $index) {
-                  <li class="tarjeta falta">
-                    <p>{{ f.mensaje }}</p>
-                    <button type="button" class="boton" [attr.aria-label]="'Llévame ahí: ' + f.mensaje" (click)="llevar(f)">Llévame ahí</button>
-                  </li>
-                }
-              </ul>
-            } @else if (!consultando()) {
-              <p>Nada por resolver.</p>
-            }
-            @if (noSeComprobo()) {
-              <p class="aviso" role="note">No se pudo comprobar el caso con Psicología: revisa tu conexión. Lo de arriba es lo que se ve desde aquí.</p>
-            }
-            <button type="button" class="boton boton-texto comprobar" (click)="comprobar()">Comprobar de nuevo</button>
-          </section>
-
-          @if (sugeridas().length) {
-            <section aria-labelledby="sg" class="bloque">
-              <h2 id="sg">Sugerencias ({{ sugeridas().length }}) <span class="texto-secundario">· no impiden enviar</span></h2>
-              <ul class="lista">
-                @for (s of sugeridas(); track $index) {
-                  <li class="tarjeta falta">
-                    <p>{{ s.mensaje }}</p>
-                    @if (s.ir.accionId === 'probar') {
-                      <button type="button" class="boton" [attr.aria-label]="'Llévame ahí: ' + s.mensaje" (click)="llevar(s)">Llévame ahí</button>
-                    } @else {
-                      <a class="boton" [routerLink]="rutas.a(s.ir.ruta)">Ir a revisarlo</a>
-                    }
-                  </li>
-                }
-              </ul>
-            </section>
-          }
-
-          <section aria-labelledby="ok" class="bloque">
-            <h2 id="ok">Ya está listo ({{ listo().length }})</h2>
-            <ul class="hechos">
-              @for (l of listo(); track l) { <li><span aria-hidden="true">✓</span> {{ l }}</li> }
-            </ul>
-          </section>
-
-          @if (caso.lista; as lista) {
-            @if (lista.items.length) {
-              <section aria-labelledby="lv" class="tarjeta bloque" id="lista-verificacion" tabindex="-1">
-                <h2 id="lv">Lista de verificación</h2>
-                <p class="texto-secundario">Marca lo que ya revisaste del caso. Los ítems obligatorios hay que marcarlos para poder enviarlo a Psicología.</p>
-                <ul class="lista">
-                  @for (i of lista.items; track i.codigo) {
-                    <li class="item-lista">
-                      <label class="casilla">
-                        <input type="checkbox" [attr.data-codigo]="i.codigo" [checked]="i.cumplido" (change)="marcarItem(i.codigo, $any($event.target).checked)" />
-                        {{ i.texto }}
-                      </label>
-                      <span class="etiquetas">
-                        <span class="pildora">{{ i.obligatorio ? 'Obligatorio' : 'Opcional' }}</span>
-                        @if (i.enBorrador) { <span class="pildora">Texto pendiente de validar con Psicología</span> }
-                        @if (i.respaldo) { <span class="texto-secundario">{{ i.respaldo }}</span> }
-                      </span>
-                      @if (i.respaldado === false) {
-                        <p class="nota">Marcarla no basta: todavía no existe en el caso lo que la respalda.</p>
-                      }
-                    </li>
-                  }
-                </ul>
-                <p class="texto-secundario constancia">
-                  @if (lista.constanciaRegistrada) {
-                    Constancia de Psicología registrada.
-                  } @else {
-                    Pendiente: la constancia la registra Psicología al aprobar el caso; no es una casilla tuya.
-                  }
-                </p>
-              </section>
-            }
-          }
-
-          <section aria-labelledby="ms" class="tarjeta envio" data-accion="enviar-revision">
-            <label id="ms" for="mp" class="etiqueta">Mensaje para Psicología (opcional)</label>
-            <textarea id="mp" class="campo" rows="3" aria-describedby="mph" [value]="mensaje()" (input)="mensaje.set($any($event.target).value)"></textarea>
-            <p id="mph" class="texto-secundario">Por ejemplo, qué quieres que revisen con más cuidado.</p>
-            <button type="button" class="boton boton-primario" [attr.aria-disabled]="!puedeEnviarAhora()" aria-describedby="eph" (click)="enviar()">Enviar a Psicología</button>
-            <p role="status" id="eph" [class.error]="!!falloEnvio()">
-              @if (falloEnvio(); as fallo) {
-                {{ fallo }}
-              } @else if (enviando()) {
-                Enviando el caso a Psicología…
-              } @else if (!puedeEnviarAhora() && faltas().length) {
-                Resuelve {{ faltas().length === 1 ? 'la cosa' : 'las ' + faltas().length + ' cosas' }} de arriba para poder enviar el caso.
-              } @else if (!puedeEnviarAhora() && !consultando()) {
-                En este momento no puedes enviar este caso a revisión.
-              }
-            </p>
-          </section>
-        }
-        <p role="status" class="solo-lector">{{ anuncio() }}</p>
-      </div>
-    }
-  `,
-  styles: `
-    .pagina > div > p { margin: 4px 0 0; }
-    .resumen { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
-    .resumen h2, .resumen p { margin: 0; }
-    .bloque { display: flex; flex-direction: column; gap: 8px; }
-    .bloque h2 { margin: 0; font-size: var(--autoria-texto-22); line-height: 30px; }
-    .lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-    .falta { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
-    .falta p { margin: 0; flex: 1 1 360px; }
-    .comprobar { align-self: flex-start; }
-    .aviso { margin: 0; color: var(--aviso-texto); font-weight: 700; }
-    #lista-verificacion { display: flex; flex-direction: column; gap: 8px; }
-    #lista-verificacion p { margin: 0; }
-    .item-lista { display: flex; flex-direction: column; gap: 2px; padding: 4px 0; border-bottom: 1px solid var(--linea); }
-    .casilla { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; font-size: var(--autoria-texto-16); }
-    .casilla input { width: 20px; height: 20px; flex: none; accent-color: var(--primario); }
-    .etiquetas { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-left: 28px; }
-    .item-lista .nota { padding-left: 28px; color: var(--aviso-texto); font-weight: 700; font-size: var(--autoria-texto-16); }
-    .hechos { margin: 0; padding-left: 4px; list-style: none; display: flex; flex-direction: column; gap: 4px; }
-    .hechos span { color: var(--adecuada); font-weight: 700; }
-    .envio { display: flex; flex-direction: column; gap: 6px; }
-    .envio p { margin: 0; font-size: var(--autoria-texto-16); }
-    .envio .boton { align-self: flex-start; }
-    .envio .error { color: var(--peligro); font-weight: 700; }
-    .etiqueta { font-weight: 700; font-size: var(--autoria-texto-16); }
-    .campo { padding: 8px 12px; font: inherit; font-size: var(--autoria-texto-16); border: 2px solid var(--borde-control); border-radius: var(--radio-control); resize: vertical; }
-    .devuelto { border-color: var(--aviso-texto); }
-    .devuelto p { margin: 0; }
-    .version-nueva { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
-    .version-nueva p { margin: 0; }
-    .version-nueva .error { color: var(--peligro); font-weight: 700; }
-    .listo { margin: 0; padding: 10px 12px; border-radius: var(--radio-control); background: var(--adecuada-tinte); color: var(--adecuada); font-weight: 700; }
-  `,
+  templateUrl: './revision.component.html',
+  styleUrl: './revision.component.scss',
 })
 export class RevisionComponent {
   protected readonly rutas = inject(RutasAutoria);
@@ -215,6 +74,8 @@ export class RevisionComponent {
   private readonly router = inject(Router);
   private readonly guia = inject(GuiaService);
   private readonly autoria = inject(AutoriaApiService);
+  private readonly progreso = inject(ProgresoDelCaso);
+  private readonly dialogo = inject(UiDialog);
   protected readonly mensaje = signal('');
   protected readonly anuncio = signal('');
   protected readonly enviando = signal(false);
@@ -228,11 +89,38 @@ export class RevisionComponent {
   protected readonly consultando = signal(false);
   protected readonly noSeComprobo = signal(false);
   protected readonly creandoVersion = signal(false);
+  private readonly estudio = inject(EstudioService, { optional: true });
   protected readonly falloVersion = signal<string | null>(null);
 
   constructor() {
+    // En la paleta (Ctrl+K): cada problema por resolver, «Comprobar de nuevo» y «Enviar a Psicología».
+    injectComandos((): Comando[] => this.store.soloLectura() ? [] : [
+      { id: 'rev:comprobar', grupo: 'Enviar a revisión', titulo: 'Comprobar de nuevo', ejecutar: () => void this.comprobar() },
+      ...(this.puedeEnviarAhora() ? [{ id: 'rev:enviar', grupo: 'Enviar a revisión', titulo: 'Enviar a Psicología', ejecutar: () => void this.enviar() }] : []),
+      ...this.etapas().flatMap((e) => e.problemas.map((p, i) => ({
+        id: `rev:problema:${e.etapa}:${i}`, grupo: 'Por resolver', titulo: p.mensaje, detalle: p.donde ?? e.nombre, ejecutar: () => void this.llevar(p),
+      }))),
+    ]);
     void this.comprobar();
     void this.store.releerProbado();
+    // Lo que comprueba el sistema no es una casilla de la docente, pero el servidor cuenta la lista por lo marcado: aquí se
+    // pone al día solo (marcado = el dato existe). Lo que respalda la constancia SÍ es casilla: sin ella la docente no podría
+    // completar la lista antes de que Psicología apruebe. Cada ítem se intenta una vez, para no repetir un guardado que falla.
+    const intentados = new Set<string>();
+    effect(() => {
+      const caso = this.store.caso();
+      if (!caso?.lista || this.store.soloLectura()) return;
+      untracked(() => {
+        let cambio = false;
+        for (const i of caso.lista!.items) {
+          if (i.quien !== 'system' || (i.respaldado === true) === i.cumplido || intentados.has(i.codigo)) continue;
+          intentados.add(i.codigo);
+          this.store.marcarItemLista(i.codigo, i.respaldado === true);
+          cambio = true;
+        }
+        if (cambio) void this.comprobar();
+      });
+    });
     // Una decisión tomada en el panel (aprobar, devolver, archivar) cambia el caso en el servidor: se vuelve a leer para
     // que el editor, la revisión vigente y las acciones permitidas sean las nuevas.
     this.autoria.api.caseChanges.pipe(takeUntilDestroyed()).subscribe((id) => {
@@ -265,11 +153,17 @@ export class RevisionComponent {
   /** El estado del caso: el que el servidor acaba de decir o, si no, el del borrador que se está viendo. */
   protected readonly nombreEstado = computed(() => NOMBRE_ESTADO[this.store.caso()?.estado ?? this.ciclo()?.state ?? 'DRAFT'] ?? 'Borrador');
 
+  /** Lo que el editor ve por su cuenta en el borrador (lo mismo que cuenta la hoja «Pendientes»). */
+  private readonly faltasLocales = computed<Falta[]>(() => {
+    const caso = this.store.caso();
+    return caso ? puedeEnviar(caso).faltas : [];
+  });
+
   /** Lo que falta, de dos fuentes: lo que el editor ve en el borrador y lo que dice la compuerta del servidor (sin repetir). */
   protected readonly faltas = computed<Falta[]>(() => {
     const caso = this.store.caso();
     if (!caso) return [];
-    const locales = puedeEnviar(caso).faltas;
+    const locales = this.faltasLocales();
     const delServidor: ValidationIssue[] = [...this.hallazgos(), ...this.bloqueosDelEnvio()];
     // El motivo que el servidor da para no dejar enviar, si no es uno de los hallazgos de arriba (por ejemplo, la lista de verificación).
     const motivo = this.ciclo()?.blockedReason;
@@ -285,6 +179,74 @@ export class RevisionComponent {
     ];
   });
 
+  /** Lo de la lista de verificación que impide enviar (viene del editor o del servidor): se muestra junto a la lista. */
+  protected readonly faltasDeLista = computed(() => this.faltas().filter((f) => f.codigo === 'CHECKLIST_INCOMPLETE'));
+
+  /** Lo que solo dice el servidor (no está en la hoja «Pendientes», que se arma con lo que ve el editor): se lista aquí. */
+  protected readonly faltasDelServidor = computed(() => {
+    const locales = new Set(this.faltasLocales());
+    return this.faltas().filter((f) => !locales.has(f) && f.codigo !== 'CHECKLIST_INCOMPLETE');
+  });
+
+  /**
+   * Un resumen por etapa de lo que el editor ve (por corregir y por escribir): la lista completa vive una sola vez, en la
+   * hoja «Pendientes», que se abre desde aquí. La etapa «Enviar» no sale: es esta pantalla.
+   */
+  protected readonly etapas = computed(() => {
+    const pendientes = this.progreso.pendientes().filter((p) => p.tipo !== 'sugerencia');
+    const escenas = this.store.caso()?.escenas ?? [];
+    return ETAPAS_DE_ENVIO.map(({ etapa, nombre }) => {
+      const deEtapa = pendientes.filter((p) => p.etapa === etapa);
+      const corregir = deEtapa.filter((p) => p.tipo === 'por-corregir').length;
+      const escribir = deEtapa.filter((p) => p.tipo === 'por-escribir').length;
+      const partes = [corregir ? `${corregir} por corregir` : '', escribir ? `${escribir} por escribir` : ''].filter(Boolean);
+      // Lo que hay que corregir va antes que lo que falta escribir, como los errores antes que los avisos en un IDE.
+      const problemas = [...deEtapa].sort((x, y) => Number(x.tipo !== 'por-corregir') - Number(y.tipo !== 'por-corregir'))
+        .map((p) => ({ ...p, donde: dondeEsta(p, escenas) }));
+      return { etapa, nombre, total: corregir + escribir, texto: partes.length ? partes.join(' · ') : 'Listo', problemas };
+    });
+  });
+
+  /** El recorrido del caso en tres pasos, con el actual marcado; «Devuelto» ocupa el segundo si Psicología lo devolvió. */
+  protected readonly pasosDelCiclo = computed(() => {
+    const estado = this.store.caso()?.estado ?? this.ciclo()?.state ?? 'DRAFT';
+    const indice = estado === 'PUBLISHED' || estado === 'ARCHIVED' ? 2 : estado === 'IN_REVIEW' ? 1 : 0;
+    const devuelto = estado === 'DRAFT' && !!this.devuelto();
+    return [
+      { nombre: 'Borrador', estado: indice === 0 ? 'actual' : 'hecho' },
+      { nombre: devuelto ? 'Devuelto' : 'En revisión', estado: devuelto ? 'devuelto' : indice === 1 ? 'actual' : indice > 1 ? 'hecho' : 'pendiente' },
+      { nombre: estado === 'ARCHIVED' ? 'Archivado' : 'Publicado', estado: indice === 2 ? 'actual' : 'pendiente' },
+    ];
+  });
+
+  /** La línea de estado del caso: en qué punto del ciclo está y qué sigue, en una frase. */
+  protected readonly lineaDeEstado = computed(() => {
+    switch (this.store.caso()?.estado ?? this.ciclo()?.state ?? 'DRAFT') {
+      case 'IN_REVIEW': return 'Enviado a Psicología. Esperando su decisión.';
+      case 'PUBLISHED': return 'Publicado: los estudiantes ya pueden jugarlo.';
+      case 'ARCHIVED': return 'Archivado: ya no aparece para los estudiantes.';
+      default: {
+        if (this.devuelto()) return 'Psicología lo devolvió: corrige lo que pide y vuelve a enviarlo.';
+        const n = this.faltas().length;
+        return n === 0 ? 'Borrador listo para enviar.' : `Borrador: faltan ${n} ${n === 1 ? 'cosa' : 'cosas'} para poder enviarlo.`;
+      }
+    }
+  });
+
+  /**
+   * Los ítems de la lista que la docente puede marcar: sus declaraciones y los que respalda la constancia (los declara al
+   * enviar; Psicología los confirma al aprobar). Todos, con un servidor que no dice quién respalda.
+   */
+  protected readonly casillas = computed(() => (this.store.caso()?.lista?.items ?? []).filter((i) => i.quien !== 'system'));
+  /** Los que no se marcan: los comprueba el sistema con los datos del caso. */
+  protected readonly deSistema = computed(() => (this.store.caso()?.lista?.items ?? []).filter((i) => i.quien === 'system'));
+
+  /** El tono de la línea de estado: aviso si quedan cosas por resolver, bien si está listo; el resto es neutro. */
+  protected readonly tonoDeEstado = computed(() => {
+    if (this.store.soloLectura()) return 'neutro';
+    return this.faltas().length > 0 ? 'aviso' : this.consultando() ? 'neutro' : 'ok';
+  });
+
   protected readonly puedeEnviarAhora = computed(
     () => this.faltas().length === 0 && !this.consultando() && !this.enviando() && !this.store.soloLectura()
       && (this.ciclo()?.allowedTransitions ?? ['submit']).includes('submit'),
@@ -296,8 +258,23 @@ export class RevisionComponent {
     // Un aviso del editor que la compuerta ya convirtió en falta no se repite como sugerencia.
     const codigosEnFaltas = new Set(this.faltas().map((f) => f.codigo).filter(Boolean));
     // Los textos largos los avisa el servidor (también en un caso escrito a mano): se suman como sugerencias, con su escena.
-    return [...sugerencias(caso).filter((s) => !s.codigo || !codigosEnFaltas.has(s.codigo)), ...avisosDeLectura(this.hallazgos())];
+    // «Probar» no es una sugerencia suelta: tiene su fila, con su botón, junto a lo que falta (`data-probado`).
+    return [...sugerencias(caso).filter((s) => s.ir.accionId !== 'probar' && (!s.codigo || !codigosEnFaltas.has(s.codigo))), ...avisosDeLectura(this.hallazgos())];
   });
+  protected readonly cuantasRespuestas = computed(() => (this.store.caso()?.escenas ?? []).reduce((n, e) => n + e.respuestas.length, 0));
+  /** Los finales que el caso puede dar: los cuatro del modelo, o los que escribió la docente. */
+  protected readonly cuantosFinales = computed(() => {
+    const caso = this.store.caso();
+    return !caso ? 0 : caso.modoFinales === 'automatico' ? 4 : caso.finales.length;
+  });
+  /**
+   * «Probar» abre el borrador en el juego real: con clic normal en esta pestaña; con Ctrl o clic central, en otra ya al día
+   * (`alPulsarProbar`). El clic central no llega como `click` sino como `auxclick`: por eso se escuchan los dos.
+   */
+  protected readonly rutaEnsayo = computed(() => RUTA_ENSAYO(this.store.caso()?.id ?? ''));
+  protected probar(evento: MouseEvent): void {
+    void alPulsarProbar(evento, this.store);
+  }
   /** El nombre del lugar del caso; nada si el caso no tiene lugar. */
   protected readonly lugar = computed(() => (this.store.caso(), this.store.nombreDelLugar()));
   protected readonly textoFinales = computed(() => {
@@ -324,6 +301,11 @@ export class RevisionComponent {
     if (caso.probadoHastaElFinal) hechos.push('Ya lo probaste como estudiante.');
     return hechos;
   });
+
+  /** La hoja «Pendientes» de la barra, desde aquí: la única lista completa de lo que falta. */
+  protected abrirPendientes(evento: Event): void {
+    this.dialogo.sheet(PanelPendientesComponent, { side: 'end', origen: evento.currentTarget as Element | null });
+  }
 
   /** El ensayo corre en otra pestaña: al volver a esta, se pregunta si ya llegó a un final. */
   protected alCambiarVisibilidad(): void {
@@ -381,7 +363,22 @@ export class RevisionComponent {
     if (f.ir.accionId) await this.guia.mostrar(f.ir.accionId, 'foco');
     const destino = this.rutas.a(f.ir.ruta);
     if (this.router.url.split('?')[0] !== destino) await this.router.navigateByUrl(destino);
+    // La lista de verificación vive en el Inspector: si estaba oculto, se muestra para poder llegar a ella.
+    if (f.ir.ancla === 'lista-verificacion') this.estudio?.alternar('inspector', true);
     if (f.ir.ancla) await this.enfocar(f.ir.ancla);
+  }
+
+  /** ↑/↓ entre las filas de problemas (como en el panel de un IDE); Inicio/Fin a la primera y a la última. */
+  protected moverEntreFilas(e: KeyboardEvent): void {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
+    const actual = e.target as HTMLElement | null;
+    if (!actual?.classList.contains('fila-problema')) return;
+    const filas = [...(e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('.fila-problema')];
+    const i = filas.indexOf(actual);
+    const destino = e.key === 'Home' ? 0 : e.key === 'End' ? filas.length - 1 : i + (e.key === 'ArrowDown' ? 1 : -1);
+    if (destino < 0 || destino >= filas.length) return;
+    e.preventDefault();
+    filas[destino].focus();
   }
 
   /** Espera a que la pantalla de destino dibuje el elemento (hasta ~1,5 s) y le pasa el foco. */

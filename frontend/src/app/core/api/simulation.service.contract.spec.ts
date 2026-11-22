@@ -98,9 +98,13 @@ const CONTRACTS: Contract[] = [
   { method: 'acceptConsent', call: s => s.acceptConsent(7, 'aviso-vigente'), verb: 'POST', url: `${S}/cases/7/consent`,
     body: { noticeVersion: 'aviso-vigente' } },
   { method: 'withdrawConsent', call: s => s.withdrawConsent(7), verb: 'DELETE', url: `${S}/cases/7/consent` },
+  // BK-5: la retroalimentación del docente que lee el dueño del intento, sobre el endpoint que ya existía.
+  { method: 'getOwnerEvaluation', call: s => s.getOwnerEvaluation(ATTEMPT), verb: 'GET', url: `${att}/evaluation` },
 
   // ── docente ────────────────────────────────────────────────────────────────
   { method: 'recentAttempts', call: s => s.recentAttempts(), verb: 'GET', url: '/api/instructor/attempts/recent' },
+  // BK-3: la revisión paginada; sin filtros no viaja ningún parámetro (los filtros, en su propio bloque abajo).
+  { method: 'listAttempts', call: s => s.listAttempts(), verb: 'GET', url: '/api/instructor/attempts' },
   { method: 'attemptTrace', call: s => s.attemptTrace(ATTEMPT), verb: 'GET',
     url: `/api/instructor/attempts/${ATTEMPT}/trace` },
   { method: 'rubric', call: s => s.rubric(ATTEMPT), verb: 'GET',
@@ -143,6 +147,8 @@ const CONTRACTS: Contract[] = [
   { method: 'deleteCharacter', call: s => s.deleteCharacter(9, 2), verb: 'DELETE', url: `${A}/9/characters/2` },
   { method: 'updateBrief', call: s => s.updateBrief(9, body('ficha')), verb: 'PUT', url: `${A}/9/brief`, body: body('ficha') },
   { method: 'reorderNodes', call: s => s.reorderNodes(9, [2, 1]), verb: 'PATCH', url: `${A}/9/nodes/reorder`, body: { order: [2, 1] } },
+  // RK-1 (R0): el caso adopta una rúbrica propia (copia de la versión elegida o armada desde las competencias).
+  { method: 'adoptRubric', call: s => s.adoptRubric(9, { rubricId: 4 }), verb: 'POST', url: `${A}/9/rubric`, body: { rubricId: 4 } },
 
   // ── reglas del modelo: hitos, nivel de riesgo y finales ─────────────────────────────────────────────
   { method: 'updateMilestones', call: s => s.updateMilestones(9, [{ key: 'h1', label: 'H', description: '', decisive: true }]), verb: 'PUT',
@@ -246,6 +252,20 @@ describe('SimulationService contrato HTTP', () => {
       expect(req.request.body).toEqual({ caseVersionId: 7, forceNew: true });
       req.flush({ data: {} });
     });
+
+    it('DP-26 · al reemplazar manda el intento que la persona aceptó perder', () => {
+      service.startAttempt(7, true, 'abc-123').subscribe();
+      const req = httpMock.expectOne(`${S}/attempts`);
+      expect(req.request.body).toEqual({ caseVersionId: 7, forceNew: true, expectedAttemptId: 'abc-123' });
+      req.flush({ data: {} });
+    });
+
+    it('sin reemplazo no manda el intento esperado aunque llegue', () => {
+      service.startAttempt(7, false, 'abc-123').subscribe();
+      const req = httpMock.expectOne(`${S}/attempts`);
+      expect(req.request.body).toEqual({ caseVersionId: 7, forceNew: false });
+      req.flush({ data: {} });
+    });
   });
 
   describe('chooseDecision', () => {
@@ -344,14 +364,58 @@ describe('SimulationService contrato HTTP', () => {
 
     expect(publicMethods.filter(name => !documented.has(name))).toEqual([]);
     expect([...documented].filter(name => !publicMethods.includes(name))).toEqual([]);
-    expect(publicMethods).toHaveLength(88);
+    expect(publicMethods).toHaveLength(91);
   });
 
   it('cada método vive en una sola API y cada rol tiene el tamaño esperado', () => {
     const [player, authoring, instructor] = ROLE_CLASSES.map(publicMethodsOf);
-    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(88);
-    expect([player.length, authoring.length, instructor.length]).toEqual([25, 58, 5]);
-    expect(instructor).toEqual(['recentAttempts', 'attemptTrace', 'rubric', 'replaceAttempt', 'saveRubric']);
+    expect(new Set([...player, ...authoring, ...instructor]).size).toBe(91);
+    expect([player.length, authoring.length, instructor.length]).toEqual([26, 59, 6]);
+    expect(instructor).toEqual(['recentAttempts', 'listAttempts', 'attemptTrace', 'rubric', 'replaceAttempt', 'saveRubric']);
+  });
+
+  // BK-5 (B4d, criterio 4): otro estudiante recibe 403 y el cierre lo explica en su sección, sin el aviso genérico.
+  it('la retroalimentación del dueño deja que la pantalla explique su 403 y desenvuelve niveles sin números', () => {
+    let result: unknown;
+    service.getOwnerEvaluation(ATTEMPT).subscribe(r => (result = r));
+
+    const request = httpMock.expectOne(`${att}/evaluation`);
+    expect(request.request.context.get(SCREEN_HANDLES_FORBIDDEN)).toBe(true);
+    expect(request.request.headers.has('X-SIEP-Attempt-Token')).toBe(false);
+    const evaluation = {
+      attemptId: ATTEMPT,
+      evaluations: [{
+        rubricName: 'Primeros auxilios psicológicos', origin: 'DOCENTE', evaluatedAt: '2026-11-20T10:00:00',
+        comment: 'Buen cierre.', overallLevel: 'LOGRADO',
+        criteria: [{ criterionId: 3, title: 'Escucha', level: 'DESTACADO', comment: '' }],
+      }],
+    };
+    request.flush({ success: true, data: evaluation });
+    expect(result).toEqual(evaluation);
+  });
+
+  describe('listAttempts (BK-3)', () => {
+    it('manda solo los filtros con valor, como parámetros de consulta', () => {
+      service.listAttempts({ evaluacion: 'pendiente', grupoId: 4, page: 2, pageSize: 5, caseVersionId: undefined }).subscribe();
+
+      const req = httpMock.expectOne(r => r.url === '/api/instructor/attempts');
+      expect(req.request.method).toBe('GET');
+      expect(req.request.params.keys().sort()).toEqual(['evaluacion', 'grupoId', 'page', 'pageSize']);
+      expect(req.request.params.get('evaluacion')).toBe('pendiente');
+      expect(req.request.params.get('grupoId')).toBe('4');
+      req.flush({ data: { items: [], page: 2, pageSize: 5, coverage: { shown: 0, total: 0 } } });
+    });
+
+    it('desenvuelve la página con el estado de la valoración de cada intento', () => {
+      let page: unknown;
+      service.listAttempts({ evaluacion: 'aplicada' }).subscribe(r => (page = r));
+      const data = {
+        items: [{ attemptId: 'a1', studentAlias: 'Estudiante-1a2b', evaluationStatus: 'APLICADA' }],
+        page: 1, pageSize: 50, coverage: { shown: 1, total: 1 },
+      };
+      httpMock.expectOne(r => r.url === '/api/instructor/attempts').flush({ data });
+      expect(page).toEqual(data);
+    });
   });
 
   // req: RN-04, RF-15

@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, Injector, afterNextRender, computed, inject, input, linkedSignal } from '@angular/core';
 
 import { CasoStore } from '../../estado/caso.store';
+import { AutoAltoDirective } from '../../marco/auto-alto.directive';
+import { DeshacerBorrado } from '../../marco/deshacer-borrado';
 import type { Escena } from '../../modelo/caso';
 
 const MAX_OBJETIVO = 200;
@@ -16,6 +18,7 @@ const unaLinea = (texto: string, tope: number): string => texto.replace(/\s*[\r\
  */
 @Component({
   selector: 'app-objetivo-pistas',
+  imports: [AutoAltoDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="objetivo">
@@ -23,11 +26,13 @@ const unaLinea = (texto: string, tope: number): string => texto.replace(/\s*[\r\
       <input id="objetivo-escena" type="text" class="campo" [attr.maxlength]="maxObjetivo" [value]="objetivo()"
              aria-describedby="objetivo-ayuda objetivo-cuenta"
              (input)="objetivo.set($any($event.target).value)" (change)="guardarObjetivo($event)" />
-      <p id="objetivo-ayuda" class="texto-secundario nota">
-        <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-        Una frase con lo que el estudiante busca aquí, sin decirle qué hacer. La ve en el juego. Hasta 200 caracteres.
-      </p>
-      <p id="objetivo-cuenta" class="texto-secundario nota">{{ objetivo().length }} de {{ maxObjetivo }}</p>
+      <div class="objetivo__pie">
+        <p id="objetivo-ayuda" class="texto-secundario nota">
+          <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+          Una frase con lo que el estudiante busca aquí, sin decirle qué hacer. La ve en el juego. Hasta 200 caracteres.
+        </p>
+        <p id="objetivo-cuenta" class="texto-secundario nota cuenta">{{ objetivo().length }} de {{ maxObjetivo }}</p>
+      </div>
       <p role="status" class="solo-lector">{{ avisoTope() }}</p>
     </div>
 
@@ -43,7 +48,7 @@ const unaLinea = (texto: string, tope: number): string => texto.replace(/\s*[\r\
           @for (p of pistas(); track p.id; let i = $index) {
             <li class="pista">
               <label [for]="'pista-texto-' + i" class="etiqueta">Pista {{ i + 1 }}</label>
-              <textarea [id]="'pista-texto-' + i" class="campo" rows="2" [attr.maxlength]="maxPista" [value]="p.texto"
+              <textarea autoAlto [id]="'pista-texto-' + i" class="campo" rows="1" [attr.maxlength]="maxPista" [value]="p.texto"
                         (change)="guardarPista(i, $event)"></textarea>
               <button type="button" class="boton peligro" [attr.aria-label]="'Quitar la pista ' + (i + 1)" (click)="quitar(i)">Quitar la pista {{ i + 1 }}</button>
             </li>
@@ -64,10 +69,14 @@ const unaLinea = (texto: string, tope: number): string => texto.replace(/\s*[\r\
     .pistas { align-items: flex-start; }
     .pistas h3 { margin: 0; }
     .pistas .lista { align-self: stretch; }
-    .etiqueta { font-weight: 700; font-size: var(--autoria-texto-16); }
-    .campo { min-height: 48px; padding: 8px 12px; font: inherit; font-size: var(--autoria-texto-16); line-height: 24px; border: 2px solid var(--borde-control); border-radius: var(--radio-control); background: var(--superficie); width: 100%; }
-    textarea.campo { resize: vertical; }
-    .nota { margin: 0; font-size: var(--autoria-texto-16); line-height: 24px; }
+    .etiqueta { font-weight: 700; font-size: var(--autoria-texto-14); color: var(--texto-secundario); }
+    .campo { min-height: 44px; padding: 8px 12px; font: inherit; font-size: var(--autoria-texto-16); line-height: 24px; border: 1px solid var(--borde-control); border-radius: var(--radio-control); background: var(--superficie); width: 100%; }
+    textarea.campo { resize: none; }
+    .nota { margin: 0; font-size: var(--autoria-texto-14); line-height: 20px; }
+    /* La ayuda y la cuenta comparten renglón: la cuenta, a la derecha y con cifras de ancho fijo para que no baile. */
+    .objetivo__pie { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; }
+    .objetivo__pie .nota:first-child { flex: 1 1 16rem; }
+    .cuenta { font-variant-numeric: tabular-nums; }
     .lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
     .pista { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
     .pista .campo { align-self: stretch; }
@@ -79,6 +88,7 @@ export class ObjetivoPistasComponent {
   readonly escena = input.required<Escena>();
 
   private readonly store = inject(CasoStore);
+  private readonly deshacer = inject(DeshacerBorrado);
   private readonly injector = inject(Injector);
 
   protected readonly maxObjetivo = MAX_OBJETIVO;
@@ -117,11 +127,11 @@ export class ObjetivoPistasComponent {
   }
 
   protected quitar(indice: number): void {
-    const textos = this.pistas().map((p) => p.texto);
-    textos.splice(indice, 1);
-    this.store.fijarPistas(this.escena().id, textos);
+    const quedan = this.pistas().length - 1;
+    // Nada del caso apunta a una pista: se quita al instante y el marco ofrece «Deshacer» durante 8 s (EDITOR.md §4.6).
+    this.deshacer.pista(this.escena().id, indice, MAX_PISTAS);
     // El foco pasa a la pista que ocupa ahora el lugar de la quitada, o al botón de agregar si era la última.
-    this.enfocar(indice < textos.length ? `pista-texto-${indice}` : 'agregar-pista');
+    this.enfocar(indice < quedan ? `pista-texto-${indice}` : 'agregar-pista');
   }
 
   private enfocar(id: string): void {

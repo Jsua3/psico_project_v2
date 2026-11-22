@@ -52,7 +52,7 @@ describe('puedeEnviar con las reglas del modelo de métricas', () => {
     expect(faltasDe(caso)).toEqual([{
       codigo: 'milestone-unreachable',
       mensaje: 'El hito «Valorar el riesgo» no se puede cumplir: ninguna respuesta de las escenas a las que se llega desde el inicio lo marca.',
-      ir: { ruta: '/editor', ancla: 'hito-valorar' },
+      ir: { ruta: '/editor/evaluacion', ancla: 'hito-valorar' },
     }]);
     caso.escenas[0].respuestas[0].efectos = { hitos: ['valorar'] };
     expect(faltasDe(caso)).toEqual([]);
@@ -149,7 +149,7 @@ describe('faltasDelServidor: lo que dice la compuerta, en lenguaje del docente y
     expect(faltas.map((f) => f.ir)).toEqual([
       { ruta: '/editor/escena/1', ancla: 'respuestas-escena' },
       { ruta: '/editor/escena/1', ancla: 'respuesta-1' },
-      { ruta: '/editor', ancla: 'hito-valorar' },
+      { ruta: '/editor/evaluacion', ancla: 'hito-valorar' },
       { ruta: '/editor/finales', ancla: 'final-protectora' },
       { ruta: '/editor/escena/a', ancla: 'competencias-1' },
       { ruta: '/editor/escena/1', ancla: 'aviso-escena' },

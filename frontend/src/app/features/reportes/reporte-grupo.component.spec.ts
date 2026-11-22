@@ -116,7 +116,7 @@ describe('pantalla Reportes (F7-3)', () => {
 
     it('al abrir: «Selecciona un grupo», sin cifras y sin decir «Sin intentos» (aún no se consultó nada)', async () => {
       await render();
-      const empty = host().querySelector('ui-empty-state')!;
+      const empty = host().querySelector('ui-vacio-ilustrado')!;
       expect(text(empty)).toContain('Selecciona un grupo');
       expect(text(host())).not.toContain('Sin intentos en este corte');
       expect(host().querySelectorAll('ui-stat')).toHaveLength(0);
@@ -124,14 +124,15 @@ describe('pantalla Reportes (F7-3)', () => {
       expect(buttonLabelled('Generar reporte')).toBeUndefined();
     });
 
-    it('con un reporte sin intentos dice «Sin intentos en este corte», no «Selecciona un grupo», y sin tono de éxito', async () => {
+    it('sin caso elegido pide elegir uno (el servidor no consolida el grupo), no dice que nadie empezó, y sin tono de éxito', async () => {
       await render({ reporte: grupoId => of(report(grupoId, null)) });
       choose(select('Grupo'), 'Cohorte A · COH-A');
       await fixture.whenStable();
       fixture.detectChanges();
 
-      const empty = host().querySelector('ui-empty-state')!;
-      expect(text(empty)).toContain('Sin intentos en este corte');
+      const empty = host().querySelector('ui-vacio-ilustrado')!;
+      expect(text(empty)).toContain('Elige un caso');
+      expect(text(empty)).not.toContain('Sin intentos en este corte');
       expect(text(empty)).not.toContain('Selecciona un grupo');
       expect(host().querySelectorAll('ui-stat')).toHaveLength(0);
       // El vacío no es un éxito: ni icono de «check», ni mensaje verde, ni aviso de éxito.
@@ -140,30 +141,26 @@ describe('pantalla Reportes (F7-3)', () => {
       expect(notify.success).not.toHaveBeenCalled();
     });
 
-    it('un reporte con simulación pero cero intentos también es «Sin intentos», y «Ver todos los casos» quita el filtro de caso', async () => {
+    it('un caso elegido sin intentos dice «Sin intentos» con el título del caso y propone otro caso', async () => {
       await render({ reporte: (grupoId, caseVersionId) => of(report(grupoId, simulation({ totalIntentos: 0, estudiantes: [] }), caseVersionId ?? null)) });
       choose(select('Grupo'), 'Cohorte A · COH-A');
       choose(select('Caso'), 'Caso doce · v1.0.0');
       await fixture.whenStable();
       fixture.detectChanges();
 
-      const empty = host().querySelector('ui-empty-state')!;
+      const empty = host().querySelector('ui-vacio-ilustrado')!;
       expect(text(empty)).toContain('Sin intentos en este corte');
+      expect(text(empty)).toContain('«Caso doce»');
+      expect(text(empty)).toContain('Prueba con otro caso');
       expect(reporteService.getReporteGrupo).toHaveBeenLastCalledWith(1, 12);
-
-      (empty.querySelector('button') as HTMLButtonElement).click();
-      await fixture.whenStable();
-      fixture.detectChanges();
-      expect(select('Caso').value).toBe(select('Caso').options[0].value);
-      expect(reporteService.getReporteGrupo).toHaveBeenLastCalledWith(1, null);
     });
 
-    it('sin un caso elegido, «Sin intentos» no ofrece quitar un filtro que no hay', async () => {
+    it('sin un caso elegido, el vacío no ofrece quitar un filtro que no hay', async () => {
       await render({ reporte: grupoId => of(report(grupoId, null)) });
       choose(select('Grupo'), 'Cohorte A · COH-A');
       await fixture.whenStable();
       fixture.detectChanges();
-      expect(host().querySelector('ui-empty-state button')).toBeNull();
+      expect(host().querySelector('ui-vacio-ilustrado button')).toBeNull();
     });
 
     it('si la consulta falla: UN error con «Reintentar» que la repite, y ninguna cifra', async () => {
@@ -177,7 +174,7 @@ describe('pantalla Reportes (F7-3)', () => {
       expect(errors).toHaveLength(1);
       expect(text(errors[0])).toContain('No pudimos generar el reporte.');
       expect(host().querySelectorAll('ui-stat')).toHaveLength(0);
-      expect(host().querySelector('ui-empty-state')).toBeNull();
+      expect(host().querySelector('ui-vacio-ilustrado')).toBeNull();
 
       (errors[0].querySelector('button') as HTMLButtonElement).click();
       await fixture.whenStable();
@@ -212,19 +209,30 @@ describe('pantalla Reportes (F7-3)', () => {
 
   // req: RNF-04, BLOQUE-H, RQ-NEG-006
   describe('consulta', () => {
-    it('elegir un grupo genera el reporte sin otro clic: se pide con el grupo y sin caso, y salen las cifras', async () => {
+    it('elegir un grupo genera el reporte sin otro clic: elige el caso y muestra las cifras', async () => {
       await render();
       choose(select('Grupo'), 'Cohorte B · COH-B');
       await fixture.whenStable();
       fixture.detectChanges();
 
       expect(reporteService.getReporteGrupo).toHaveBeenCalledTimes(1);
-      expect(reporteService.getReporteGrupo).toHaveBeenCalledWith(2, null);
+      expect(reporteService.getReporteGrupo).toHaveBeenCalledWith(2, 12);
       expect(text(stat('Intentos')!.querySelector('.ui-stat__value'))).toBe('10');
       expect(stat('Puntaje promedio')).toBeUndefined();
       expect(stat('Decisiones adecuadas')).toBeUndefined();
       expect(text(stat('Bitácoras')!.querySelector('.ui-stat__value'))).toBe('9');
       expect(text(host().querySelector('.rg-result h2'))).toContain('Cohorte B');
+    });
+
+    it('RQ-NEG-006: elige el primer caso con intentos, aun si otro caso no tiene', async () => {
+      const segundo = { ...caso, caseVersionId: 13, title: 'Caso trece' };
+      await render({ casos: () => of([caso, segundo]), reporte: (grupo, id) => of(report(grupo, id === 13 ? simulation() : null, id)) });
+      choose(select('Grupo'), 'Cohorte A · COH-A');
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(select('Caso').selectedOptions[0].textContent?.trim()).toBe('Caso trece · v1.0.0');
+      expect(reporteService.getReporteGrupo.mock.calls.map(call => call[1])).toEqual([12, 13]);
+      expect(text(stat('Intentos')!.querySelector('.ui-stat__value'))).toBe('10');
     });
 
     it('cambiar el caso vuelve a pedir el reporte con ese caso', async () => {
@@ -242,7 +250,7 @@ describe('pantalla Reportes (F7-3)', () => {
       await render({}, { query: { grupo: '2' } });
 
       expect(select('Grupo').selectedOptions[0].textContent?.trim()).toBe('Cohorte B · COH-B');
-      expect(reporteService.getReporteGrupo).toHaveBeenCalledWith(2, null);
+      expect(reporteService.getReporteGrupo).toHaveBeenCalledWith(2, 12);
       expect(stat('Intentos')).toBeDefined();
     });
 
@@ -259,14 +267,14 @@ describe('pantalla Reportes (F7-3)', () => {
     it('un ?caseVersionId= que no es un número se ignora (el grupo sí se elige)', async () => {
       await render({}, { query: { grupo: '2', caseVersionId: 'abc' } });
 
-      expect(reporteService.getReporteGrupo).toHaveBeenCalledWith(2, null);
+      expect(reporteService.getReporteGrupo).toHaveBeenCalledWith(2, 12);
     });
 
     it('un ?grupo= que no existe se ignora: queda «Selecciona un grupo» y no se consulta nada', async () => {
       await render({}, { query: { grupo: '999' } });
 
       expect(reporteService.getReporteGrupo).not.toHaveBeenCalled();
-      expect(text(host().querySelector('ui-empty-state'))).toContain('Selecciona un grupo');
+      expect(text(host().querySelector('ui-vacio-ilustrado'))).toContain('Selecciona un grupo');
     });
 
     it('cambiar de grupo con una consulta en curso: solo cuenta la última', async () => {
@@ -291,7 +299,7 @@ describe('pantalla Reportes (F7-3)', () => {
       buttonLabelled('Limpiar')!.click();
       fixture.detectChanges();
 
-      expect(text(host().querySelector('ui-empty-state'))).toContain('Selecciona un grupo');
+      expect(text(host().querySelector('ui-vacio-ilustrado'))).toContain('Selecciona un grupo');
       expect(host().querySelectorAll('ui-stat')).toHaveLength(0);
     });
 
@@ -338,7 +346,7 @@ describe('pantalla Reportes (F7-3)', () => {
     it('cada estudiante es un enlace a su reporte (F10-7), con el grupo y el caso elegidos para que el reporte conserve el contexto', async () => {
       await withReport();
       const hrefs = () => [...studentTable().querySelectorAll('tbody a')].map(link => link.getAttribute('href'));
-      expect(hrefs()).toEqual(['/portal/reportes/estudiante/11?grupo=1', '/portal/reportes/estudiante/12?grupo=1']);
+      expect(hrefs()).toEqual(['/portal/reportes/estudiante/11?grupo=1&caseVersionId=12', '/portal/reportes/estudiante/12?grupo=1&caseVersionId=12']);
       expect(text(studentTable().querySelector('tbody a'))).toContain('Marta Ríos');
 
       choose(select('Caso de simulación'), 'Caso doce · v1.0.0');
@@ -378,7 +386,7 @@ describe('pantalla Reportes (F7-3)', () => {
         buttonLabelled('Exportar CSV')!.click();
         await fixture.whenStable();
 
-        expect(reporteService.exportarCsv).toHaveBeenCalledWith(1, null);
+        expect(reporteService.exportarCsv).toHaveBeenCalledWith(1, 12);
         expect(notify.success).toHaveBeenCalledWith('El archivo CSV se descargó correctamente.');
         expect(host().querySelector('.state-message')).toBeNull();
       } finally {
@@ -425,24 +433,32 @@ describe('pantalla Reportes (F7-3)', () => {
         expect(text(host().querySelector('.rg-hitos'))).not.toMatch(/\d/);
       });
 
-      it('con 20 estudiantes o más trae el porcentaje: barra con nombre en palabras y su valor también en texto', async () => {
-        const sim = simulation({
-          hitos: [
-            { key: 'escucha', label: 'Escuchar sin interrumpir', decisive: false, cobertura: 'MAYORIA', porcentaje: 62.5 },
-            { key: 'proteccion', label: 'Recomendar medidas de protección', decisive: true, cobertura: 'MENOS_DE_LA_MITAD', porcentaje: 30 },
-          ],
-        });
+      it('representa los porcentajes publicados con denominador y patrón', async () => {
+        const sim = simulation({ hitos: [
+          { key: 'escucha', label: 'Escuchar', decisive: false, cobertura: 'MAYORIA', porcentaje: 62.5 },
+          { key: 'proteccion', label: 'Proteger', decisive: true, cobertura: 'MENOS_DE_LA_MITAD', porcentaje: 30 },
+        ] });
         await render({ reporte: grupoId => of(report(grupoId, sim)) });
         choose(select('Grupo'), 'Cohorte A · COH-A');
         await fixture.whenStable();
         fixture.detectChanges();
+        // Una fila por hito con su palabra, su porcentaje y su barra: sin un segundo gráfico que repita los hitos.
+        const lista = host().querySelector('.rg-hitos');
+        expect(host().querySelector('ui-barras:not(.ui-barras--apilada)')).toBeNull();
+        expect(lista?.querySelectorAll('.rg-hito ui-progress')).toHaveLength(2);
+        // Es un porcentaje, no un conteo de personas: nunca «de 100».
+        // El separador decimal lo pone el LOCALE_ID de la app (en la prueba, el predeterminado).
+        expect(text(lista)).toMatch(/62[,.]5 % del grupo/);
+        expect(text(lista)).toContain('30 % del grupo');
+        expect(text(lista)).not.toContain('de 100');
+        expect(text(host().querySelector('.rg-lectura'))).toContain('El paso menos logrado es «Proteger», con 30 %.');
+      });
 
-        const bars = [...host().querySelectorAll('.rg-bar')];
-        expect(bars).toHaveLength(2);
-        expect(bars.every(bar => bar.getAttribute('role') === 'img')).toBe(true);
-        expect(bars[0].getAttribute('aria-label')).toBe('Escuchar sin interrumpir: La mayoría cumplió este paso, 62.5 % del grupo');
-        expect(text(hitoRows()[0].querySelector('.rg-bar__value'))).toBe('62.5 %');
-        expect(text(hitoRows()[1].querySelector('.rg-bar__value'))).toBe('30 %');
+      it('la descripción del gráfico de decisiones dice qué predomina y cuántas piden atención', async () => {
+        await withReport();
+        const description = text(host().querySelector('ui-barras.ui-barras--apilada .ui-barras__descripcion'));
+        expect(description).toMatch(/Predomina «[^»]+» con \d+\.|Empatan/);
+        expect(description).toMatch(/Piden atención \d+|Ninguna decisión es de riesgo/);
       });
 
       it('una tabla equivalente trae los mismos hitos con su cobertura en palabras y el porcentaje (o un guion)', async () => {

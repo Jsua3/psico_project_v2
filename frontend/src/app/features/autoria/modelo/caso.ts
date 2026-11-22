@@ -251,6 +251,11 @@ export interface ItemLista {
   respaldo: string | null;
   /** ¿Existe ya lo que respalda la casilla? `null` si es solo una declaración. */
   respaldado: boolean | null;
+  /**
+   * Quién respalda el ítem: `author` (declaración de la docente), `constancia` (la docente lo declara al enviar y Psicología lo
+   * confirma al aprobar) o `system` (lo comprueba el sistema con los datos del caso). Ausente con un servidor que no lo dice.
+   */
+  quien?: 'system' | 'constancia' | 'author' | null;
 }
 
 export interface ListaVerificacion {
@@ -268,6 +273,8 @@ export interface CasoBorrador {
   contexto?: string;
   /** Los objetivos de aprendizaje del caso, uno por renglón; ausente en un borrador que aún no está en el servidor. */
   objetivos?: string[];
+  /** Los temas sensibles que el estudiante lee en la ficha antes de empezar (RK-7); ausente con un servidor que aún no los guarda. */
+  temasSensibles?: string[];
   /** El lugar de la biblioteca del que se copió; `null` en un caso sin lugar (se edita sin catálogo). */
   lugarId: string | null;
   salas: SalaCaso[];

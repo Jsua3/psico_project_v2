@@ -1,4 +1,5 @@
-<ui-page-header
+<!-- Cabecera ilustrada sin viñeta (ronda 3): aquí la figura protagonista es la de la persona, en su escenario. -->
+<ui-cabecera-ilustrada
   eyebrow="Editor de personaje"
   title="Personaliza tu avatar profesional"
   description="Crea la identidad con la que entrarás a los casos. No afecta tu evaluación."
@@ -16,9 +17,28 @@
   }
 } @else {
   <div class="ce-grid">
+    <!-- La vista previa es una ventana al juego (piel «game», oscura en los dos temas, como el umbral). El control de
+         movimiento vive dentro, junto a la figura que anima: el portal re-emite sus materiales en la piel game
+         (_portal.scss), así que la opción elegida se lee igual en claro y en oscuro. -->
+    <div class="ce-vista">
+    <section class="ce-stage" data-skin="game" aria-label="Vista previa del personaje">
+      <div class="ce-preview">
+        <button class="ce-turn" type="button" aria-label="Girar a la izquierda" (click)="girar(-1)"><span aria-hidden="true">←</span></button>
+        <figure class="ce-view">
+          <app-kit-figure class="ce-preview-desktop" [visual]="visual()" [view]="views[viewIndex()].id" [sheet]="motion()" [scale]="4" [animated]="true" />
+          <app-kit-figure class="ce-preview-mobile" [visual]="visual()" [view]="views[viewIndex()].id" [sheet]="motion()" [scale]="2" [animated]="true" />
+          <figcaption>{{ views[viewIndex()].label }}</figcaption>
+        </figure>
+        <button class="ce-turn" type="button" aria-label="Girar a la derecha" (click)="girar(1)"><span aria-hidden="true">→</span></button>
+      </div>
+      <ui-segmentado etiqueta="Movimiento" [opciones]="movimientos" [valor]="motion()" (valorChange)="elegirMovimiento($event)" />
+      <p class="ce-help">Así te verán en el simulador. No afecta tu evaluación.</p>
+      <p class="ds-sr-only">{{ summary() }}</p>
+    </section>
+    </div>
     <ui-card class="ce-panel">
       <fieldset class="ce-group">
-        <legend>Elenco</legend>
+        <legend>Elige tu personaje</legend>
         <div class="ce-cast">
           @for (member of cast(); track member.id) {
             <label class="ce-option ce-option--figure">
@@ -35,6 +55,7 @@
         </div>
       </fieldset>
 
+      <p class="ce-help">Personalizado te permite elegir complexión, piel, peinado y accesorios.</p>
       @if (custom(); as c) {
         <fieldset class="ce-group">
           <legend>Complexión</legend>
@@ -94,48 +115,15 @@
           </div>
         </fieldset>
       }
-    </ui-card>
 
-    <!-- VD-13: solo la vista previa en la piel juego (escenario oscuro). -->
-    <section class="ce-stage" data-skin="game" aria-label="Vista previa del avatar">
-      <div class="ce-views">
-        @for (view of views; track view.id) {
-          <figure class="ce-view">
-            <app-kit-figure [visual]="visual()" [view]="view.id" [sheet]="motion()" [scale]="4" [animated]="true" />
-            <figcaption>{{ view.label }}</figcaption>
-          </figure>
-        }
-      </div>
-      <fieldset class="ce-group ce-group--inline">
-        <legend>Animación</legend>
-        <div class="ce-opts">
-          <label class="ce-option">
-            <input type="radio" class="ce-radio" name="ce-motion" [checked]="motion() === 'idle'" (change)="motion.set('idle')" />
-            <span>Reposo</span>
-          </label>
-          <label class="ce-option">
-            <input type="radio" class="ce-radio" name="ce-motion" [checked]="motion() === 'walk'" (change)="motion.set('walk')" />
-            <span>Caminata</span>
-          </label>
-        </div>
-      </fieldset>
-      <p class="ds-sr-only">{{ summary() }}</p>
-    </section>
-
-    <ui-card class="ce-panel">
       <fieldset class="ce-group">
         <legend>Uniforme de Psicología</legend>
-        <div class="ce-uniforms">
+        <div class="ce-opts">
           @for (option of bataOptions(); track option.bata) {
-            <label class="ce-option ce-option--figure">
-              <input type="radio" class="ce-radio" name="ce-bata" [checked]="avatar().bata === option.bata" (change)="setBata(option.bata)" />
-              <app-kit-figure [visual]="option.visual" [scale]="2" />
-              <span>{{ option.label }}</span>
-            </label>
+            <label class="ce-option"><input type="radio" class="ce-radio" name="ce-bata" [checked]="avatar().bata === option.bata" (change)="setBata(option.bata)" /><span>{{ option.label }}</span></label>
           }
         </div>
       </fieldset>
-      <h2 class="ce-subtitle">Resumen</h2>
       <dl class="ce-summary">
         <div><dt>Rol</dt><dd>{{ roleLabel() }}</dd></div>
         <div><dt>Personaje</dt><dd>{{ characterLabel() }}</dd></div>
@@ -145,13 +133,15 @@
   </div>
 }
 
-<footer class="ce-footer">
-  <p class="ce-dirty" role="status">
-    @if (dirty()) {<ui-badge tone="warning">Cambios sin guardar</ui-badge>}
-  </p>
+<!-- En el móvil la barra solo aparece con cambios sin guardar (o con un destino al que volver): así no se apilan dos franjas
+     sobre el elenco. A la izquierda, el estado en palabras (role=status lo anuncia al cambiar). -->
+<footer class="ce-footer" [class.ce-footer--quieto]="!dirty() && !destino()">
+  <p class="ce-dirty" role="status">@if (dirty()) {<ui-badge tone="warning">Cambios sin guardar</ui-badge>} @else {<span class="ce-sin-cambios">Sin cambios</span>}</p>
   <div class="ce-actions">
-    <button ui-button type="button" variant="ghost" icon="restart_alt" (click)="restablecer()">Restablecer</button>
-    <button ui-button type="button" variant="secondary" icon="save" (click)="guardar()">Guardar personaje</button>
-    <button ui-button type="button" variant="primary" iconEnd="arrow_forward" (click)="continuar()">Guardar y continuar</button>
+    <button ui-button type="button" variant="ghost" (click)="restablecer()">Restablecer</button>
+    @if (destino()) {
+      <button ui-button type="button" variant="secondary" (click)="continuar()">Guardar y volver a {{ destinoEtiqueta() }}</button>
+    }
+    <button ui-button type="button" variant="primary" (click)="guardar()">Guardar</button>
   </div>
 </footer>

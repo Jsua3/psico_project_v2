@@ -1,29 +1,25 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { CSP_NONCE, Component, Input, Provider, provideZonelessChangeDetection } from '@angular/core';
+import { CSP_NONCE, Component, Provider, provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { existsSync, statSync } from 'fs';
+import { join } from 'path';
 import { Observable, Subject, of, throwError } from 'rxjs';
 
 import { AuthService } from '../../core/auth/auth.service';
+import { TemaService } from '../../core/tema/tema.service';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
-import { SiepParticleLayerComponent } from '../../shared/ui/siep-particle-layer.component';
 import { LoginComponent } from './login.component';
 
 @Component({ template: '' })
 class Screen {}
 
-@Component({ selector: 'app-siep-particle-layer', template: '' })
-class ParticlesStub {
-  @Input() density = 'medium';
-  @Input() interactive = false;
-  @Input() mode = 'background';
-  @Input() paused = false;
-}
-
 /**
- * Acceso (plan visual F4-2), en DOM: etiqueta visible en cada campo (H-29), errores al enviar y foco al primero,
+ * Acceso (plan visual F4-2; rediseño Metafrónesis 2026-11-20), en DOM: etiqueta visible en cada campo (H-29), un
+ * campo dice su error al salir de él solo si ya se escribió algo y al enviar se ven todos y el foco va al primero,
  * botón que dice que trabaja y no envía dos veces, foco al encabezado al alternar formularios (nunca a body), fallo
- * de Google visible, aviso de alcance (RN-01) y una sola imagen de la escena.
+ * de Google visible, aviso de alcance (RN-01), una sola imagen fija de la escena, nada que se mueva solo y la piel
+ * del tema en el contenedor de la página.
  */
 // req: BLOQUE-H (H-21, H-28, H-29), RNF-04, RN-01
 describe('LoginComponent', () => {
@@ -51,7 +47,6 @@ describe('LoginComponent', () => {
         { provide: UiDialog, useValue: { sheet: vi.fn() } },
       ],
     });
-    TestBed.overrideComponent(LoginComponent, { remove: { imports: [SiepParticleLayerComponent] }, add: { imports: [ParticlesStub] } });
     fixture = TestBed.createComponent(LoginComponent);
     await fixture.whenStable();
   }
@@ -70,7 +65,10 @@ describe('LoginComponent', () => {
     })) as unknown as typeof window.matchMedia;
   });
 
-  afterEach(() => { window.matchMedia = originalMatchMedia; });
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+    try { localStorage.removeItem('metafronesis.tema'); } catch { /* sin almacenamiento */ }
+  });
 
   it('cada campo del formulario de entrada tiene etiqueta visible asociada (no solo placeholder)', async () => {
     await render();
@@ -117,10 +115,11 @@ describe('LoginComponent', () => {
     expect(text(host().querySelector('h1'))).toBe('Iniciar sesión');
   });
 
-  it('«Recordar sesión» es una fila entera pulsable (ui-check) y el aviso de alcance (RN-01) está en el acceso', async () => {
+  // Rediseño 2026-11-20: la casilla guarda el CORREO en este navegador (no la sesión): su texto lo dice.
+  it('«Recordar mi correo» es una fila entera pulsable (ui-check) y el aviso de alcance (RN-01) está en el acceso', async () => {
     await render();
     const remember = form().querySelector('label.ui-check')!;
-    expect(text(remember)).toBe('Recordar sesión');
+    expect(text(remember)).toBe('Recordar mi correo');
     expect(remember.querySelector('input[type="checkbox"]')).not.toBeNull();
     expect(host().querySelector('ui-scope-notice')).not.toBeNull();
   });
@@ -137,7 +136,57 @@ describe('LoginComponent', () => {
     });
     submit().click();
     await fixture.whenStable();
-    expect(atFocus).toEqual({ invalid: 'true', message: 'El correo es obligatorio.' });
+    expect(atFocus).toEqual({ invalid: 'true', message: 'Escribe tu correo institucional.' });
+  });
+
+  // Guía de psicología de interfaces §5 (rediseño 2026-11-20): no validar antes de que la persona escriba; validar al
+  // salir del campo; el mensaje se va en cuanto el campo queda bien y lo escrito se conserva.
+  it('un campo vacío que solo se recorre no grita; con algo escrito, dice qué revisar al salir y se calla al corregirlo', async () => {
+    await render();
+    const email = form().querySelector<HTMLInputElement>('#login-email')!;
+    const password = form().querySelector<HTMLInputElement>('#login-password')!;
+    const errors = () => [...form().querySelectorAll('ui-field.ui-field--invalid .ui-field__message')].map(text);
+
+    password.dispatchEvent(new Event('focus'));
+    password.dispatchEvent(new Event('blur'));
+    await fixture.whenStable();
+    expect(errors()).toEqual([]);
+
+    email.value = 'ana@';
+    email.dispatchEvent(new Event('input'));
+    email.dispatchEvent(new Event('blur'));
+    await fixture.whenStable();
+    expect(errors()).toEqual(['Revisa el correo: debe verse como nombre@institucion.edu.co.']);
+    expect(errors().join(' ')).not.toMatch(/inv[aá]lid|incorrect/i);
+
+    email.value = 'ana@cue.edu.co';
+    email.dispatchEvent(new Event('input'));
+    await fixture.whenStable();
+    expect(errors()).toEqual([]);
+    expect(email.value).toBe('ana@cue.edu.co');
+  });
+
+  it('una clave que no coincide da el mismo mensaje que un correo que no existe: sin culpa y con salida', async () => {
+    login = vi.fn(() => throwError(() => new HttpErrorResponse({ status: 401, statusText: 'Unauthorized' })));
+    await render();
+    fixture.componentInstance.form.setValue({ email: 'ana@cue.edu.co', password: 'otra', remember: false });
+    submit().click();
+    await fixture.whenStable();
+    const message = text(host().querySelector('.acceso__error[role="alert"]'));
+    expect(message).toBe('No encontramos esa combinación de correo y contraseña. Revísala o usa «¿Olvidaste tu contraseña?».');
+    expect(message).not.toMatch(/inv[aá]lid|incorrect/i);
+    expect(fixture.componentInstance.form.controls.email.value).toBe('ana@cue.edu.co');
+  });
+
+  it('la piel la pone el tema en el contenedor de la página (claro = portal, oscuro = juego), nunca fija', async () => {
+    await render();
+    const page = () => host().querySelector('.acceso.publico')!;
+    expect(page().getAttribute('data-skin')).toBe('portal');
+    expect(host().querySelector('.acceso__panel')!.hasAttribute('data-skin')).toBe(false);
+    TestBed.inject(TemaService).fijar('oscuro');
+    await fixture.whenStable();
+    expect(page().getAttribute('data-skin')).toBe('game');
+    TestBed.inject(TemaService).fijar('sistema');
   });
 
   it('una región de estado SIEMPRE presente anuncia «Ingresando…», «Enviando solicitud…» y el resultado (I-4, M-5)', async () => {
@@ -260,24 +309,26 @@ describe('LoginComponent', () => {
     });
   });
 
-  it('las partículas del panel se pueden pausar y reanudar (H-22, VD-25)', async () => {
+  // H-22 / WCAG 2.2.2 (rediseño 2026-11-20): antes, partículas con botón de pausa; ahora nada se mueve solo en el
+  // acceso, así que no hay nada que pausar (y la guía §2 pide calma antes de entrar a un caso sensible).
+  it('nada se mueve solo en el acceso: sin capa de partículas, sin video y sin reproducción automática', async () => {
     await render();
-    const toggle = () => [...host().querySelectorAll<HTMLButtonElement>('.acceso__panel button')].find(b => /animación/.test(text(b)))!;
-    const particles = () => fixture.debugElement.query(debug => debug.componentInstance instanceof ParticlesStub).componentInstance as ParticlesStub;
-    expect(spoken(toggle())).toBe('Pausar animación');
-    toggle().click();
-    await fixture.whenStable();
-    expect(spoken(toggle())).toBe('Reanudar animación');
-    expect(particles().paused).toBe(true);
+    expect(host().querySelector('app-siep-particle-layer')).toBeNull();
+    expect(host().querySelector('video, [autoplay], canvas')).toBeNull();
   });
 
-  it('la escena del simulador se pinta una sola vez, en WebP y con el tamaño que pide la pantalla (srcset)', async () => {
+  it('la escena real del simulador se pinta una sola vez, en WebP liviano, con su tamaño y texto alternativo', async () => {
+    // Rediseño 2026-11-20: la escena de la portada (581 × 415). Sigue el presupuesto de F4-4 (antes 18 KB + 43 KB).
     await render();
-    const scenes = host().querySelectorAll<HTMLImageElement>('img[src*="login"]');
+    const scenes = host().querySelectorAll<HTMLImageElement>('.acceso__panel img');
     expect(scenes).toHaveLength(1);
-    expect(scenes[0].getAttribute('src')).toBe('assets/images/login/escena-acceso-640.webp');
-    expect(scenes[0].getAttribute('srcset')).toBe('assets/images/login/escena-acceso-640.webp 640w, assets/images/login/escena-acceso-1280.webp 1280w');
-    expect(scenes[0].getAttribute('sizes')).toBeTruthy();
-    expect(scenes[0].getAttribute('loading')).toBe('lazy');
+    expect(scenes[0].getAttribute('src')).toBe('assets/images/institution/escena-portada.webp');
+    expect([scenes[0].getAttribute('width'), scenes[0].getAttribute('height')]).toEqual(['581', '415']);
+    // En escritorio es el elemento de mayor pintura (LCP): no se difiere (Angular lo advierte, NG0913); pesa < 40 KB.
+    expect(scenes[0].getAttribute('loading')).not.toBe('lazy');
+    expect(scenes[0].getAttribute('alt')!.length).toBeGreaterThan(20);
+    const file = join(__dirname, '..', '..', '..', 'assets/images/institution/escena-portada.webp');
+    expect(existsSync(file)).toBe(true);
+    expect(statSync(file).size).toBeLessThan(40 * 1024);
   });
 });

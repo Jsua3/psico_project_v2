@@ -115,4 +115,36 @@ describe('ChangePasswordComponent', () => {
     logout.click();
     expect(auth['logout']).toHaveBeenCalled();
   });
+  it('en modo voluntario conserva la contraseña actual y confirma en línea', async () => {
+    const auth = await open('/portal/cuenta/contrasena');
+    fixture.componentRef.setInput('modo', 'voluntario');
+    await fixture.whenStable();
+    expect(host().querySelector('main')).toBeNull();
+    expect(host().querySelectorAll('h1')).toHaveLength(1);
+    fill('Actual-123', 'Nueva-clave-2026');
+    await submit();
+    expect(auth['changePassword']).toHaveBeenCalledWith('Actual-123', 'Nueva-clave-2026');
+    expect(text(host())).toContain('Contraseña actualizada');
+    expect(text(host())).not.toContain('Cerrar sesión');
+    // El botón con el foco desapareció: el foco pasa a la confirmación y la región viva (siempre montada) la anuncia.
+    expect(document.activeElement?.id).toBe('cambio-confirmacion');
+    expect(text(host().querySelector('[role="status"]'))).toBe('Contraseña actualizada.');
+  });
+
+  it('el campo de la nueva contraseña apunta a la lista de requisitos con aria-describedby', async () => {
+    await open('/cambiar-contrasena');
+    const input = host().querySelector('#cambio-nueva') as HTMLInputElement;
+    expect(input.getAttribute('aria-describedby')).toContain('cambio-requisitos');
+    expect(host().querySelector('#cambio-requisitos')).not.toBeNull();
+  });
+
+  it('sin dato de ruta mantiene el modo forzado', async () => {
+    await open('/cambiar-contrasena');
+    fixture.componentRef.setInput('modo', undefined);
+    await fixture.whenStable();
+    expect(host().querySelector('main#main-content')).not.toBeNull();
+    expect(text(host().querySelector('h1'))).toBe('Elige tu contraseña');
+    expect(text(host())).toContain('Contraseña temporal');
+  });
+
 });

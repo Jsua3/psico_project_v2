@@ -194,6 +194,9 @@ def _criterion_entry(criterion, rubric_index, criterion_index, ids):
         })
     if criterion.competency_code:
         entry["competenciaCodigo"] = criterion.competency_code
+    if criterion.level_descriptors:
+        # Solo si el autor escribió alguno: un criterio sin descriptores propios no cambia el documento de siempre.
+        entry["descriptoresNivel"] = dict(criterion.level_descriptors)
     return entry
 
 
@@ -232,4 +235,6 @@ def build(definition, ids):
         siep["contexto"] = definition.context
         if not _text(definition.description):
             siep["descripcionDerivada"] = True  # la base lleva el contexto como descripción: no se guarda como tal
+    if definition.content_warnings:
+        siep["temasSensibles"] = list(definition.content_warnings)  # RK-7: solo si el caso declara alguno
     return siep

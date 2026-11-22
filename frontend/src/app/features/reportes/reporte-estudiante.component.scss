@@ -34,12 +34,6 @@
   font-weight: var(--ds-type-h3-weight);
 }
 
-.re-case {
-  min-width: 10rem;
-  font-weight: var(--ds-type-h3-weight);
-  text-align: start;
-}
-
 .re-num {
   text-align: end;
   font-variant-numeric: tabular-nums;
@@ -52,4 +46,23 @@
 .re-more {
   display: flex;
   margin-block-start: var(--ds-space-4);
+}
+
+.re-privacy { color: var(--ds-text-2); overflow-wrap: anywhere; }
+@media (max-width: 40rem) {
+  .re-nowrap { white-space: normal; }
+}
+
+.re-case-card { display: block; min-width: 0; margin-block: var(--ds-space-4); overflow-wrap: anywhere; }
+
+.re-status { margin: 0 0 var(--ds-space-3); color: var(--ds-text-2); font-size: var(--ds-type-body-s-size); line-height: var(--ds-type-body-s-line); }
+
+// El tiempo de reloj es un dato auxiliar: una etiqueta pequeña que se alcanza con el teclado y se explica en su globo.
+.re-clock {
+  display: inline-block;
+  margin-inline-start: var(--ds-space-2);
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-caption-size);
+  text-decoration: underline dotted;
+  cursor: help;
 }

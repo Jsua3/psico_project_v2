@@ -112,7 +112,7 @@ function faltasDelModelo(caso: CasoBorrador): Falta[] {
     faltas.push({
       codigo: 'milestone-unreachable',
       mensaje: `El hito «${h.nombre}» no se puede cumplir: ninguna respuesta de las escenas a las que se llega desde el inicio lo marca.`,
-      ir: { ruta: '/editor', ancla: `hito-${h.clave}` },
+      ir: { ruta: '/editor/evaluacion', ancla: `hito-${h.clave}` },
     });
   }
 
@@ -292,7 +292,8 @@ export function faltasDelServidor(
         break;
       }
       case 'milestone-unreachable':
-        faltas.push(falta({ ruta: '/editor', ...(h.milestoneKey ? { ancla: `hito-${h.milestoneKey}` } : {}) }));
+        // E5: los pasos profesionales viven en Evaluación; cada fila conserva su ancla `hito-<clave>`.
+        faltas.push(falta({ ruta: '/editor/evaluacion', ...(h.milestoneKey ? { ancla: `hito-${h.milestoneKey}` } : {}) }));
         break;
       case 'ending-unreachable':
         faltas.push(falta({ ruta: '/editor/finales', ...(h.endingKey ? { ancla: `final-${h.endingKey}` } : {}) }));

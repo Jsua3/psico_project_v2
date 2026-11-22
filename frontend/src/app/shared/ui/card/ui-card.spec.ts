@@ -52,4 +52,19 @@ describe('ui-card', () => {
     button.click();
     expect(host.opened).toBe(1);
   });
+
+  // req: DISENO C2 (superficies opaca, hundida y tinte)
+  it('la superficie es opaca por defecto y se elige con `superficie`', async () => {
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    const fixture = TestBed.createComponent(UiCard);
+    await fixture.whenStable();
+    const card = fixture.nativeElement as HTMLElement;
+    expect(card.classList).toContain('ui-card--opaca');
+    for (const superficie of ['hundida', 'tinte'] as const) {
+      fixture.componentRef.setInput('superficie', superficie);
+      await fixture.whenStable();
+      expect(card.classList).toContain(`ui-card--${superficie}`);
+      expect(card.classList).not.toContain('ui-card--opaca');
+    }
+  });
 });

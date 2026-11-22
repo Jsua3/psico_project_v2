@@ -8,6 +8,7 @@ export type AssignmentTarget = { type: 'GROUP'; groupId: number } | { type: 'STU
 export interface Assignment {
   id: number;
   caseVersionId: number;
+  caseTitle?: string | null;
   target: AssignmentTarget;
   state: AssignmentState;
   /** Una asignación en pausa no habilita nada (ni iniciar ni seguir) hasta que se reanuda. */

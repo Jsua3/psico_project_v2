@@ -3,7 +3,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
 
 import { AuthService } from '../../core/auth/auth.service';
@@ -11,7 +11,9 @@ import type { CanLeave } from '../../core/navigation/can-leave.guard';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { UiGlassBar } from '../../shared/ui/glass-bar/ui-glass-bar';
 import { roleLabel } from '../../shared/ui/labels';
+import { MarcaComponent } from '../../shared/ui/marca/marca.component';
 import { UiMenu, UiMenuItem } from '../../shared/ui/menu/ui-menu';
+import { TemaSelectorComponent } from '../../shared/ui/tema/tema-selector.component';
 
 import { AvisosGuardadoComponent } from './avisos-guardado.component';
 import { RUTA_ENSAYO, alPulsarProbar } from './ensayo';
@@ -19,88 +21,108 @@ import { CasoStore } from './estado/caso.store';
 import { BuscadorComponent } from './guia/buscador.component';
 import { FocoGuiaComponent } from './guia/foco-guia.component';
 import { GuiaService } from './guia/guia.service';
+import { IaService } from './ia/ia.service';
 import { PanelIaComponent } from './ia/panel-ia.component';
+import { DeshacerBorrado } from './marco/deshacer-borrado';
+import { HiloDelCasoComponent } from './marco/hilo-del-caso.component';
+import { PanelPendientesComponent } from './marco/panel-pendientes.component';
+import { ProgresoDelCaso } from './marco/progreso.service';
+import { RielDeEscenasComponent } from './marco/riel-de-escenas.component';
+import { injectComandosDelCaso } from './marco/estudio/comandos-del-caso';
+import { EstudioMarcoComponent } from './marco/estudio/estudio-marco.component';
+import { EstudioService } from './marco/estudio/estudio.service';
+import { ExploradorBibliotecaComponent } from './marco/estudio/explorador-biblioteca.component';
 import { RutasAutoria } from './rutas';
 
 const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', icon: 'logout', tone: 'danger' }];
 
-/** Las secciones del caso, en la barra: su ruta, la acción con que las encuentra la guía y sus rótulos (el largo es su nombre). */
-const SECCIONES = [
-  { ruta: '/editor', accion: null, largo: 'El caso', corto: 'El caso' },
-  { ruta: '/editor/datos', accion: 'datos-del-caso', largo: 'Datos del caso', corto: 'Datos' },
-  { ruta: '/editor/finales', accion: 'definir-finales', largo: 'Finales', corto: 'Finales' },
-  { ruta: '/revision', accion: 'enviar-revision', largo: 'Enviar a revisión', corto: 'Revisión' },
-] as const;
-
 /**
- * Marco del editor de casos: abre el caso que dice la dirección (`portal/casos/:caseVersionId/editor`), y pone la barra de
- * vidrio de la aplicación (`ui-glass-bar` con su `GlassBarMachine`): una sola barra en pantalla, con la marca, el caso y sus
- * secciones en el módulo central y, junto a la cuenta, la ayuda (Buscar, Guía y Asistente de IA). No hay banda debajo: todo
- * lo del caso vive en la barra. Con una ayuda abierta la barra se congela para que la guía no señale algo que salta. En
- * `portal/casos/nuevo` (crear un caso) no hay caso que abrir: el módulo central dice «‹ Mis casos» y «Editor de casos».
- * La piel clara de autoría (`styles/skins/_autoria.scss` y `styles/components/_autoria.scss`) solo vale dentro de este marco.
+ * Marco del editor de casos (EDITOR.md §4): abre el caso que dice la dirección (`portal/casos/:caseVersionId/editor`) y lo
+ * reparte en zonas de alto fijo bajo la barra de vidrio de la aplicación (`ui-glass-bar` con su `GlassBarMachine`):
+ *
+ * - La barra: la marca de Metafrónesis (DP-06), «‹ Casos», el nombre del caso y el hilo de cinco etapas en el módulo
+ *   central; en el de la cuenta, el estado de guardado, «Probar», «Pendientes N», una sola «Ayuda» (Ctrl+K), el asistente
+ *   (solo si está encendido), el tema y la cuenta. Nada se pliega al desplazarse (DG-6); lo que no cabe cede por ancho.
+ * - El cuerpo (≥ 64rem): una rejilla que NO desplaza la página. El riel de escenas (solo en la etapa Historia) y el centro
+ *   se desplazan cada uno por su cuenta; el asistente de IA flota sobre el borde final, como una hoja.
+ * - Por debajo de 64rem (y con zoom al 200 %, WCAG 1.4.10): una sola columna con desplazamiento de página.
+ *
+ * El editor sigue el tema de la persona (claro u oscuro): vive dentro de `app-shell.portal[data-skin]` y su piel
+ * (`styles/skins/_autoria.scss`) son alias de los tokens del portal. En `portal/casos/nuevo` (crear un caso) no hay caso
+ * que abrir: el módulo central dice «‹ Casos» y «Editor de casos».
  */
 @Component({
   selector: 'app-autoria-shell',
   imports: [
-    RouterOutlet, RouterLink, RouterLinkActive, PanelIaComponent, BuscadorComponent, FocoGuiaComponent, AvisosGuardadoComponent,
-    UiGlassBar, UiMenu,
+    RouterOutlet, RouterLink, PanelIaComponent, BuscadorComponent, FocoGuiaComponent, AvisosGuardadoComponent,
+    UiGlassBar, UiMenu, MarcaComponent, TemaSelectorComponent, HiloDelCasoComponent, RielDeEscenasComponent,
+    EstudioMarcoComponent, ExploradorBibliotecaComponent,
   ],
-  host: { '(document:keydown)': 'atajo($event)', '(window:pagehide)': 'alCerrar()', '(window:beforeunload)': 'antesDeSalir($event)' },
+  providers: [EstudioService],
+  host: { '(window:pagehide)': 'alCerrar()', '(window:beforeunload)': 'antesDeSalir($event)' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <a class="saltar" href="#main-content" (click)="saltar($event)">Saltar al contenido</a>
     <header ui-glass-bar label="Editor de casos" compactLabel="Editor de casos" [congelada]="ayudaAbierta()" #cabecera>
-      <a class="modulo modulo-logo pulsable ds-motion" [routerLink]="rutas.a('/')" aria-label="SIEP: volver a Mis casos">
-        <span class="logo-doble ds-motion">
-          <span class="logo-doble__completo ds-motion"><span class="logo-doble__marca" aria-hidden="true"></span><span class="logo-doble__nombre">SIEP</span></span>
-          <span class="logo-doble__isotipo ds-motion" aria-hidden="true"><span class="logo-doble__marca" aria-hidden="true"></span></span>
-        </span>
+      <a class="modulo modulo-logo pulsable ds-motion" [routerLink]="rutas.a('/')" aria-label="Metafrónesis · SIEP: volver a Casos">
+        <app-marca class="barra-marca" />
       </a>
-      <!-- El módulo central es el «dónde estoy» del editor: el caso y sus secciones. Nada de él se pliega al desplazarse
-           (DG-6 y «pestañas del editor siempre a mano»); lo que no cabe cede por ancho, con su nombre completo para el lector. -->
+      <!-- El módulo central es el «dónde estoy» del editor: el caso y su hilo de etapas. Nada de él se pliega al desplazarse
+           (DG-6); lo que no cabe cede por ancho, con su nombre completo para el lector. -->
       <div class="modulo modulo-principal ds-motion">
         @if (store.caso(); as caso) {
-          <a class="nav-enlace enlace-mis-casos" [routerLink]="rutas.a('/')"><span aria-hidden="true">‹</span> Mis casos</a>
-          <p class="caso-actual" [attr.title]="caso.titulo"><span class="sr-only">Caso: </span>{{ caso.titulo }}</p>
-          <nav aria-label="Secciones del caso" class="secciones">
-            @for (s of secciones; track s.ruta) {
-              <a [routerLink]="rutas.a(s.ruta)" routerLinkActive="activo" ariaCurrentWhenActive="page"
-                 [routerLinkActiveOptions]="{ exact: s.ruta === '/editor' }" class="enlace-seccion"
-                 [attr.data-accion]="s.accion" [attr.aria-label]="s.largo">
-                <span class="rotulo-largo" aria-hidden="true">{{ s.largo }}</span><span class="rotulo-corto" aria-hidden="true">{{ s.corto }}</span>
-              </a>
-            }
-            <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-            <a class="enlace-seccion enlace-probar" [attr.href]="rutaEnsayo()" target="_blank" rel="noopener" data-accion="probar"
-               aria-label="Probar el caso en el juego (se abre en otra pestaña)" (click)="probar($event)">Probar ↗</a>
-          </nav>
+          <!-- Volver es un botón explícito (pedido del usuario, 2026-11-22): antes era un «‹ Casos» de texto que se perdía. -->
+          <a class="boton-barra boton-volver enlace-casos" [routerLink]="rutas.a('/')">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10H4m5-5-5 5 5 5" /></svg><span><span class="boton-volver__texto">Volver a </span>Casos</span>
+          </a>
+          <p class="caso-actual" [attr.title]="caso.titulo"><span class="solo-lector">Caso: </span>{{ caso.titulo }}</p>
+          <app-hilo-del-caso />
         } @else {
-          <a class="nav-enlace" [routerLink]="rutas.a('/')"><span aria-hidden="true">‹</span> Mis casos</a>
+          <a class="boton-barra boton-volver" [routerLink]="rutas.a('/')">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10H4m5-5-5 5 5 5" /></svg><span><span class="boton-volver__texto">Volver a </span>Casos</span>
+          </a>
           <span class="contexto-editor">Editor de casos</span>
         }
       </div>
       <div class="modulo modulo-cuenta ds-motion">
-        <div role="group" aria-label="Ayuda" class="barra-ayuda">
-          <button type="button" class="boton" data-accion="buscar" title="Busca una acción por su nombre" aria-keyshortcuts="Control+K"
-                  aria-haspopup="dialog" (click)="abrirBuscador('buscar', $event)">
-            Buscar <span class="texto-secundario atajo-buscar"><kbd>Ctrl</kbd>+<kbd>K</kbd></span>
-          </button>
-          <button type="button" class="boton" data-accion="guia" title="Te muestra dónde está algo"
-                  aria-haspopup="dialog" (click)="abrirBuscador('preguntar', $event)">Guía</button>
-          <button type="button" class="boton" data-accion="pedir-a-la-ia aceptar-ia" title="Escribe o cambia el caso por ti; tú apruebas"
-                  [attr.aria-expanded]="iaAbierta() && !store.soloLectura()" aria-controls="panel-ia" [disabled]="store.soloLectura()"
-                  [attr.aria-describedby]="store.soloLectura() ? 'aviso-ia' : null" (click)="alternarIa()" #botonIa>
-            Asistente de IA
-          </button>
+        <!-- Las herramientas del caso, juntas: en el teléfono bajan a su propia fila sin separarse. -->
+        <div class="herramientas">
+          @if (store.caso()) {
+            <app-avisos-guardado class="guardado" parte="estado" />
+            <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+            <a class="boton-barra enlace-probar" [attr.href]="rutaEnsayo()" target="_blank" rel="noopener" data-accion="probar"
+               aria-label="Probar el caso en el juego (con Ctrl o clic central se abre en otra pestaña)" (click)="probar($event)">Probar <span aria-hidden="true">↗</span></a>
+            <button type="button" class="boton-barra boton-pendientes" data-accion="ver-pendientes" aria-haspopup="dialog"
+                    [attr.title]="textoPendientes()" (click)="abrirPendientes($event)">
+              <!-- El nombre es el texto para lectores («Pendientes: …», empieza por la palabra visible), no un aria-label:
+                   Axe pegaba la palabra con la cifra de la insignia y lo daba por distinto. -->
+              <span class="solo-lector">{{ textoPendientes() }}</span>
+              <span aria-hidden="true">Pendientes</span>
+              <span class="insignia" [class.insignia--cero]="!progreso.porCorregir().length" aria-hidden="true">{{ progreso.porCorregir().length }}</span>
+            </button>
+          }
+          <div role="group" aria-label="Ayuda" class="barra-ayuda">
+            <!-- «Buscar» y «Guía» se funden en una sola «Ayuda» (§4.1): abrían casi el mismo diálogo con las mismas acciones. Se
+                 conservan las dos entradas de la guía (data-accion «buscar» y «guia») sobre este botón. -->
+            <button type="button" class="boton-barra" data-accion="buscar guia" title="Busca una acción o pregúntale a la guía"
+                    aria-haspopup="dialog" (click)="abrirBuscador('buscar', $event)">Ayuda</button>
+            @if (store.caso() && iaDisponible()) {
+              <button type="button" class="boton-barra" data-accion="pedir-a-la-ia aceptar-ia" title="Escribe o cambia el caso por ti; tú apruebas"
+                      [attr.aria-expanded]="iaAbierta() && !store.soloLectura()" aria-controls="panel-ia" [disabled]="store.soloLectura()"
+                      [attr.aria-describedby]="store.soloLectura() ? 'aviso-ia' : null" (click)="alternarIa()" #botonIa>
+                Asistente<span class="solo-lector"> de IA</span>
+              </button>
+            }
+          </div>
         </div>
+        <app-tema-selector class="tema" />
         <span class="cuenta-chip">
           <span class="cuenta-chip__nombre">{{ nombreCuenta() }}</span>
           <span class="cuenta-chip__rol">{{ rolCuenta() }}</span>
         </span>
         <ui-menu label="Cuenta" icon="account_circle" iconOnly [items]="menuCuenta" (itemSelected)="alElegirCuenta($event)" />
         @if (store.soloLectura()) {
-          <span id="aviso-ia" class="sr-only">{{ textoAsistenteBloqueado() }}</span>
+          <span id="aviso-ia" class="solo-lector">{{ textoAsistenteBloqueado() }}</span>
         }
       </div>
     </header>
@@ -109,10 +131,12 @@ const SECCIONES = [
       <app-buscador [modo]="modo" (cerrar)="cerrarBuscador()" />
     }
     <app-foco-guia />
-    @if (store.caso()) { <app-avisos-guardado /> }
 
-    <div class="cuerpo" [class.con-ia]="iaAbierta() && !store.soloLectura()">
-      <main id="main-content" tabindex="-1">
+    <!-- El espacio de trabajo (EDITOR-PRO.md §1): Explorador · lienzo · Inspector y barra de estado. La pantalla de la ruta
+         va en el centro; lo que pone en el Inspector o en la barra de herramientas llega por las ranuras del estudio. -->
+    <app-estudio-marco class="cuerpo" [exploradorPorDefecto]="esHistoria() ? exploradorHistoria : null">
+      <main id="main-content" tabindex="-1" class="zona zona-centro">
+        @if (store.caso()) { <app-avisos-guardado parte="avisos" /> }
         @if (abriendo()) {
           <p class="pagina" role="status">Abriendo tu caso…</p>
         } @else if (fallo(); as mensaje) {
@@ -122,15 +146,13 @@ const SECCIONES = [
               <p>{{ mensaje }}</p>
               <div class="acciones">
                 <button type="button" class="boton boton-primario" (click)="reintentar()">Volver a intentarlo</button>
-                <a class="boton" [routerLink]="rutas.a('/')">Volver a Mis casos</a>
+                <a class="boton" [routerLink]="rutas.a('/')">Volver a Casos</a>
               </div>
             </div>
           </div>
         } @else {
           @if (store.soloLectura()) {
-            <div class="pagina">
-              <p class="solo-lectura" role="note">{{ textoSoloLectura() }}</p>
-            </div>
+            <p class="solo-lectura" role="note">{{ textoSoloLectura() }}</p>
           }
           <!-- En un caso que ya no es un borrador, los campos de las pantallas se bloquean (la prueba como estudiante no cambia nada y sigue viva). -->
           <fieldset class="marco-pantalla" [disabled]="bloqueado()">
@@ -138,58 +160,165 @@ const SECCIONES = [
           </fieldset>
         }
       </main>
-      <!-- Se oculta en vez de quitarse, para no perder la conversación ni la propuesta. -->
+      <!-- Flota sobre el borde final del lienzo, como una hoja. Se oculta en vez de quitarse, para no perder la conversación ni la propuesta. -->
       <app-panel-ia id="panel-ia" class="columna-ia" [hidden]="!iaAbierta() || store.soloLectura()" (cerrar)="cerrarIa()" />
+
+      <span estudioEstadoInicio class="est-dato estado-donde">{{ dondeEstoy() }}</span>
+      @if (store.caso()) {
+        <button estudioEstadoInicio type="button" class="est-dato-boton" [class.estado-pendientes]="progreso.porCorregir().length"
+                aria-haspopup="dialog" (click)="abrirPendientes($event)">
+          <span class="marca-estado" aria-hidden="true" [attr.data-estado]="progreso.porCorregir().length ? 'con-pendientes' : 'lista'"></span>
+          {{ textoPendientes() }}
+        </button>
+      }
+    </app-estudio-marco>
+
+    <!-- El Explorador de la etapa Historia: las escenas en jerarquía y la biblioteca del caso, en dos pestañas. -->
+    <ng-template #exploradorHistoria>
+      <div class="explorador">
+        <div class="explorador__pestanas" role="tablist" aria-label="Qué ver en el explorador">
+          <button type="button" role="tab" id="exp-tab-escenas" aria-controls="exp-escenas" [attr.aria-selected]="pestana() === 'escenas'"
+                  [attr.tabindex]="pestana() === 'escenas' ? 0 : -1" (click)="pestana.set('escenas')" (keydown)="teclaPestana($event)">Escenas</button>
+          <button type="button" role="tab" id="exp-tab-biblioteca" aria-controls="exp-biblioteca" [attr.aria-selected]="pestana() === 'biblioteca'"
+                  [attr.tabindex]="pestana() === 'biblioteca' ? 0 : -1" (click)="pestana.set('biblioteca')" (keydown)="teclaPestana($event)">Biblioteca</button>
+          <span class="explorador__indicador" aria-hidden="true" [attr.data-pestana]="pestana()"></span>
+        </div>
+        <app-riel-de-escenas id="exp-escenas" role="tabpanel" aria-labelledby="exp-tab-escenas" class="zona zona-riel" [hidden]="pestana() !== 'escenas'" />
+        @if (pestana() === 'biblioteca' && store.caso(); as caso) {
+          <app-explorador-biblioteca id="exp-biblioteca" role="tabpanel" aria-labelledby="exp-tab-biblioteca" class="zona" [caso]="caso" />
+        }
+      </div>
+    </ng-template>
+
+    <!-- «Deshacer» de los borrados del guion (EDITOR.md §4.6). El contenedor está siempre para que el lector anuncie el aviso. -->
+    <div class="deshacer-zona" role="status">
+      @if (deshacer.aviso(); as aviso) {
+        <div class="deshacer">
+          <span class="deshacer__texto">{{ aviso.texto }}</span>
+          @if (aviso.deshacible) {
+            <button type="button" class="deshacer__accion" (click)="deshacer.deshacer()">Deshacer</button>
+          }
+          <button type="button" class="deshacer__cerrar" aria-label="Cerrar el aviso" (click)="deshacer.descartar()"><span aria-hidden="true">×</span></button>
+        </div>
+      }
     </div>
   `,
   styles: `
     /*
-     * El caso y sus secciones van dentro del módulo central de la barra de vidrio. Nada se pliega al desplazarse; lo que no
-     * cabe cede por ANCHO, siempre en este orden: el chip de la cuenta (< 120rem), los rótulos largos de las secciones
-     * (< 110rem, quedan los cortos; el nombre completo sigue en aria-label), «‹ Mis casos» (< 90rem; el logo también
-     * vuelve a Mis casos), el atajo Ctrl+K (< 90rem) y el nombre del caso (< 80rem; queda en el título de la pestaña).
+     * Orden de cesión por ANCHO (EDITOR.md §4.1; nada se pliega al desplazarse): el chip de la cuenta (< 120rem, en
+     * _autoria.scss); los nombres de las etapas quedan en su número con el estado (< 120rem, en el hilo); el atajo
+     * Ctrl+K (< 120rem); «‹ Casos» (< 90rem: la marca también vuelve a Casos); el nombre del caso (< 80rem: queda en el
+     * título de la pestaña). Por debajo de 64rem la barra es una banda de varias filas y el hilo, un menú.
      */
-    .enlace-mis-casos { white-space: nowrap; font-size: var(--autoria-texto-16); }
+    .enlace-casos { white-space: nowrap; font-size: var(--autoria-texto-16); }
+    /* El nombre del caso y el hilo se separan con un filo: son «qué caso» y «en qué parte», dos cosas distintas. */
     .caso-actual {
-      margin: 0; padding: 0 0.5rem; max-width: 12rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      font-weight: 700; color: var(--asb-cromo-tinta);
+      margin: 0; padding: 0 0.625rem 0 0.25rem; max-inline-size: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      border-inline-end: 1px solid var(--l-filo-fuerte); font-weight: 700; color: var(--asb-cromo-tinta);
+      /* Un nombre largo cede con puntos suspensivos antes de que el hilo se monte sobre las herramientas. */
+      flex: 0 1 auto; min-inline-size: 3rem;
     }
-    .secciones { display: flex; align-items: center; gap: 2px; min-width: 0; }
-    .enlace-seccion {
-      position: relative; display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px;
-      border-radius: 999px; color: var(--asb-cromo-tinta); font-size: var(--autoria-texto-16); font-weight: 600;
-      white-space: nowrap; text-decoration: none;
-    }
-    /* La sección en la que estás: negrita, tinte y una raya bajo el texto (forma, no solo color). */
-    .enlace-seccion.activo { font-weight: 800; background: color-mix(in srgb, var(--primario) 12%, transparent); }
-    .enlace-seccion.activo::after {
-      content: ''; position: absolute; left: 10px; right: 10px; bottom: 6px; height: 3px; border-radius: 2px; background: var(--primario);
-    }
-    @media (hover: hover) and (pointer: fine) { .enlace-seccion:hover { background: color-mix(in srgb, var(--primario) 8%, transparent); } }
-    .enlace-seccion:active { opacity: 0.7; }
-    .rotulo-corto { display: none; }
-    @media (max-width: 109.999rem) { .rotulo-largo { display: none; } .rotulo-corto { display: inline; } }
-    @media (max-width: 89.999rem) { .enlace-mis-casos { display: none; } }
-    @media (max-width: 79.999rem) { .caso-actual { display: none; } }
-    /* En un teléfono el módulo central es una segunda fila de la barra, con las secciones cortas y desplazables. */
-    @media (max-width: 63.999rem) {
-      .enlace-mis-casos { display: inline-flex; }
-      .secciones { overflow-x: auto; scrollbar-width: none; }
-    }
+    @media (min-width: 64rem) { app-hilo-del-caso { flex: none; } }
     .contexto-editor { padding: 0 0.75rem; font-weight: 700; color: var(--asb-cromo-tinta); white-space: nowrap; }
-    .barra-ayuda { display: flex; flex-wrap: nowrap; gap: 8px; }
-    /* El atajo cede por ancho, nunca las palabras del botón (el botón conserva aria-keyshortcuts). */
-    @media (max-width: 89.999rem) { .atajo-buscar { display: none; } }
-    .cuerpo { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr); }
-    .cuerpo.con-ia { grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); }
-    @media (max-width: 1000px) { .cuerpo.con-ia { grid-template-columns: minmax(0, 1fr); } }
-    .columna-ia {
-      position: sticky; top: var(--alto-cabecera, 64px); align-self: start;
-      max-height: calc(100vh - var(--alto-cabecera, 64px)); overflow: auto;
+    /* A 390 px el rótulo no cabe junto a «‹ Casos» y la cuenta (se pisaba con el menú): el título de la página ya lo dice. */
+    @media (max-width: 29.999rem) { .contexto-editor { display: none; } }
+    .barra-ayuda { display: flex; flex-wrap: nowrap; gap: 0.375rem; }
+    /* «Volver a Casos»: una píldora como «Probar» y «Pendientes», con su flecha. Entre 64 y 90 rem no se esconde: queda
+       «← Casos» y «Volver a» pasa a ser solo para el lector, así su nombre no cambia con el ancho. */
+    .boton-volver { flex: none; padding-inline: 0.75rem 0.875rem; }
+    .boton-volver svg {
+      inline-size: 1.125rem; block-size: 1.125rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
     }
-    .marco-pantalla { border: 0; margin: 0; padding: 0; min-width: 0; }
-    .solo-lectura { margin: 0; padding: 10px 12px; border-radius: var(--radio-control); background: var(--primario-tinte); font-weight: 700; }
-    main { width: 100%; min-width: 0; box-sizing: border-box; outline: none; }
+    @media (max-width: 89.999rem) and (min-width: 64rem) {
+      .boton-volver__texto { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    }
+    @media (max-width: 79.999rem) and (min-width: 64rem) { .caso-actual { display: none; } }
+
+    /* Lo que informa (el guardado) se separa con un filo de lo que se hace. «Probar» lleva el tinte de acción: es lo que se
+       usa en cualquier momento; el botón sólido de cada pantalla sigue siendo uno solo. */
+    .guardado { padding-inline-end: 0.375rem; border-inline-end: 1px solid var(--l-filo-fuerte); }
+    .enlace-probar { border-color: var(--l-tinte-filo); background: var(--l-tinte); color: var(--ds-primary); }
+    @media (hover: hover) and (pointer: fine) {
+      .enlace-probar:hover { background: color-mix(in oklab, var(--l-acento) 18%, transparent); color: var(--ds-primary); }
+    }
+    .insignia {
+      display: inline-grid; place-items: center; min-inline-size: 1.375rem; block-size: 1.375rem; padding-inline: 0.375rem;
+      border-radius: 999px; background: var(--ds-warning-text); color: var(--ds-surface-1); font-size: var(--autoria-texto-14);
+      font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1;
+    }
+    .insignia--cero { background: transparent; box-shadow: inset 0 0 0 1px var(--l-filo-fuerte); color: var(--asb-cromo-tinta-tenue); }
+
+    .zona-centro { inline-size: 100%; min-inline-size: 0; outline: none; }
+    .marco-pantalla { border: 0; margin: 0; padding: 0; min-inline-size: 0; }
+    /* La sala encaja su lienzo en el alto que queda: necesita un alto definido en toda la cadena (sin esto el lienzo
+       medía 89 px dentro del estudio, medido el 2026-11-22). Las demás pantallas crecen con su contenido y desplazan. */
+    .marco-pantalla:has(> app-sala) { block-size: 100%; }
+    /* Aviso de solo lectura: un aviso de verdad (filo, icono de candado en píxeles y texto), igual en claro y en oscuro. */
+    .solo-lectura {
+      display: flex; align-items: center; gap: 0.625rem; margin: 0.75rem 1rem 0; padding: 0.5rem 0.875rem;
+      border: 1px solid var(--l-tinte-filo); border-radius: var(--l-radio-control); background: var(--l-tinte); color: var(--ds-text-1);
+      font-size: var(--autoria-texto-14); font-weight: 700;
+    }
+    .solo-lectura::before {
+      content: ''; flex: none; inline-size: 0.875rem; block-size: 0.75rem; margin-block-start: 0.25rem; border-radius: 0.125rem;
+      background: var(--ds-primary); box-shadow: 0 -0.375rem 0 -0.125rem var(--l-tinte), 0 -0.375rem 0 0 var(--ds-primary);
+    }
+
+    /* Explorador de Historia: dos pestañas con un indicador que viaja de una a otra (no salta). */
+    .explorador { display: grid; grid-template-rows: auto minmax(0, 1fr); min-block-size: 0; }
+    .explorador__pestanas {
+      position: relative; display: grid; grid-template-columns: 1fr 1fr; padding-inline: 0.5rem; border-block-end: 1px solid var(--l-filo);
+    }
+    .explorador__pestanas [role='tab'] {
+      min-block-size: 2.75rem; border: 0; background: transparent; color: var(--ds-text-2); font: inherit; font-size: var(--autoria-texto-14);
+      font-weight: 700; cursor: pointer; transition: color var(--ds-dur-fast) var(--ds-ease-out);
+    }
+    .explorador__pestanas [role='tab'][aria-selected='true'] { color: var(--ds-text-1); }
+    @media (hover: hover) and (pointer: fine) { .explorador__pestanas [role='tab']:hover { color: var(--ds-text-1); } }
+    .explorador__indicador {
+      position: absolute; inset-block-end: -1px; inset-inline-start: 0.5rem; inline-size: calc(50% - 0.5rem); block-size: 2px;
+      background: var(--ds-primary); transition: translate var(--ds-dur-move) var(--ds-spring-soft);
+    }
+    .explorador__indicador[data-pestana='biblioteca'] { translate: 100% 0; }
+    .explorador > .zona { min-block-size: 0; overflow: auto; overscroll-behavior: contain; }
+    .explorador > [hidden] { display: none; }
+
+    /* Barra de estado: dónde estoy y lo que falta. */
+    .estado-donde { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; }
+    .estado-pendientes { color: var(--ds-warning-text); font-weight: 700; }
+
+    /* Escritorio: la página no se desplaza; cada zona, sí (§4.2, regla 1). La rejilla la arma el estudio. */
+    @media (min-width: 64rem) {
+      .cuerpo { flex: 1; min-block-size: 0; }
+      .zona-centro { --alto-cabecera: 0px; min-block-size: 0; overflow: auto; overscroll-behavior: contain; scroll-padding-block-start: 1rem; }
+      .columna-ia {
+        position: absolute; z-index: var(--autoria-capa-5); inset-block: 0.75rem; inset-inline-end: 0.75rem;
+        inline-size: min(25rem, calc(100% - 1.5rem)); overflow: auto; overscroll-behavior: contain;
+        border: 1px solid var(--l-filo); border-radius: var(--l-radio-tarjeta); background: var(--l-superficie); box-shadow: var(--l-sombra-trabajo);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) { .explorador__indicador { transition: none; } }
+
+    /* «Deshacer»: flota abajo, centrado; es vidrio porque flota (§4.7). */
+    .deshacer-zona {
+      position: fixed; z-index: var(--autoria-capa-10); inset-inline: 0; inset-block-end: 1.25rem; display: flex; justify-content: center;
+      pointer-events: none;
+    }
+    .deshacer {
+      display: inline-flex; align-items: center; gap: 0.25rem; max-inline-size: min(36rem, calc(100vw - 2rem)); padding: 0.25rem 0.25rem 0.25rem 1rem;
+      border: 1px solid var(--l-filo-fuerte); border-radius: 999px; background: color-mix(in oklab, var(--l-superficie) 88%, transparent);
+      box-shadow: var(--l-sombra-trabajo); color: var(--ds-text-1); font-size: var(--autoria-texto-16); pointer-events: auto;
+      animation: deshacer-entra var(--ds-dur-fade) var(--ds-ease-out);
+    }
+    .deshacer__texto { min-inline-size: 0; overflow-wrap: anywhere; }
+    .deshacer__accion, .deshacer__cerrar {
+      min-block-size: 2.75rem; min-inline-size: 2.75rem; padding-inline: 0.875rem; border: 0; border-radius: 999px; background: transparent;
+      color: var(--ds-primary); font: inherit; font-weight: 800; cursor: pointer;
+    }
+    .deshacer__cerrar { color: var(--ds-text-2); padding-inline: 0; }
+    .deshacer__accion:active, .deshacer__cerrar:active { scale: 0.96; }
+    @keyframes deshacer-entra { from { opacity: 0; translate: 0 0.5rem; } }
+    @media (prefers-reduced-motion: reduce) { .deshacer { animation: none; } }
   `,
 })
 export class AutoriaShellComponent implements CanLeave {
@@ -211,22 +340,43 @@ export class AutoriaShellComponent implements CanLeave {
   private readonly direccion = toSignal(
     this.router.events.pipe(filter((e) => e instanceof NavigationEnd), map(() => this.router.url)), { initialValue: this.router.url },
   );
+  protected readonly progreso = inject(ProgresoDelCaso);
+  protected readonly deshacer = inject(DeshacerBorrado);
+  private readonly ia = inject(IaService);
+  /** El riel de escenas solo se pinta en la etapa Historia; en las demás el contenido ocupa todo el ancho. */
+  protected readonly esHistoria = computed(() => !!this.store.caso() && this.progreso.etapaActual() === 'historia');
+  /** Con el asistente apagado (o sin clave) su botón no se pinta: no se ofrece lo que no hay. */
+  protected readonly iaDisponible = computed(() => this.ia.estado() !== 'apagado');
+  /** «Pendientes: 2 por corregir», lo que oye el lector y dice el globo del botón. */
+  protected readonly textoPendientes = computed(() => {
+    const n = this.progreso.porCorregir().length;
+    return n === 0 ? 'Pendientes: nada por corregir' : n === 1 ? 'Pendientes: 1 por corregir' : `Pendientes: ${n} por corregir`;
+  });
   /**
    * Las pantallas no se pueden cambiar si el caso ya no es un borrador. Siguen vivos los
    * datos del caso (sus campos son de solo lectura, para poder leerlos con el teclado) y la revisión: en un caso que ya no es un borrador es donde se decide (aprobar, devolver, archivar) y se crea la versión nueva.
    */
   protected readonly bloqueado = computed(() => this.store.soloLectura() && !/\/(revision|datos)$/.test(this.direccion().split('?')[0]));
-  /** «Probar» abre el borrador en el juego real, en otra pestaña, desde la escena de inicio. */
+  /** «Probar» lleva el borrador al juego real, en esta pestaña (con Ctrl o clic central, en otra), desde la escena de inicio. */
   protected readonly rutaEnsayo = computed(() => RUTA_ENSAYO(this.store.caso()?.id ?? ''));
   protected probar(evento: MouseEvent): void {
     void alPulsarProbar(evento, this.store);
   }
   protected readonly iaAbierta = signal(false);
+  /** La pestaña del Explorador de Historia. */
+  protected readonly pestana = signal<'escenas' | 'biblioteca'>('escenas');
+  /** «Escena 3 de 8 · Recepción» o el nombre de la etapa: la primera cosa de la barra de estado. */
+  protected readonly dondeEstoy = computed(() => {
+    const escenas = this.progreso.escenas();
+    const i = escenas.findIndex((e) => e.id === this.progreso.escenaActual());
+    if (i >= 0) return `Escena ${i + 1} de ${escenas.length} · ${escenas[i].titulo}`;
+    if (this.esHistoria()) return `Caminos · ${escenas.length} ${escenas.length === 1 ? 'escena' : 'escenas'}`;
+    return this.progreso.avance().find((a) => a.etapa === this.progreso.etapaActual())?.nombre ?? 'Editor de casos';
+  });
   protected readonly buscador = signal<'buscar' | 'preguntar' | null>(null);
   /** Con el buscador o la guía abiertos la barra se congela (DG-9): lo que la guía señala no salta 6 px al desplazarse. */
   protected readonly ayudaAbierta = computed(() => this.buscador() !== null || this.guia.activa() !== null);
   protected readonly menuCuenta = MENU_CUENTA;
-  protected readonly secciones = SECCIONES;
   protected readonly nombreCuenta = computed(() => {
     const usuario = this.auth.currentUser();
     return `${usuario?.nombre ?? ''} ${usuario?.apellido ?? ''}`.trim() || 'Cuenta institucional';
@@ -238,6 +388,12 @@ export class AutoriaShellComponent implements CanLeave {
   private readonly injector = inject(Injector);
 
   constructor() {
+    injectComandosDelCaso({
+      buscarEnLaAyuda: () => this.abrirBuscador('buscar'),
+      preguntarALaGuia: () => this.abrirBuscador('preguntar'),
+      verPendientes: () => this.dialogo.sheet(PanelPendientesComponent, { side: 'end', origen: null }),
+      probar: () => void this.router.navigateByUrl(this.rutaEnsayo()),
+    });
     effect(() => {
       const pedido = this.casoPedido();
       if (pedido === null) return;
@@ -269,16 +425,13 @@ export class AutoriaShellComponent implements CanLeave {
     });
   }
 
-  /**
-   * Atajo de todas las pantallas: Ctrl+K abre el buscador. Deshacer y rehacer (Ctrl+Z, Ctrl+Y) valen para la sala y los
-   * atiende su pantalla.
-   */
-  protected atajo(e: KeyboardEvent): void {
-    if (!(e.ctrlKey || e.metaKey)) return;
-    if (e.key.toLowerCase() === 'k') {
-      e.preventDefault();
-      this.abrirBuscador('buscar');
-    }
+  /** Explorador de Historia: ← y → pasan de una pestaña a la otra (patrón de pestañas de las APG). */
+  protected teclaPestana(e: KeyboardEvent): void {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    const otra = this.pestana() === 'escenas' ? 'biblioteca' : 'escenas';
+    this.pestana.set(otra);
+    afterNextRender(() => document.getElementById(`exp-tab-${otra}`)?.focus(), { injector: this.injector });
   }
 
   /**
@@ -347,7 +500,7 @@ export class AutoriaShellComponent implements CanLeave {
     if (pedido !== null) void this.store.cargar(Number(pedido), true);
   }
 
-  /** El enlace normal no sirve con `<base href="/">`: recargaría la página en «Mis casos». */
+  /** El enlace normal no sirve con `<base href="/">`: recargaría la página en «Casos». */
   protected saltar(e: Event): void {
     e.preventDefault();
     document.getElementById('main-content')?.focus();
@@ -367,6 +520,11 @@ export class AutoriaShellComponent implements CanLeave {
     const activo = (evento?.currentTarget as HTMLElement | undefined) ?? (document.activeElement as HTMLElement | null);
     this.origenBuscador = activo && activo !== document.body ? activo : null;
     this.buscador.set(modo);
+  }
+
+  /** «Pendientes»: la hoja lateral con todo lo que falta, agrupado por etapa (la única lista de pendientes del editor). */
+  protected abrirPendientes(evento: Event): void {
+    this.dialogo.sheet(PanelPendientesComponent, { side: 'end', origen: evento.currentTarget as Element | null });
   }
 
   protected cerrarBuscador(): void {

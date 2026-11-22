@@ -2,8 +2,9 @@ import { AttemptTimelineEntry, TraceEvent } from '../../core/models/simulation.m
 import { responseClassWord } from './outcome-text.util';
 import { RECONSIDERED_LABEL } from './reconsidered.util';
 import {
-  decisionFeedback, eventTypeLabel, formativeLevelLabel, formativeLevelTone, responseClassAccent, responseClassLabel,
-  responseClassTone, timelineEntryAccent, timelineEntryLabel, timelineEntryTone, timelineFeedback,
+  decisionFeedback, esDecisionRegistrada, esFilaDeDecision, eventTypeLabel, formativeLevelLabel, formativeLevelTone,
+  haceCuanto, nombreDeCompetencia, nombreDeSala, responseClassAccent, responseClassLabel, responseClassTone, textoDeFila,
+  timelineEntryAccent, timelineEntryLabel, timelineEntryTone, timelineFeedback,
 } from './trace-labels.util';
 
 /**
@@ -67,5 +68,44 @@ describe('rótulos de la traza docente', () => {
     expect(['EN_INICIO', 'EN_PROCESO', 'LOGRADO', 'DESTACADO'].map(formativeLevelLabel)).toEqual(['En inicio', 'En proceso', 'Logrado', 'Destacado']);
     expect(formativeLevelLabel(null)).toBe('Pendiente');
     expect(formativeLevelTone('EN_INICIO')).toBe('neutral');
+  });
+
+  // Revisión en columnas (B5b): la línea de tiempo muestra decisiones por defecto y sin claves del sistema a la vista.
+  describe('revisión en columnas (B5b)', () => {
+    it('decisión es la registrada y la reconsiderada; puertas, recursos y reemplazos son eventos del sistema', () => {
+      for (const type of ['DECISION_SELECTED', 'PROHIBITED_DECISION_SELECTED', 'DECISION_RETRY_REQUIRED']) {
+        expect(esFilaDeDecision({ type }), type).toBe(true);
+      }
+      for (const type of ['ROOM_ENTERED', 'TOOL_USED', 'ATTEMPT_REPLACED', 'SAFE_EXIT_REQUESTED']) {
+        expect(esFilaDeDecision({ type }), type).toBe(false);
+      }
+      expect(esDecisionRegistrada({ type: 'DECISION_SELECTED' })).toBe(true);
+      expect(esDecisionRegistrada({ type: 'DECISION_RETRY_REQUIRED' })).toBe(false);
+    });
+
+    it('una puerta se dice con el nombre de la sala, y una clave desconocida no se muestra', () => {
+      expect(nombreDeSala('hospital-sala-escucha')).toBe('la sala de escucha (hospital)');
+      expect(nombreDeSala('comisaria-recepcion')).toBe('la recepción (comisaría)');
+      expect(nombreDeSala('nave-espacial')).toBeNull();
+      expect(textoDeFila({ label: 'Puerta hacia sala comisaria-consultorio' })).toBe('Entró en el consultorio (comisaría)');
+      expect(textoDeFila({ label: 'Puerta hacia sala nave-x' })).toBe('Cambió de sala');
+      expect(textoDeFila({ label: 'Escucha activa' })).toBe('Escucha activa');
+      expect(textoDeFila({ label: '' })).toBe('Evento registrado');
+    });
+
+    it('las claves de competencia en mayúsculas se dicen en palabras', () => {
+      expect(nombreDeCompetencia(null, 'MARCO_NORMATIVO')).toBe('Marco normativo');
+      expect(nombreDeCompetencia('MARCO_NORMATIVO', 'MARCO_NORMATIVO')).toBe('Marco normativo');
+      expect(nombreDeCompetencia('Ética profesional', 'ETICA_PROFESIONAL')).toBe('Ética profesional');
+      expect(nombreDeCompetencia('', '')).toBe('Competencia');
+    });
+
+    it('cuándo pasó, en palabras', () => {
+      const ahora = Date.parse('2026-11-21T12:00:00Z');
+      expect(haceCuanto('2026-11-19T12:00:00Z', ahora)).toBe('hace 2 días');
+      expect(haceCuanto('2026-11-21T09:00:00Z', ahora)).toBe('hace 3 horas');
+      expect(haceCuanto('2026-11-21T11:59:40Z', ahora)).toBe('hace un momento');
+      expect(haceCuanto(null, ahora)).toBe('');
+    });
   });
 });

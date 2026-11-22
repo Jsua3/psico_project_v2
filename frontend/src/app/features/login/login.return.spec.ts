@@ -58,7 +58,8 @@ describe('login: sesión expirada y regreso', () => {
     const host = await open('/login?returnUrl=%2Fportal%2Fgrupos&motivo=sesion-expirada');
     const notice = host.querySelector('form .acceso__notice[role="status"]')!;
     expect(notice.querySelector('mat-icon')!.getAttribute('aria-hidden')).toBe('true');
-    expect(notice.querySelector('span')!.textContent!.trim()).toBe('Tu sesión expiró. Inicia sesión nuevamente.');
+    // Rediseño 2026-11-20: dice qué pasó y qué sigue (al entrar se vuelve a la ruta pedida, como prueba el caso de abajo).
+    expect(notice.querySelector('span')!.textContent!.trim()).toBe('Tu sesión terminó. Entra de nuevo y volverás a donde estabas.');
   });
 
   it('sin motivo no hay aviso', async () => {

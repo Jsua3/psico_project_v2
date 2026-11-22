@@ -1,9 +1,10 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, Injector, computed, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
 import { revisionConflictOf } from '../../../core/api/revision-conflict.util';
-import type { CaseLifecycle, ValidationIssue } from '../../../core/models/simulation.model';
+import type { CaseLifecycle, RubricAdoptRequest, ValidationIssue } from '../../../core/models/simulation.model';
 import { AutoriaApiService } from '../api/autoria-api.service';
 import { claveDeMueble, crearChoque, fijarClavesDeMuebles, trasladarChoque } from '../modelo/choques-mueble';
 import { casoDesdeApi } from '../modelo/desde-api';
@@ -160,6 +161,13 @@ export function mensajeDeCarga(error: unknown): string {
 @Injectable({ providedIn: 'root' })
 export class CasoStore {
   private readonly injector = inject(Injector);
+  /**
+   * Va a una dirección del portal en esta misma pestaña (`state` viaja con la navegación). Lo usa el ensayo («Probar»), que
+   * se pulsa desde varias pantallas; el router se pide aquí, al usarlo, para que el store no dependa de él al crearse.
+   */
+  navegar(url: string, state?: Record<string, unknown>): Promise<boolean> {
+    return this.injector.get(Router).navigateByUrl(url, state ? { state } : undefined);
+  }
   private readonly estado = signal<CasoBorrador | null>(null);
   private readonly puertasPendientes = signal<ReadonlyMap<string, readonly string[]>>(new Map());
   readonly puertasSinGuardar = this.puertasPendientes.asReadonly();
@@ -1462,6 +1470,49 @@ export class CasoStore {
     return ciclo;
   }
 
+  /**
+   * E5 · El caso adopta una rúbrica (RK-1): una copia propia de la versión, de una rúbrica que la docente ve o de las
+   * competencias del programa. Viaja POR LA COLA, como cualquier cambio: así lo que la docente escriba mientras la petición
+   * va y viene espera su turno y sale después con la revisión nueva, en vez de chocar con ella o perderse en una recarga.
+   * El servidor responde con la vista del editor ya con la rúbrica nueva, de modo que no hace falta otra lectura (que
+   * podría fallar después de que la adopción sí entró): esa vista pasa a ser la base y los cambios en cola se reaplican
+   * encima. Si mientras tanto se abrió otro caso, nada se aplica. Con la revisión vencida avisa el conflicto de siempre.
+   */
+  async adoptarRubrica(cuerpo: RubricAdoptRequest): Promise<void> {
+    const sesion = this.sesion;
+    if (!sesion || !this.estado()) throw new Error('Este caso todavía no se guardó.');
+    if (this.soloLectura()) throw new Error('El caso ya no es un borrador: su rúbrica no se puede cambiar.');
+    let adoptada = false;
+    let fallo: unknown = null;
+    this.ejecutar({
+      nombre: 'la rúbrica del caso',
+      aplicar: () => undefined, // en el borrador no cambia nada hasta que el servidor responde
+      enviar: async (despues, s) => {
+        try {
+          const vista = await firstValueFrom(s.api.adoptRubric(s.caseVersionId, cuerpo, s.revision));
+          s.vista = vista;
+          s.revision = vista.revision;
+          // `despues` es lo que la cola toma como base: se vuelve lo que el servidor dice ahora (con los ids locales).
+          const leido = casoLeidoDelServidor(s, despues);
+          for (const clave of Object.keys(despues)) delete (despues as unknown as Record<string, unknown>)[clave];
+          Object.assign(despues, leido);
+          adoptada = true;
+        } catch (error) {
+          fallo = error;
+          throw error;
+        }
+      },
+    });
+    await this.sincronizado();
+    if (this.sesion !== sesion) throw new Error('Se abrió otro caso antes de que la rúbrica quedara guardada.');
+    if (adoptada) {
+      this.lecturaAhora.update((v) => v + 1); // las pantallas que leen la rúbrica del servidor la vuelven a pedir
+      return;
+    }
+    // Con conflicto la operación queda en la cola hasta que la docente recargue; el error de revisión lo dice el marco.
+    throw fallo ?? new Error('No se pudo cambiar la rúbrica del caso.');
+  }
+
   /** Otra sesión cambió el caso: se avisa, no se manda nada más y se espera a que el docente decida recargar. */
   private avisarConflicto(sinGuardar: string[]): void {
     this.conflictoAhora.set({
@@ -1491,19 +1542,28 @@ export class CasoStore {
 
   // ─── Datos del caso ─────────────────────────────────────────────────────────
 
-  /** El contexto que lee el estudiante y los objetivos de aprendizaje del caso (texto plano; el servidor pone los topes). */
-  editarFicha(contexto: string, objetivos: string[]): void {
+  /**
+   * El contexto que lee el estudiante y los objetivos de aprendizaje del caso (texto plano; el servidor pone los topes).
+   * `extra` (opcional) lleva los temas sensibles (RK-7) y el nombre (RK-8); lo que no se pasa no se toca.
+   */
+  editarFicha(contexto: string, objetivos: string[], extra: { temas?: string[]; titulo?: string } = {}): void {
     const limpio = contexto.trim();
     const lista = objetivos.map((o) => o.trim()).filter(Boolean);
+    const temas = extra.temas?.map((t) => t.trim()).filter(Boolean);
+    const titulo = extra.titulo?.trim();
     this.ejecutar({
       nombre: 'los datos del caso',
       resumen: [
         ...textoCompleto('Contexto del caso', limpio),
         ...(lista.length ? [`Objetivos de aprendizaje: ${lista.map((o) => `«${o}»`).join(', ')}`] : []),
+        ...(temas?.length ? [`Temas sensibles: ${temas.map((t) => `«${t}»`).join(', ')}`] : []),
+        ...(titulo ? [`Nombre del caso: «${titulo}»`] : []),
       ],
       aplicar: (caso) => {
         caso.contexto = limpio;
         caso.objetivos = [...lista];
+        if (temas) caso.temasSensibles = [...temas];
+        if (titulo) caso.titulo = titulo;
       },
       enviar: (despues, sesion) => persistir.guardarFicha(sesion, despues),
       fusion: 'ficha',

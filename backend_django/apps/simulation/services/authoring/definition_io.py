@@ -179,6 +179,7 @@ def _rubrics(version_id):
                 competency=row.competency, title=row.title, description=_text(row.description),
                 max_score=row.max_score, weight=_weight(row.weight), active=row.active,
                 competency_code=row.competency_ref.code if row.competency_ref_id else None,
+                level_descriptors=rubric_service.level_descriptors_of(row),
             )
         )
     return tuple(
@@ -255,6 +256,9 @@ def load_definition(case_version_id):
         objectives=tuple(read_string_list(version.learning_objectives)),
         rules=read_map(version.rules), world_schema_version=version.world_schema_version,
         characters=characters, tools=tools, scenes=scenes, rubrics=_rubrics(version.id),
+        content_warnings=tuple(
+            t.strip() for t in read_string_list(version.content_warnings) if isinstance(t, str) and t.strip()
+        ),
     )
     return Loaded(
         definition=definition,
@@ -404,6 +408,7 @@ def _rubric_rows(version, rubrics, owner):
             rubric=row, competency=criterion.competency, competency_ref=competencies.get(criterion.competency_code),
             title=criterion.title, description=criterion.description, max_score=criterion.max_score,
             weight=Decimal(criterion.weight), active=criterion.active, display_order=order,
+            level_descriptors_json=_dump(criterion.level_descriptors or {}),
         )
         for rubric, row in zip(rubrics, rows) for order, criterion in enumerate(rubric.criteria, start=1)
     ])
@@ -423,6 +428,7 @@ def write_definition(definition, *, case, actor):
         simulation_case=case, semantic_version=definition.semantic_version, status="DRAFT",
         narrative_context=definition.context, learning_objectives=_dump(list(definition.objectives)),
         rules=_dump(definition.rules), world_schema_version=definition.world_schema_version, created_by=actor,
+        content_warnings=_dump(list(definition.content_warnings)),
     )
     node_by_key = {node.node_key: node for node in _nodes(version, definition.scenes)}
     characters = CaseCharacter.objects.bulk_create([

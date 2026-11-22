@@ -77,7 +77,8 @@ describe('authGuard y roleGuard', () => {
     token = 'valid';
     hasRole = () => false;
     // Antes: al panel con un aviso flotante que se iba solo (una redirección muda, según el gancho de F3).
-    expect(serialize(run(roleGuard('PROFESOR'), '/portal/grupos'))).toBe('/portal/sin-permiso?desde=%2Fportal%2Fgrupos');
+    expect(serialize(run(roleGuard('PROFESOR'), '/portal/grupos'))).toBe('/portal/sin-permiso?seccion=grupos');
+    expect(serialize(run(roleGuard('PROFESOR'), '/portal/grupos/123'))).toBe('/portal/sin-permiso?seccion=%2Fportal%2Fgrupos%2F123');
     expect(warning).not.toHaveBeenCalled();
   });
 

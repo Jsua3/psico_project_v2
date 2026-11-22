@@ -265,6 +265,7 @@ def _criteria(base_rubric, entry):
             competency=_text(source.get("competencia")), title=_text(source.get("titulo")),
             description=_text(source.get("descripcion")), max_score=item["puntajeMaximo"],
             weight=item["peso"], active=item["activo"], competency_code=item.get("competenciaCodigo"),
+            level_descriptors=dict(item.get("descriptoresNivel") or {}),
         ))
     return tuple(criteria)
 
@@ -519,4 +520,5 @@ def to_definition(document):
         objectives=tuple(o for o in caso.get("objetivosAprendizaje", ()) if isinstance(o, str)),
         rules=rules, world_schema_version=siep.get("mundoVersion", 2),
         characters=characters, tools=_tools(document, siep), scenes=scenes, rubrics=_rubrics(document, siep),
+        content_warnings=tuple(t for t in siep.get("temasSensibles", ()) if isinstance(t, str)),
     )

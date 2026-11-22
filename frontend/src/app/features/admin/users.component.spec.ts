@@ -1,3 +1,6 @@
+import { HttpErrorResponse } from '@angular/common/http';
+import { AuthService } from '../../core/auth/auth.service';
+import { Router, ActivatedRoute, convertToParamMap } from '@angular/router';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
@@ -41,7 +44,7 @@ describe('pantalla Usuarios (F7-6)', () => {
   const labelled = (label: string) => [...host().querySelectorAll('button')]
     .find(button => text(button.querySelector('.ui-button__label')) === label) as HTMLButtonElement | undefined;
 
-  async function render(api: Partial<Api> = {}, { stable = true } = {}) {
+  async function render(api: Partial<Api> = {}, { stable = true, vista = 'cuentas' } = {}) {
     service = {
       list: vi.fn(api.users ?? (() => of([ana, beto]))), create: vi.fn(), update: vi.fn(), updateStatus: vi.fn(),
       approve: vi.fn(),
@@ -51,6 +54,8 @@ describe('pantalla Usuarios (F7-6)', () => {
     TestBed.configureTestingModule({
       imports: [UsersComponent],
       providers: [
+        { provide: AuthService, useValue: { currentUser: () => ({ id: 99 }) } },
+        { provide: Router, useValue: { navigate: vi.fn(() => Promise.resolve(true)) } }, { provide: ActivatedRoute, useValue: { queryParamMap: of(convertToParamMap({ vista })) } },
         provideZonelessChangeDetection(),
         { provide: UserAdminService, useValue: service },
         { provide: AccessRequestAdminService, useValue: requestsApi },
@@ -63,6 +68,61 @@ describe('pantalla Usuarios (F7-6)', () => {
     else fixture.detectChanges();
     fixture.detectChanges();
   }
+
+  it('abre la vista indicada en la URL y actualiza la navegacion', async () => {
+    await render({}, { vista: 'solicitudes' });
+    expect(component().vista()).toBe('solicitudes');
+    component().cambiarVista('por-aprobar');
+    expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith([], expect.objectContaining({ queryParams: { vista: 'por-aprobar' }, queryParamsHandling: 'merge' }));
+  });
+
+  it('filtra por búsqueda y rol y conserva el recuento', async () => {
+    await render();
+    component().busqueda.set('beto');
+    component().rol.set('PROFESOR');
+    fixture.detectChanges();
+    expect(rows()).toHaveLength(1);
+    expect(text(rows()[0])).toContain('Beto');
+    expect(text(host().querySelector('ui-filtros'))).toContain('Mostrando 1 de 2');
+  });
+
+  it('anticipa las exclusiones y muestra un 409 parcial en línea', async () => {
+    const propio = { ...ana, id: 99, role: 'PROFESOR' } as AdminUser;
+    const admin = { ...beto, id: 7, role: 'ADMIN', activo: true } as AdminUser;
+    const otra = { ...ana, id: 8 } as AdminUser;
+    await render({ users: () => of([propio, admin, otra, beto]) });
+    service['updateStatus'].mockImplementation((id: number) => id === 8
+      ? throwError(() => new HttpErrorResponse({ status: 409, error: { message: 'Es el último administrador.' } }))
+      : of({ ...admin, activo: false }));
+    component().seleccion.set([99, 7, 8, 6]);
+    await component().cambiarLote(false);
+    fixture.detectChanges();
+    const mensaje = dialog.confirm.mock.calls[0][0].message as string;
+    expect(mensaje).toContain('cuenta propia');
+    expect(mensaje).toContain('ya en ese estado');
+    expect(mensaje).toContain('último administrador activo');
+    expect(text(host().querySelector('.us-result'))).toContain('Es el último administrador.');
+    expect(service['updateStatus']).not.toHaveBeenCalledWith(99, false);
+  });
+
+  it('conserva un administrador activo cuando se seleccionan todos', async () => {
+    const admin = { ...ana, role: 'ADMIN' } as AdminUser;
+    await render({ users: () => of([admin, beto]) });
+    component().seleccion.set([admin.id]);
+    await component().cambiarLote(false);
+    expect(dialog.confirm.mock.calls[0][0].message).toContain('Ana Pérez');
+    expect(service['updateStatus']).not.toHaveBeenCalled();
+  });
+
+  it('marca revisada la solicitud solo después de crear la cuenta', async () => {
+    await render({ requests: () => of([solicitud]) });
+    service['create'].mockReturnValue(of(ana));
+    requestsApi['updateStatus'].mockReturnValue(of({ ...solicitud, status: 'REVIEWED' }));
+    component().attendRequest(solicitud);
+    component().form.patchValue({ password: '1234567890' });
+    component().save();
+    expect(requestsApi['updateStatus']).toHaveBeenCalledWith(21, 'REVIEWED');
+  });
 
   afterEach(() => {
     vi.useRealTimers();
@@ -216,11 +276,14 @@ describe('pantalla Usuarios (F7-6)', () => {
       TestBed.resetTestingModule();
       await render({ users: () => of([ana, pending(7, 'Carla'), pending(8, 'Dario')]) });
       service['approve'].mockReturnValue(of(result()));
-      labelled('Aprobar pendientes (2)')!.click();
+      component().cambiarVista('por-aprobar');
+      component().seleccionarVisibles(true, true);
+      fixture.detectChanges();
+      labelled('Aprobar 2 cuentas')!.click();
       await fixture.whenStable();
       fixture.detectChanges();
 
-      expect(dialog.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Aprobar cuentas pendientes', confirmLabel: 'Aprobar' }));
+      expect(dialog.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Aprobar cuentas pendientes', confirmLabel: 'Aprobar 2 cuentas' }));
       expect(service['approve']).toHaveBeenCalledWith([7, 8]);
       expect(service['list']).toHaveBeenCalledTimes(2);
       expect(text(host().querySelector('[role="status"].ds-sr-only'))).toContain('Se aprobaron 2 cuentas');
@@ -230,7 +293,10 @@ describe('pantalla Usuarios (F7-6)', () => {
       const many = Array.from({ length: 150 }, (_unused, index) => pending(100 + index, `P${index}`));
       await render({ users: () => of(many) });
       service['approve'].mockImplementation((ids: number[]) => of(result({ approved: ids.length, approvedIds: ids, emailed: ids.length })));
-      labelled('Aprobar pendientes (150)')!.click();
+      component().cambiarVista('por-aprobar');
+      component().seleccionarVisibles(true, true);
+      fixture.detectChanges();
+      labelled('Aprobar 150 cuentas')!.click();
       await fixture.whenStable();
 
       expect(service['approve'].mock.calls.map(([ids]) => (ids as number[]).length)).toEqual([100, 50]);
@@ -240,7 +306,10 @@ describe('pantalla Usuarios (F7-6)', () => {
     it('si un correo no sale, lo dice: esa cuenta sigue pendiente', async () => {
       await render({ users: () => of([pending(7, 'Carla'), pending(8, 'Dario')]) });
       service['approve'].mockReturnValue(of(result({ approved: 1, approvedIds: [7], emailed: 1, failed: [8] })));
-      labelled('Aprobar pendientes (2)')!.click();
+      component().cambiarVista('por-aprobar');
+      component().seleccionarVisibles(true, true);
+      fixture.detectChanges();
+      labelled('Aprobar 2 cuentas')!.click();
       await fixture.whenStable();
 
       const status = text(host().querySelector('[role="status"].ds-sr-only'));
@@ -305,6 +374,8 @@ describe('pantalla Usuarios (F7-6)', () => {
   describe('solicitudes de acceso', () => {
     it('con solicitudes pendientes: cada una con «Crear usuario» y «Descartar»', async () => {
       await render({ requests: () => of([solicitud]) });
+      component().cambiarVista('solicitudes');
+      fixture.detectChanges();
       const section = host().querySelector('.us-requests')!;
       expect(text(section)).toContain('Rosa Vega');
       expect(text(section)).toContain('rosa@siep.test');
@@ -322,6 +393,8 @@ describe('pantalla Usuarios (F7-6)', () => {
     it('si las solicitudes no cargan, se ve (no se confunde con «no hay»), con «Reintentar»', async () => {
       let calls = 0;
       await render({ requests: () => (++calls === 1 ? throwError(() => new Error('HTTP 500')) : of([solicitud])) });
+      component().cambiarVista('solicitudes');
+      fixture.detectChanges();
       const section = host().querySelector('.us-requests')!;
       expect(text(section.querySelector('ui-error-state'))).toContain('No pudimos cargar las solicitudes de acceso.');
 
@@ -332,6 +405,45 @@ describe('pantalla Usuarios (F7-6)', () => {
       expect(text(host().querySelector('.us-requests'))).toContain('Rosa Vega');
       expect(host().querySelector('.us-requests ui-error-state')).toBeNull();
     });
+  });
+
+  it('muestra en línea el 400 LAST_ADMIN real del servidor en el resumen parcial', async () => {
+    // El servidor decide en el momento (otro administrador pudo cambiar antes): el cliente no lo anticipó.
+    const admin = { ...ana, id: 7 } as AdminUser;
+    const otro = { ...ana, id: 8 } as AdminUser;
+    await render({ users: () => of([admin, otro]) });
+    service['updateStatus'].mockImplementation((id: number) => id === 8
+      ? throwError(() => new HttpErrorResponse({ status: 400, error: { code: 'LAST_ADMIN', message: 'No puedes desactivar ni quitar el rol al último administrador activo.' } }))
+      : of({ ...admin, activo: false }));
+    component().seleccion.set([7, 8]);
+    await component().cambiarLote(false);
+    fixture.detectChanges();
+    expect(text(host().querySelector('.us-result'))).toContain('1 desactivadas. 1 no se pudieron actualizar.');
+    expect(text(host().querySelector('.us-result'))).toContain('No puedes desactivar ni quitar el rol al último administrador activo.');
+  });
+
+  it('en Por aprobar muestra el error de carga con reintento, no «Hay 0 cuentas»', async () => {
+    await render({ users: () => throwError(() => new HttpErrorResponse({ status: 500 })) }, { vista: 'por-aprobar' });
+    expect(host().querySelector('.us-pending ui-error-state')).not.toBeNull();
+    expect(text(host().querySelector('.us-pending'))).not.toContain('Hay 0 cuentas');
+  });
+
+  it('el resumen solo muestra el resultado de la acción en curso al encadenar aprobar y un lote', async () => {
+    const pendiente = { ...ana, id: 30, pendingApproval: true } as AdminUser;
+    const activo = { ...beto, id: 31, activo: true } as AdminUser;
+    await render({ users: () => of([pendiente, activo]) });
+    service['approve'].mockReturnValue(of({ approved: 1, approvedIds: [30], skipped: [], emailed: 1, failed: [] }));
+    service['updateStatus'].mockReturnValue(of({ ...activo, activo: false }));
+    await component().approveUser(pendiente);
+    fixture.detectChanges();
+    expect(component().actionStatus()).not.toBe('');
+    component().seleccion.set([31]);
+    await component().cambiarLote(false);
+    fixture.detectChanges();
+    expect(component().actionStatus()).toBe('');
+    expect(component().resumen()).toContain('1 desactivadas');
+    await component().approveUser(pendiente);
+    expect(component().resultadoLote()).toBe('');
   });
 
   // req: RNF-04, BLOQUE-H

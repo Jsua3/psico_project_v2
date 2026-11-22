@@ -102,6 +102,38 @@ describe('FinalesComponent', () => {
     ]);
   });
 
+  it('E5 · cada final tiene su «Así lo lee el estudiante», en los dos modos', async () => {
+    const { store, raiz, listo } = await montar();
+    store.agregarFinal();
+    store.agregarFinal();
+    await listo();
+    expect(raiz.querySelectorAll('li.final app-vista-del-final')).toHaveLength(2);
+    store.fijarModoFinales('automatico');
+    await listo();
+    const vistas = [...raiz.querySelectorAll<HTMLElement>('li.final-plantilla app-vista-del-final')];
+    expect(vistas).toHaveLength(4);
+    expect(vistas[1].textContent).toContain('Intervención protectora');
+    expect(vistas[1].textContent).toContain('Final favorable');
+  });
+
+  it('E5 · un final propio plegado dice cuándo llega; agregar uno lo abre para escribirlo', async () => {
+    const { store, raiz, listo } = await montar();
+    boton(raiz, 'Agregar un final').click();
+    await listo();
+    const fila = raiz.querySelector<HTMLElement>('li.final')!;
+    expect(fila.querySelector('details')!.open).toBe(true);
+    const decisivo = store.caso()!.hitos.find((h) => h.decisivo)!;
+    expect(fila.querySelector('.final__cuando')!.textContent).toContain(`Llega si el estudiante cumple «${decisivo.nombre}»`);
+  });
+
+  it('E5 · el aviso de caminos lleva a Caminos, y el resumen dice a qué finales llegan los recorridos', async () => {
+    const { raiz } = await montar();
+    const aviso = raiz.querySelector('.recorridos__aviso')!;
+    expect(aviso.textContent).toContain('en los caminos del caso');
+    expect(aviso.querySelector('a')!.textContent!.trim()).toBe('Abrir Caminos');
+    expect(raiz.querySelector('.recorridos__texto')!.textContent).toMatch(/^Con las respuestas de ahora/);
+  });
+
   describe('pasar a «Los finales se calculan solos» con finales propios', () => {
     const radio = (raiz: HTMLElement, valor: string) => raiz.querySelector<HTMLInputElement>(`input[name="modo"][value="${valor}"]`)!;
 

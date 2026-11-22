@@ -7,11 +7,13 @@ import { RubricAdmin, RubricService } from '../../core/api/rubric.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { SimulationService } from '../../core/api/simulation.service';
 import { NotificationService } from '../../core/notifications/notification.service';
-import { RubricsComponent } from './rubrics.component';
+import { RubricaEditorComponent, RUBRIC_GONE_MESSAGE } from './rubrica-editor.component';
 import type { Mock } from 'vitest';
 
 /**
- * Feedback de acciones de la pantalla Rúbricas.
+ * Feedback de acciones del editor de una rúbrica (R1: las órdenes viven en `RubricaEditorComponent`; el error de carga
+ * de la lista, en la biblioteca: `rubrics.component.spec.ts`). «Refrescar la lista» es ahora emitir `guardada`, que la
+ * biblioteca atiende pidiendo la lista de nuevo.
  *
  * No se renderiza el template: se instancia el componente con dobles de los
  * servicios y se ejercitan sus métodos públicos.
@@ -33,7 +35,8 @@ function backendError(status: number, body: unknown) {
 }
 
 describe('rúbricas: feedback de acciones (comportamiento)', () => {
-  let component: RubricsComponent;
+  let component: RubricaEditorComponent;
+  let guardadas: RubricAdmin[];
   let rubrics: Record<
     'list' | 'detail' | 'create' | 'update' | 'activate' | 'deactivate' | 'duplicate' | 'setDefault' | 'assignToCaseVersion',
     Mock
@@ -65,7 +68,9 @@ describe('rúbricas: feedback de acciones (comportamiento)', () => {
         { provide: ElementRef, useValue: new ElementRef(document.createElement('div')) },
       ],
     });
-    component = TestBed.runInInjectionContext(() => new RubricsComponent());
+    component = TestBed.runInInjectionContext(() => new RubricaEditorComponent());
+    guardadas = [];
+    component.guardada.subscribe(r => guardadas.push(r));
   });
 
   afterEach(() => TestBed.resetTestingModule());
@@ -85,7 +90,7 @@ describe('rúbricas: feedback de acciones (comportamiento)', () => {
       expect(component.message()).toBe('');
       expect(component.saving()).toBe(false);
       expect(component.selected()).toBe(rubric);
-      expect(rubrics.list).toHaveBeenCalled();
+      expect(guardadas).toEqual([rubric]);
     });
 
     it('con una rúbrica abierta actualiza en lugar de crear y avisa igual', () => {
@@ -129,7 +134,7 @@ describe('rúbricas: feedback de acciones (comportamiento)', () => {
     });
   });
 
-  describe('asignar a una simulación', () => {
+  describe('usar en un caso', () => {
     beforeEach(() => {
       component.selected.set(rubric);
       component.caseVersionId.set(9);
@@ -141,7 +146,7 @@ describe('rúbricas: feedback de acciones (comportamiento)', () => {
       component.assign();
 
       expect(rubrics.assignToCaseVersion).toHaveBeenCalledWith(9, 4);
-      expect(notify.success).toHaveBeenCalledWith('Rúbrica asignada a la simulación.');
+      expect(notify.success).toHaveBeenCalledWith('Rúbrica asignada al caso.');
       expect(component.message()).toBe('');
     });
 
@@ -174,7 +179,7 @@ describe('rúbricas: feedback de acciones (comportamiento)', () => {
 
     beforeEach(() => component.selected.set(rubric));
 
-    it.each(actions)('%s: avisa el éxito y refresca la lista', (_label, method, text) => {
+    it.each(actions)('%s: avisa el éxito y avisa a la biblioteca', (_label, method, text) => {
       rubrics[method].mockReturnValue(of(rubric));
 
       component[method]();
@@ -183,7 +188,7 @@ describe('rúbricas: feedback de acciones (comportamiento)', () => {
       expect(notify.success).toHaveBeenCalledWith(text);
       expect(notify.error).not.toHaveBeenCalled();
       expect(component.message()).toBe('');
-      expect(rubrics.list).toHaveBeenCalled();
+      expect(guardadas).toEqual([rubric]);
     });
 
     it.each(actions)('%s con error 500: avisa el mensaje del backend', (_label, method) => {
@@ -217,36 +222,25 @@ describe('rúbricas: feedback de acciones (comportamiento)', () => {
   });
 
   describe('lo que sigue en el banner', () => {
-    it('un error al cargar la lista queda en el banner y no crea un aviso', () => {
-      rubrics.list.mockReturnValue(backendError(500, null));
-
-      component.load();
-
-      expect(component.message()).toBe('No fue posible cargar las rúbricas.');
-      expect(component.messageIsError()).toBe(true);
-      expect(component.loading()).toBe(false);
-      expect(notify.error).not.toHaveBeenCalled();
-    });
-
-    it('el banner de un error de carga se limpia cuando la lista vuelve a cargar', () => {
-      rubrics.list.mockReturnValue(backendError(500, null));
-      component.load();
-      expect(component.message()).toBe('No fue posible cargar las rúbricas.');
-
-      rubrics.list.mockReturnValue(of([]));
-      component.load();
-
-      expect(component.message()).toBe('');
-      expect(component.messageIsError()).toBe(false);
-    });
-
     it('un error al abrir una rúbrica queda en el banner y no crea un aviso', () => {
-      rubrics.detail.mockReturnValue(backendError(404, null));
+      rubrics.detail.mockReturnValue(backendError(500, null));
 
       component.openRubric(4);
 
       expect(component.message()).toBe('No fue posible abrir la rúbrica.');
       expect(component.messageIsError()).toBe(true);
+      expect(notify.error).not.toHaveBeenCalled();
+    });
+
+    it('si la rúbrica ya no existe (404) lo dice y avisa a la biblioteca para volver a la lista', () => {
+      let perdida = 0;
+      component.perdida.subscribe(() => (perdida += 1));
+      rubrics.detail.mockReturnValue(backendError(404, null));
+
+      component.openRubric(4);
+
+      expect(component.message()).toBe(RUBRIC_GONE_MESSAGE);
+      expect(perdida).toBe(1);
       expect(notify.error).not.toHaveBeenCalled();
     });
   });

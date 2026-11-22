@@ -7,11 +7,11 @@ import { RubricAdmin, RubricService } from '../../core/api/rubric.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { SimulationService } from '../../core/api/simulation.service';
 import { NotificationService } from '../../core/notifications/notification.service';
-import { RubricsComponent } from './rubrics.component';
+import { RubricaEditorComponent } from './rubrica-editor.component';
 import type { Mock } from 'vitest';
 
 /**
- * Validar al enviar, con los campos de la biblioteca y el DOM renderizado.
+ * Validar al enviar, con los campos de la biblioteca y el DOM renderizado (R1: en el editor de una rúbrica).
  *
  * `form.reset()` no reinicia `FormGroupDirective.submitted`: el reinicio pasa por la directiva del formulario. Estas
  * pruebas comprueban lo que ve el usuario: tras enviar con errores, abrir otra rúbrica o crear una nueva no debe
@@ -36,17 +36,16 @@ const completa = rubric(4, 'Entrevista clínica', [60, 40]);
 const incompleta = rubric(7, 'Observación', [60, 30]);
 const sinNombre = { ...rubric(9, 'Con hueco', [100]), criteria: [{ id: 91, title: '', weight: 100, displayOrder: 1, active: true }] } as RubricAdmin;
 
-describe('rúbricas: validar al enviar (DOM con la biblioteca)', () => {
-  let fixture: ComponentFixture<RubricsComponent>;
-  let component: RubricsComponent;
+describe('rúbricas: validar al enviar (DOM del editor)', () => {
+  let fixture: ComponentFixture<RubricaEditorComponent>;
+  let component: RubricaEditorComponent;
   let root: HTMLElement;
-  let service: { list: Mock; detail: Mock; create: Mock; update: Mock };
+  let service: { list: Mock; detail: Mock; create: Mock; update: Mock; competencies: Mock };
 
   const errorTexts = () => Array.from(root.querySelectorAll('.ui-field__message--error')).map(node => (node.textContent ?? '').trim());
+  /** Un botón por su rótulo exacto (las acciones de estado viven en el panel «Más» del pie). */
   const actionButton = (label: string) =>
-    Array.from(root.querySelectorAll<HTMLButtonElement>('.actions button')).find(candidate => (candidate.textContent ?? '').trim().includes(label))!;
-  const button = (label: string) =>
-    Array.from(root.querySelectorAll<HTMLButtonElement>('button')).find(candidate => (candidate.textContent ?? '').includes(label))!;
+    Array.from(root.querySelectorAll<HTMLButtonElement>('button')).find(candidate => (candidate.querySelector('.ui-button__label')?.textContent ?? '').trim() === label)!;
   const hint = () => root.querySelector('#rubric-weight-hint');
   /** Lo que el botón dice de por qué no se puede pulsar (el texto al que apunta su aria-describedby). */
   const reasonOf = (button: HTMLButtonElement) => {
@@ -75,9 +74,10 @@ describe('rúbricas: validar al enviar (DOM con la biblioteca)', () => {
       detail: vi.fn(() => of(completa)),
       create: vi.fn(),
       update: vi.fn(),
+      competencies: vi.fn(() => of([])),
     };
     TestBed.configureTestingModule({
-      imports: [RubricsComponent],
+      imports: [RubricaEditorComponent],
       providers: [
         { provide: RubricService, useValue: service },
         { provide: AuthService, useValue: { hasRole: (...roles: string[]) => roles.includes('ADMIN') } },
@@ -85,7 +85,7 @@ describe('rúbricas: validar al enviar (DOM con la biblioteca)', () => {
         { provide: NotificationService, useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } },
       ],
     });
-    fixture = TestBed.createComponent(RubricsComponent);
+    fixture = TestBed.createComponent(RubricaEditorComponent);
     component = fixture.componentInstance;
     root = fixture.nativeElement;
     document.body.appendChild(root);
@@ -98,7 +98,7 @@ describe('rúbricas: validar al enviar (DOM con la biblioteca)', () => {
   });
 
   describe('errores al enviar', () => {
-    it('al abrir el formulario no muestra ningún error', () => {
+    it('al abrir el formulario (una rúbrica nueva) no muestra ningún error', () => {
       expect(errorTexts()).toEqual([]);
     });
 
@@ -118,7 +118,7 @@ describe('rúbricas: validar al enviar (DOM con la biblioteca)', () => {
 
       submit();
 
-      expect(document.activeElement).toBe(root.querySelector('input[formControlName="name"]'));
+      expect(document.activeElement).toBe(root.querySelector('[formControlName="name"]'));
     });
 
     it('con el nombre correcto, el foco va al criterio inválido', () => {
@@ -132,16 +132,17 @@ describe('rúbricas: validar al enviar (DOM con la biblioteca)', () => {
       expect(document.activeElement).toBe(root.querySelector('input[formControlName="title"]'));
     });
 
-    it('explica versión vacía, peso fuera de rango y orden menor que 1', () => {
+    // R1: el campo «Orden» ya no existe (el orden es la posición del criterio).
+    it('explica versión vacía y peso fuera de rango', () => {
       component.newRubric();
       fillValid();
       component.form.patchValue({ version: '' });
-      component.criteria.at(0).patchValue({ weight: 101, displayOrder: 0 });
+      component.criteria.at(0).patchValue({ weight: 101 });
       fixture.detectChanges();
 
       submit();
 
-      expect(errorTexts()).toEqual(['Escribe la versión.', 'El peso va de 0 a 100.', 'El orden empieza en 1.']);
+      expect(errorTexts()).toEqual(['Escribe la versión.', 'El peso va de 0 a 100.']);
       expect(service.create).not.toHaveBeenCalled();
     });
 
@@ -172,7 +173,7 @@ describe('rúbricas: validar al enviar (DOM con la biblioteca)', () => {
       expect(errorTexts().length).toBeGreaterThan(0);
       expect(formSubmitted()).toBe(true);
 
-      button('Nueva rúbrica').click();
+      component.newRubric();
       fixture.detectChanges();
 
       expect(errorTexts()).toEqual([]);
@@ -223,7 +224,7 @@ describe('rúbricas: validar al enviar (DOM con la biblioteca)', () => {
       component.newRubric();
       fixture.detectChanges();
       submit();
-      button('Nueva rúbrica').click();
+      component.newRubric();
       fixture.detectChanges();
       expect(errorTexts()).toEqual([]);
 
@@ -258,9 +259,11 @@ describe('rúbricas: validar al enviar (DOM con la biblioteca)', () => {
 
     it('solo Activar y Predeterminada dependen de la ponderación: Desactivar y Duplicar no lo dicen', () => {
       open(incompleta);
-
-      expect(actionButton('Desactivar').getAttribute('aria-disabled')).toBeNull();
       expect(actionButton('Duplicar').getAttribute('aria-disabled')).toBeNull();
+
+      // «Desactivar» solo aparece con la rúbrica activa (nunca junto a «Activar»), y tampoco depende del peso.
+      open({ ...incompleta, active: true });
+      expect(actionButton('Desactivar').getAttribute('aria-disabled')).toBeNull();
     });
 
     it('la pista aparece y desaparece al cambiar la ponderación', () => {

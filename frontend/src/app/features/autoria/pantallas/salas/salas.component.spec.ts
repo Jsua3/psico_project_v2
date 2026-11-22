@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { throwError } from 'rxjs';
-import { of } from 'rxjs';
+import { Subject, of } from 'rxjs';
 
 import { AuthoringApi } from '../../../../core/api/authoring.api';
 
@@ -9,7 +9,7 @@ import { universidad } from '../../testing/universidad';
 import { rutasDePrueba } from '../../testing/rutas';
 import { BibliotecaService } from '../../modelo/biblioteca.service';
 import type { Escenario } from '../../modelo/escenario';
-import { SalasComponent } from './salas.component';
+import { SalasComponent, conArticulo } from './salas.component';
 
 
 const GENERACION_ENCENDIDA = { enabled: true, remainingToday: 5, inProgress: null };
@@ -107,18 +107,42 @@ describe('SalasComponent', () => {
     expect(raiz.querySelector('#ideas')).toBeNull();
   });
 
-  it('con la generación apagada, «Describe tu caso» queda apagada con su motivo', async () => {
+  it('si el estado de la generación llega tarde, no cambia a «Describe tu caso» a quien ya empezó a mano (Codex, hallazgo 3)', async () => {
+    const estado = new Subject<unknown>();
+    await TestBed.configureTestingModule({
+      imports: [SalasComponent],
+      providers: [
+        provideRouter(rutasDePrueba),
+        { provide: BibliotecaService, useValue: { escenario: async () => universidad } },
+        { provide: AuthoringApi, useValue: { createCase: vi.fn(), generationStatus: () => estado, libraryPlaces: () => of([]) } },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(SalasComponent);
+    for (let i = 0; i < 3; i++) { await new Promise((r) => setTimeout(r, 0)); fixture.detectChanges(); }
+    const raiz = fixture.nativeElement as HTMLElement;
+    raiz.querySelector<HTMLInputElement>('.salas input[type="checkbox"]')!.click();
+    fixture.detectChanges();
+
+    estado.next({ enabled: true, remainingToday: 4, inProgress: { id: 'g-7', lugarId: 'universidad', status: 'skeleton_ready', scenes: [] } });
+    estado.complete();
+    for (let i = 0; i < 5; i++) { await new Promise((r) => setTimeout(r, 0)); fixture.detectChanges(); }
+
+    expect(raiz.querySelector<HTMLInputElement>('input[value="a-mano"]')!.checked).toBe(true);
+    expect(raiz.querySelector('app-describir')).toBeNull();
+    expect(raiz.querySelector('#ideas')).toBeTruthy();
+  });
+
+  it('con la generación apagada no se ofrece nada de la IA: ni opciones apagadas ni el motivo', async () => {
     const { fixture, raiz } = await montar(undefined, { enabled: false, remainingToday: 0, inProgress: null });
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
 
-    const describe = raiz.querySelector<HTMLInputElement>('input[value="describe"]')!;
-    expect(describe.disabled).toBe(true);
-    expect(raiz.querySelector('#forma-describe-texto')!.textContent).toContain(
-      'La generación con IA no está disponible por ahora. Puedes elegir las salas a mano.');
-    expect(describe.getAttribute('aria-describedby')).toBe('forma-describe-texto');
-    expect(raiz.querySelector<HTMLInputElement>('input[value="a-mano"]')!.checked).toBe(true);
+    expect(raiz.querySelector('fieldset.forma')).toBeNull();
+    expect(raiz.querySelector('input[type="radio"]')).toBeNull();
+    expect(raiz.querySelector('input:disabled, button:disabled, [aria-disabled="true"]')).toBeNull();
+    // Y el nombre del caso es lo primero que se ve para escribir.
+    expect(raiz.querySelector('input, textarea')!.id).toBe('nombre-caso');
   });
 
   it('elegir un recorrido sugerido marca sus salas', async () => {
@@ -130,11 +154,14 @@ describe('SalasComponent', () => {
     expect(raiz.textContent).toContain('1. Pasillo de facultad, 2. Sala de espera de Bienestar, 3. Consultorio de atención psicológica');
   });
 
-  it('el botón crear está deshabilitado sin salas', async () => {
-    const { raiz } = await montar();
-    const crear = boton(raiz, 'Crear el caso con estas salas')!;
-    expect(crear.getAttribute('aria-disabled')).toBe('true');
+  it('sin salas elegidas el botón crear sigue disponible y, al pulsarlo, dice qué falta sin crear nada', async () => {
+    const { fixture, raiz, createCase } = await montar();
     expect(raiz.textContent).toContain('Ninguna sala elegida');
+    boton(raiz, 'Crear el caso con estas salas')!.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(raiz.querySelector('[role="alert"]')!.textContent).toContain('Elige al menos una sala');
+    expect(createCase).not.toHaveBeenCalled();
   });
 
   it('crear manda el lugar y las salas elegidas, en su orden, y abre el editor del caso creado', async () => {
@@ -171,7 +198,6 @@ describe('SalasComponent', () => {
     raiz.querySelector<HTMLButtonElement>('button[aria-label="Usar esta idea: Atención en Bienestar"]')!.click();
     await fixture.whenStable();
     fixture.detectChanges();
-    boton(raiz, 'Cambiar el orden')!.click();
     await fixture.whenStable();
     fixture.detectChanges();
     raiz.querySelector<HTMLButtonElement>('button[aria-label="Subir Sala de espera de Bienestar"]')!.click();
@@ -185,5 +211,26 @@ describe('SalasComponent', () => {
     const ayuda = raiz.querySelector('#nombre-caso')!.parentElement!.textContent!;
     expect(ayuda).not.toContain('Puedes cambiarlo después');
     expect(ayuda).toContain('Si lo dejas vacío, se llamará «Caso nuevo en la universidad».');
+  });
+
+  it('«Ver sala» abre la vista previa con teclado o con toque y vuelve a cerrarla', async () => {
+    const { fixture, raiz } = await montar();
+    const ver = raiz.querySelector<HTMLButtonElement>('button[aria-label^="Ver sala:"]')!;
+    ver.click();
+    fixture.detectChanges();
+    expect(raiz.querySelector('#vista-sala')).toBeTruthy();
+    expect(ver.getAttribute('aria-expanded')).toBe('true');
+    ver.click();
+    fixture.detectChanges();
+    expect(raiz.querySelector('#vista-sala')).toBeNull();
+  });
+});
+
+describe('RF-05 · CU-04 crear un caso: el nombre por defecto concuerda con el lugar', () => {
+  it('«la universidad», «el hospital», «la comisaría de familia», «la casa»', () => {
+    expect(conArticulo('Universidad')).toBe('la universidad');
+    expect(conArticulo('Hospital')).toBe('el hospital');
+    expect(conArticulo('Comisaría de familia')).toBe('la comisaría de familia');
+    expect(conArticulo('Casa')).toBe('la casa');
   });
 });

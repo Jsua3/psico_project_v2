@@ -12,15 +12,18 @@ import { ReporteEstudiante } from '../../core/models/sesion.model';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { UiBadge } from '../../shared/ui/badge/ui-badge';
 import { UiButton } from '../../shared/ui/button/ui-button';
+import { UiCard } from '../../shared/ui/card/ui-card';
+import { UiLink } from '../../shared/ui/link/ui-link';
 import { statusLabel } from '../../shared/ui/labels';
-import { UiPageActions, UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { UiCabeceraIlustrada } from '../../shared/ui/cabecera-ilustrada/ui-cabecera-ilustrada';
 import { UiSection } from '../../shared/ui/section/ui-section';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { errorKindFromStatus, uiDataState } from '../../shared/ui/state/ui-data-state';
 import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
-import { attemptTone, coverageLabel, formatDuration, formatStart } from './reporte-estudiante.util';
+import { UiTooltip } from '../../shared/ui/tooltip/ui-tooltip';
+import { attemptTone, caseStatusText, coverageLabel, formatDuration, formatStart } from './reporte-estudiante.util';
 
 /** Cuántos intentos más trae «Ver más intentos»; el servidor da 50 por defecto y 200 como máximo por consulta. */
 const PAGE_SIZE = 50;
@@ -44,8 +47,8 @@ function positiveInt(value: string | null | undefined): number | null {
 @Component({
   selector: 'app-reporte-estudiante',
   imports: [
-    RouterLink, UiBadge, UiButton, UiEmptyState, UiErrorState, UiPageActions, UiPageHeader, UiSection, UiSkeleton,
-    UiTable, UiTableRow, UiTableTable,
+    RouterLink, UiBadge, UiButton, UiCard, UiEmptyState, UiErrorState, UiLink, UiCabeceraIlustrada, UiSection, UiSkeleton,
+    UiTable, UiTableRow, UiTableTable, UiTooltip,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './reporte-estudiante.component.html',
@@ -95,6 +98,19 @@ export class ReporteEstudianteComponent implements OnInit {
   protected readonly backParams = computed(() =>
     this.groupId === null ? null : { grupo: this.groupId, caseVersionId: this.caseFilter() });
   protected readonly filterTitle = computed(() => this.report()?.attempts[0]?.caseTitle ?? 'el caso elegido');
+  // Se agrupan los intentos visibles sin alterar la paginación ni el orden del servidor.
+  protected readonly caseGroups = computed(() => {
+    const groups = new Map<number, { title: string; attempts: NonNullable<ReporteEstudiante['attempts']> }>();
+    for (const attempt of this.report()?.attempts ?? []) {
+      let group = groups.get(attempt.caseVersionId);
+      if (!group) {
+        group = { title: attempt.caseTitle, attempts: [] };
+        groups.set(attempt.caseVersionId, group);
+      }
+      group.attempts.push(attempt);
+    }
+    return [...groups.entries()].map(([id, group]) => ({ id, ...group }));
+  });
   protected readonly canLoadMore = computed(() => {
     const coverage = this.report()?.coverage;
     return !!coverage && coverage.shown < coverage.total && coverage.shown < MAX_LIMIT;
@@ -136,6 +152,16 @@ export class ReporteEstudianteComponent implements OnInit {
 
   protected label(status: string): string {
     return statusLabel(status);
+  }
+
+  /** Cómo va el caso, en palabras, antes de la tabla de sus intentos. */
+  protected caseStatus(attempts: readonly { ordinal: number; status: string }[]): string {
+    return caseStatusText(attempts);
+  }
+
+  /** El tiempo de reloj, auxiliar del tiempo activo: se dice completo, también cuando falta el dato. */
+  protected clockText(seconds: number | null): string {
+    return seconds === null || seconds === undefined ? 'Tiempo de reloj: sin dato' : `Tiempo de reloj: ${formatDuration(seconds)}`;
   }
 
   protected tone(status: string) {

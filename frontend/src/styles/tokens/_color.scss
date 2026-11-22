@@ -72,6 +72,20 @@ $game: (
   veil-edge: rgba(255, 255, 255, 0.14),
 );
 
+// Acento de acción de Metafrónesis sobre la piel clara (guía de marca, SIEP-229; DISENO DP-03): el violeta pasa a ser el
+// ÚNICO color de acción del portal. Se emite solo dentro de .portal y .publico claros (skins/_portal.scss), nunca en
+// :root (REGLA-010). Contrastes calculados el 2026-11-21: #5B3FD1 sobre #FFFFFF 6,83:1, sobre #F5F7FA 6,36:1 y sobre
+// #EEF2F6 6,07:1; #4A30B8 sobre blanco 8,73:1; blanco sobre #5B3FD1 6,83:1 y sobre #3D2799 10,78:1; #5B3FD1 sobre
+// #EEEAFC 5,79:1. El azul petróleo sigue vivo como --ds-info.
+// Va DESPUÉS de $game: a11y-bloque-h lee el foco de la piel juego como el segundo «focus:» del archivo.
+$portal-acento: (
+  primary: #5B3FD1,
+  primary-hover: #4A30B8,
+  primary-active: #3D2799,
+  primary-subtle: #EEEAFC,
+  focus: #4A30B8,
+);
+
 @mixin emit($map) {
   @each $name, $value in $map {
     --ds-#{$name}: #{$value};

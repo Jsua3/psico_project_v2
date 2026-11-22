@@ -112,14 +112,49 @@ describe('EditorComponent · diálogos', () => {
     expect(opcion.getAttribute('aria-selected')).toBe('true');
   });
 
-  it('un aviso de escena sin salida ofrece marcarla como final desde el propio aviso', async () => {
+  // E1: los avisos ya no son una columna; los de la escena elegida van en su franja, con la misma salida rápida.
+  it('un aviso de escena sin salida ofrece marcarla como final desde la franja de la escena elegida', async () => {
     const { raiz, store, listo } = await montar();
+    const caso = structuredClone(store.caso()!);
+    // Escrita (tiene una línea) y sin respuestas: es un callejón «por corregir», no trabajo por hacer.
+    for (const e of caso.escenas) e.lineas = [{ id: `l-${e.id}`, personajeId: caso.personajes[0].id, texto: 'Hola', expresion: 'neutral', marcaIa: false }];
+    store.fijar(caso);
+    await listo();
     const sinSalida = store.caso()!.escenas.find((e) => !e.esFinal && e.respuestas.length === 0)!;
-    const boton = [...raiz.querySelectorAll<HTMLButtonElement>('.avisos button')].find((b) => b.textContent?.includes('Marcar como final'));
+    tarjeta(raiz, store.caso()!.escenas.indexOf(sinSalida)).click();
+    await listo();
+    const boton = [...raiz.querySelectorAll<HTMLButtonElement>('.elegida__avisos button')].find((b) => b.textContent?.includes('Marcar como final'));
     expect(boton).toBeDefined();
     boton!.click();
     await listo();
     expect(store.caso()!.escenas.find((e) => e.id === sinSalida.id)!.esFinal).toBe(true);
+  });
+
+  it('E1 · un caso recién creado no muestra ningún aviso: lo que falta escribir no es un error', async () => {
+    const { raiz } = await montar();
+    expect(raiz.querySelector('.pildora.aviso, .aviso-hito, .elegida__avisos, .boton-aviso')).toBeNull();
+    expect(raiz.querySelector('[data-accion="revisar-caminos"]')!.textContent).toContain('Faltan caminos por escribir');
+  });
+
+  it('E1 · «N avisos en los caminos» elige la escena con el aviso y lo anuncia', async () => {
+    const { raiz, store, listo } = await montar();
+    const caso = structuredClone(store.caso()!);
+    for (const e of caso.escenas) e.lineas = [{ id: `l-${e.id}`, personajeId: caso.personajes[0].id, texto: 'Hola', expresion: 'neutral', marcaIa: false }];
+    store.fijar(caso);
+    await listo();
+    const aviso = raiz.querySelector<HTMLButtonElement>('button[data-accion="revisar-caminos"]')!;
+    expect(aviso.textContent).toMatch(/\d+ avisos? en los caminos/);
+    aviso.click();
+    await listo();
+    expect(raiz.querySelector('.elegida__avisos')).not.toBeNull();
+    expect(raiz.querySelector('[role="status"].solo-lector')!.textContent!.trim().length).toBeGreaterThan(0);
+  });
+
+  it('E1 · se conservan el título «Escenas y caminos», «Abrir guion» y «Abrir sala» de la escena elegida', async () => {
+    const { raiz } = await montar();
+    expect(raiz.querySelector('h1')!.textContent).toBe('Escenas y caminos');
+    expect(raiz.querySelector('[data-accion="abrir-guion"]')!.textContent!.trim()).toBe('Abrir guion');
+    expect(raiz.querySelector('[data-accion="abrir-sala"]')!.textContent!.trim()).toBe('Abrir sala');
   });
 
   it('los conteos usan singular con 1 (una línea, una respuesta, una escena)', async () => {

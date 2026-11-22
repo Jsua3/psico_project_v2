@@ -53,6 +53,23 @@ describe('uiTooltip', () => {
     expect(tooltip()?.textContent?.trim()).toBe('Exporta el grupo a CSV');
   });
 
+  // req: DP-24 (el globo vive en la capa del CDK, fuera de la piel de su disparador)
+  it('el globo lleva la piel del contenedor de su disparador, y la sigue si cambia', () => {
+    const host = fixture.nativeElement as HTMLElement;
+    host.setAttribute('data-skin', 'game');
+    mouse(button('a'), 'mouseenter');
+    vi.advanceTimersByTime(UI_TOOLTIP_SHOW_DELAY_MS);
+    const capa = () => tooltip()!.closest('.cdk-overlay-pane')!;
+    expect(capa().getAttribute('data-skin')).toBe('game');
+    mouse(button('a'), 'mouseleave');
+    vi.advanceTimersByTime(UI_TOOLTIP_HIDE_GRACE_MS + 200);
+    host.setAttribute('data-skin', 'portal');
+    mouse(button('a'), 'mouseenter');
+    vi.advanceTimersByTime(UI_TOOLTIP_WARM_MS + UI_TOOLTIP_SHOW_DELAY_MS);
+    expect(capa().getAttribute('data-skin')).toBe('portal');
+    expect(document.body.hasAttribute('data-skin')).toBe(false);
+  });
+
   it('se va al salir el puntero (tras una gracia que deja pasar al globo)', () => {
     mouse(button('a'), 'mouseenter');
     vi.advanceTimersByTime(UI_TOOLTIP_SHOW_DELAY_MS);

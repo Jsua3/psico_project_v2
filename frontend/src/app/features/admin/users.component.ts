@@ -1,8 +1,13 @@
 import { DialogRef } from '@angular/cdk/dialog';
 import { ChangeDetectionStrategy, Component, ElementRef, OnInit, computed, inject, signal } from '@angular/core';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { from } from 'rxjs';
-import { concatMap, reduce } from 'rxjs/operators';
+import { from, of } from 'rxjs';
+import { ActivatedRoute, Router } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { AuthService } from '../../core/auth/auth.service';
+import { UiSegmentado } from '../../shared/ui/segmentado/ui-segmentado';
+import { UiFiltros } from '../../shared/ui/filtros/ui-filtros';
+import { catchError, concatMap, map, reduce } from 'rxjs/operators';
 import { APPROVE_BATCH_SIZE, AdminUser, ApproveUsersResult, UserAdminService, UserRole } from '../../core/api/user-admin.service';
 import { PASSWORD_MIN_LENGTH } from '../../core/auth/password-change';
 import { AccessRequest, AccessRequestAdminService } from '../../core/api/access-request-admin.service';
@@ -16,7 +21,7 @@ import { UiCard } from '../../shared/ui/card/ui-card';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { roleLabel } from '../../shared/ui/labels';
 import { UiMenu, UiMenuItem } from '../../shared/ui/menu/ui-menu';
-import { UiPageActions, UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { UiCabeceraIlustrada } from '../../shared/ui/cabecera-ilustrada/ui-cabecera-ilustrada';
 import { UiSection } from '../../shared/ui/section/ui-section';
 import { uiDataState } from '../../shared/ui/state/ui-data-state';
 import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
@@ -61,8 +66,8 @@ interface UserFormValue {
   selector: 'app-admin-users',
   standalone: true,
   imports: [
-    ReactiveFormsModule,
-    UiBadge, UiButton, UiCard, UiIconButton, UiMenu, UiPageActions, UiPageHeader, UiSection,
+    ReactiveFormsModule, UiSegmentado, UiFiltros,
+    UiBadge, UiButton, UiCard, UiIconButton, UiMenu, UiCabeceraIlustrada, UiSection,
     UiEmptyState, UiErrorState, UiTable, UiTableEmpty, UiTableError, UiTableRow, UiTableTable,
   ],
   templateUrl: './users.component.html',
@@ -71,6 +76,9 @@ interface UserFormValue {
   changeDetection: ChangeDetectionStrategy.Eager,
 })
 export class UsersComponent implements OnInit {
+  private readonly route = inject(ActivatedRoute, { optional: true });
+  private readonly router = inject(Router, { optional: true });
+  private readonly auth = inject(AuthService, { optional: true });
   private readonly service = inject(UserAdminService);
   private readonly accessRequestsService = inject(AccessRequestAdminService);
   private readonly fb = inject(FormBuilder);
@@ -82,6 +90,108 @@ export class UsersComponent implements OnInit {
   private sheet: DialogRef<void, UserFormSheetComponent> | null = null;
   /** true mientras hay una confirmación abierta: un segundo gesto no abre otra ni repite la acción. */
   private confirmando = false;
+
+  private solicitudEnFormulario: number | null = null;
+  readonly vista = signal('cuentas');
+  readonly busqueda = signal('');
+  readonly rol = signal('todos');
+  readonly estadoFiltro = signal('todos');
+  readonly orden = signal('nombre');
+  readonly seleccion = signal<number[]>([]);
+  readonly seleccionPendientes = signal<number[]>([]);
+  readonly resumen = computed(() => `${this.resultadoLote()} ${this.actionStatus()}`.trim());
+  readonly resultadoLote = signal('');
+  readonly opcionesRol = [
+    { valor: 'todos', etiqueta: 'Todos' }, { valor: 'ESTUDIANTE', etiqueta: 'Estudiantes' },
+    { valor: 'PROFESOR', etiqueta: 'Docentes' }, { valor: 'ADMIN', etiqueta: 'Administradores' },
+  ];
+  readonly vistas = computed(() => [
+    { valor: 'cuentas', etiqueta: 'Cuentas', cuenta: this.users().length },
+    { valor: 'solicitudes', etiqueta: 'Solicitudes', cuenta: this.accessRequests().length },
+    { valor: 'por-aprobar', etiqueta: 'Por aprobar', cuenta: this.pendingUsers().length },
+  ]);
+  readonly filtrados = computed(() => {
+    const q = this.busqueda().trim().toLocaleLowerCase('es');
+    const estado = (u: AdminUser) => u.pendingApproval ? 'pendiente' : u.activo ? 'activa' : 'inactiva';
+    return this.users().filter(u => (!q || `${u.nombre} ${u.apellido} ${u.email}`.toLocaleLowerCase('es').includes(q)) &&
+      (this.rol() === 'todos' || u.role === this.rol()) &&
+      (this.estadoFiltro() === 'todos' || estado(u) === this.estadoFiltro()))
+      .sort((a, b) => (this.orden() === 'rol' ? roleLabel(a.role).localeCompare(roleLabel(b.role), 'es') :
+        this.orden() === 'estado' ? estado(a).localeCompare(estado(b), 'es') : 0) ||
+        `${a.nombre} ${a.apellido}`.localeCompare(`${b.nombre} ${b.apellido}`, 'es'));
+  });
+  readonly todosVisibles = computed(() => this.filtrados().length > 0 && this.filtrados().every(u => this.seleccion().includes(u.id)));
+  readonly algunosVisibles = computed(() => this.filtrados().some(u => this.seleccion().includes(u.id)) && !this.todosVisibles());
+
+  constructor() {
+    this.route?.queryParamMap.pipe(takeUntilDestroyed()).subscribe(params => {
+      const valor = params.get('vista');
+      this.vista.set(valor === 'solicitudes' || valor === 'por-aprobar' ? valor : 'cuentas');
+    });
+  }
+
+  cambiarVista(valor: string): void {
+    this.vista.set(valor);
+    void this.router?.navigate([], { relativeTo: this.route, queryParams: { vista: valor }, queryParamsHandling: 'merge' });
+  }
+  limpiarFiltros(): void { this.busqueda.set(''); this.rol.set('todos'); this.estadoFiltro.set('todos'); this.orden.set('nombre'); }
+  seleccionar(id: number, marcado: boolean, pendientes = false): void {
+    const destino = pendientes ? this.seleccionPendientes : this.seleccion;
+    destino.update(ids => marcado ? [...new Set([...ids, id])] : ids.filter(x => x !== id));
+  }
+  seleccionarVisibles(marcado: boolean, pendientes = false): void {
+    const lista = pendientes ? this.pendingUsers() : this.filtrados();
+    for (const usuario of lista) this.seleccionar(usuario.id, marcado, pendientes);
+  }
+
+  async cambiarLote(activo: boolean): Promise<void> {
+    const elegidos = this.users().filter(u => this.seleccion().includes(u.id));
+    const propia = elegidos.filter(u => !activo && u.id === this.auth?.currentUser()?.id);
+    const mismo = elegidos.filter(u => !propia.includes(u) && (u.activo === activo || !!u.pendingApproval));
+    const admins = this.users().filter(u => u.role === 'ADMIN' && u.activo && !u.pendingApproval);
+    // Se conserva al menos un administrador; el servidor resuelve cambios concurrentes.
+    const candidatos = elegidos.filter(u => !propia.includes(u) && !mismo.includes(u));
+    const adminsElegidos = candidatos.filter(u => !activo && u.role === 'ADMIN' && u.activo);
+    const ultimo = admins.length && adminsElegidos.length >= admins.length ? adminsElegidos.slice(-1) : [];
+    const ejecutar = candidatos.filter(u => !ultimo.includes(u));
+    const nombres = (lista: AdminUser[]) => lista.map(u => `${u.nombre} ${u.apellido}`).join(', ');
+    const verbo = activo ? 'activarán' : 'desactivarán';
+    const aplicadas = ejecutar.length
+      ? `Se ${verbo} ${ejecutar.length}: ${nombres(ejecutar.slice(0, 5))}${ejecutar.length > 5 ? ` y ${ejecutar.length - 5} más` : ''}.`
+      : 'No hay ninguna cuenta a la que se pueda aplicar el cambio.';
+    // Solo se nombran los motivos que sí aparecen: una lista de «ninguna» es ruido que el administrador tiene que leer.
+    const omitidas = [
+      propia.length ? `cuenta propia: ${nombres(propia)}` : '',
+      mismo.length ? `ya en ese estado o pendiente de aprobación: ${nombres(mismo)}` : '',
+      ultimo.length ? `último administrador activo: ${nombres(ultimo)}` : '',
+    ].filter(Boolean);
+    const confirmado = await this.confirmOnce({ title: activo ? 'Activar cuentas' : 'Desactivar cuentas',
+      message: `${aplicadas}${omitidas.length ? ` Se omiten ${propia.length + mismo.length + ultimo.length} (${omitidas.join('; ')}).` : ''}` +
+        (!activo && ejecutar.length ? ' Se cierran sus sesiones. Puedes reactivarlas cuando quieras.' : ''),
+      confirmLabel: `${activo ? 'Activar' : 'Desactivar'} ${accounts(ejecutar.length)}` });
+    if (!confirmado || !ejecutar.length) return;
+    this.saving.set(true);
+    // Un solo resultado a la vista: el de la acción en curso, no el de otra anterior.
+    this.actionStatus.set('');
+    this.resultadoLote.set('');
+    from(ejecutar).pipe(concatMap(usuario => this.service.updateStatus(usuario.id, activo).pipe(
+      map(saved => ({ usuario, saved, error: '' })),
+      catchError((err: unknown) => of({ usuario, saved: null, error: apiErrorMessage(err, 'No fue posible actualizar la cuenta.') || 'No fue posible actualizar la cuenta.' }))
+    )), reduce((res, item) => [...res, item], [] as { usuario: AdminUser; saved: AdminUser | null; error: string }[])).subscribe({
+      next: resultados => {
+        for (const item of resultados) if (item.saved) this.users.update(users => users.map(u => u.id === item.saved!.id ? item.saved! : u));
+        const fallos = resultados.filter(item => !item.saved);
+        this.resultadoLote.set(`${resultados.length - fallos.length} ${activo ? 'activadas' : 'desactivadas'}. ${fallos.length} no se pudieron actualizar.${fallos.map(item => ` ${item.usuario.nombre} ${item.usuario.apellido}: ${item.error}`).join('')}`);
+        this.seleccion.set(fallos.map(item => item.usuario.id));
+      }, complete: () => this.saving.set(false),
+    });
+  }
+  async aprobarSeleccion(): Promise<void> {
+    const ids = this.pendingUsers().filter(u => this.seleccionPendientes().includes(u.id)).map(u => u.id);
+    if (!ids.length) return;
+    const confirmado = await this.confirmOnce({ title: 'Aprobar cuentas pendientes', message: `Se enviarán ${ids.length} correos con la contraseña temporal.`, confirmLabel: `Aprobar ${accounts(ids.length)}` });
+    if (confirmado) { this.seleccionPendientes.set([]); this.approveIds(ids); }
+  }
 
   readonly roles: UserRole[] = ['ADMIN', 'PROFESOR', 'ESTUDIANTE'];
   readonly roleLabel = roleLabel;
@@ -103,7 +213,7 @@ export class UsersComponent implements OnInit {
     isEmpty: computed(() => this.users().length === 0),
   });
   /** El resultado de la última acción sobre varias cuentas (aprobar), para la región de estado. */
-  private readonly actionStatus = signal('');
+  readonly actionStatus = signal('');
   /** Región de estado SIEMPRE presente (una región viva que nace con su texto no se anuncia). */
   protected readonly statusText = computed(() => (this.state() === 'loading' ? 'Cargando usuarios…' : this.actionStatus()));
   /** E2-9: cuentas creadas por una importación que esperan la aprobación del administrador. */
@@ -168,6 +278,7 @@ export class UsersComponent implements OnInit {
   }
 
   attendRequest(request: AccessRequest) {
+    this.solicitudEnFormulario = request.id;
     this.selectedUser.set(null);
     this.resetUserForm({
       nombre: request.nombre,
@@ -232,6 +343,7 @@ export class UsersComponent implements OnInit {
   }
 
   newUser() {
+    this.solicitudEnFormulario = null;
     this.selectedUser.set(null);
     this.resetUserForm({
       nombre: '',
@@ -246,6 +358,7 @@ export class UsersComponent implements OnInit {
   }
 
   editUser(user: AdminUser) {
+    this.solicitudEnFormulario = null;
     this.populateEdit(user);
     this.message.set('');
     this.openForm();
@@ -296,6 +409,7 @@ export class UsersComponent implements OnInit {
     const email = value.email.trim().toLowerCase();
     // La hoja desde la que se envía: al responder el servidor puede haberse cerrado o haber otra (formulario nuevo).
     const sheetAtSave = this.sheet;
+    const solicitudAlGuardar = selected ? null : this.solicitudEnFormulario;
     this.saving.set(true);
     this.message.set('');
 
@@ -329,7 +443,12 @@ export class UsersComponent implements OnInit {
           this.populateEdit(saved);
           this.closeForm();
         }
-        this.loadAccessRequests();
+        if (solicitudAlGuardar !== null) {
+          this.accessRequestsService.updateStatus(solicitudAlGuardar, 'REVIEWED').subscribe({
+            next: () => this.loadAccessRequests(),
+            error: () => { this.notify.warning('La cuenta se creó, pero no se pudo marcar la solicitud como revisada.'); this.loadAccessRequests(); },
+          });
+        } else this.loadAccessRequests();
       },
       error: (err: unknown) => {
         const text = apiErrorMessage(err, 'No fue posible guardar los cambios.');
@@ -404,6 +523,7 @@ export class UsersComponent implements OnInit {
     if (this.saving() || !ids.length) return;
     this.saving.set(true);
     this.actionStatus.set('');
+    this.resultadoLote.set('');
     const batches: number[][] = [];
     for (let start = 0; start < ids.length; start += APPROVE_BATCH_SIZE) batches.push(ids.slice(start, start + APPROVE_BATCH_SIZE));
     from(batches).pipe(

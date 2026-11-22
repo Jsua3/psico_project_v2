@@ -54,14 +54,23 @@ describe('shell: barra accesible', () => {
     }
   });
 
-  it('el logo es un enlace con nombre propio que contiene su texto visible (WCAG 2.5.3; el monograma es decorativo)', async () => {
+  it('el logo es la marca de Metafrónesis, decorativa, dentro de un enlace con nombre propio (DP-06; WCAG 2.5.3)', async () => {
     const host = await render();
     const logo = host.querySelector('a.modulo-logo')!;
-    expect(logo.getAttribute('aria-label')).toBe('SIEP: ir al panel');
-    // Axe mide el texto VISIBLE del DOM (aria-hidden no lo quita): el monograma va por CSS, no como texto.
-    const text = (logo.textContent ?? '').replace(/\s+/g, ' ').trim();
-    expect(text).toBe('SIEP');
-    expect(logo.getAttribute('aria-label')).toContain(text);
+    expect(logo.getAttribute('aria-label')).toBe('Metafrónesis · SIEP: ir al inicio');
+    expect(logo.querySelector('app-marca')).not.toBeNull();
+    for (const svg of logo.querySelectorAll('svg')) expect(svg.getAttribute('aria-hidden')).toBe('true');
+    // Axe mide el texto VISIBLE del DOM: la palabra de la marca es un dibujo, así que el enlace no tiene texto que
+    // pueda contradecir su nombre.
+    expect((logo.textContent ?? '').trim()).toBe('');
+  });
+
+  it('la cápsula de tema está en el módulo de cuenta y es un grupo de radios nombrado', async () => {
+    const host = await render();
+    const cuenta = host.querySelector('.modulo-cuenta')!;
+    const grupo = cuenta.querySelector('app-tema-selector [role="radiogroup"]')!;
+    expect(grupo.getAttribute('aria-label')).toBe('Tema de la página');
+    expect(grupo.querySelectorAll('[role="radio"]')).toHaveLength(3);
   });
 
   it('el «···» es decorativo y los plegados siguen en el árbol accesible (los alcanza Tab)', async () => {
@@ -75,7 +84,7 @@ describe('shell: barra accesible', () => {
 
   it('el menú de cuenta tiene nombre y el rol se lee como texto', async () => {
     const host = await render();
-    const trigger = host.querySelector('.modulo-cuenta button')!;
+    const trigger = host.querySelector('.modulo-cuenta ui-menu button')!;
     expect(trigger.getAttribute('aria-label') ?? trigger.textContent).toMatch(/cuenta/i);
     expect(host.querySelector('.cuenta-chip__rol')!.textContent!.trim()).toBe('Administrador');
   });

@@ -3,6 +3,7 @@ import { RouterLink } from '@angular/router';
 
 import { GESTOS, type Gesto } from '../../../../core/models/simulation.model';
 import { CasoStore, MAX_COMENTARIOS } from '../../estado/caso.store';
+import { DeshacerBorrado } from '../../marco/deshacer-borrado';
 import { rutaRetrato } from '../../modelo/biblioteca.service';
 import type { Comentario, Escena } from '../../modelo/caso';
 import { EXPRESIONES } from '../../modelo/escenario';
@@ -46,7 +47,7 @@ interface GrupoPersona {
   template: `
     <section aria-labelledby="comentarios-titulo" aria-describedby="comentarios-ayuda" class="bloque">
       <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-      <h2 id="comentarios-titulo" tabindex="-1">Lo que dicen al acercarte</h2>
+      @if (conTitulo()) { <h2 id="comentarios-titulo" tabindex="-1">Lo que dicen al acercarte</h2> }
       <p id="comentarios-ayuda" class="texto-secundario nota">Frases cortas que un personaje dice cuando el estudiante se le acerca. No cambian la evaluación. Se dicen una vez, en este orden.</p>
 
       @if (grupos().length === 0) {
@@ -172,7 +173,7 @@ interface GrupoPersona {
     .grupo-titulo { margin: 0; font-size: var(--autoria-texto-16); font-weight: 700; }
     .comentario { display: flex; flex-direction: column; gap: 8px; }
     .etiqueta { font-weight: 700; font-size: var(--autoria-texto-16); }
-    .campo { min-height: 48px; padding: 8px 12px; font: inherit; font-size: var(--autoria-texto-16); line-height: 24px; border: 2px solid var(--borde-control); border-radius: var(--radio-control); background: var(--superficie); width: 100%; }
+    .campo { min-height: 44px; padding: 8px 12px; font: inherit; font-size: var(--autoria-texto-16); line-height: 24px; border: 1px solid var(--borde-control); border-radius: var(--radio-control); background: var(--superficie); width: 100%; }
     .nota { margin: 0; font-size: var(--autoria-texto-16); line-height: 24px; }
     .problema { color: var(--peligro); }
     .dos-campos { display: flex; flex-wrap: wrap; gap: 12px; }
@@ -184,8 +185,14 @@ interface GrupoPersona {
 })
 export class ComentariosComponent {
   readonly escena = input.required<Escena>();
+  /**
+   * Dentro del guion el bloque va plegado y su botón hace de título (con el mismo id, `comentarios-titulo`, que nombra la
+   * sección y recibe el foco): entonces aquí no se repite.
+   */
+  readonly conTitulo = input(true);
 
   private readonly store = inject(CasoStore);
+  private readonly deshacer = inject(DeshacerBorrado);
   protected readonly rutas = inject(RutasAutoria);
   protected readonly expresiones = EXPRESIONES;
   protected readonly nombreExpresion = NOMBRE_EXPRESION;
@@ -279,7 +286,8 @@ export class ComentariosComponent {
     const gi = grupos.findIndex((g) => g.items.some((it) => it.k === k));
     const siguiente = grupos[gi]?.items.find((it) => it.k === k)?.siguiente ?? null;
     this.invalidas.update((todas) => this.reubicar(todas, (pos) => (pos === k ? null : pos > k ? pos - 1 : pos)));
-    this.guardar(this.lista().filter((_, i) => i !== k));
+    // Nada del caso apunta a una frase: se quita al instante y el marco ofrece «Deshacer» durante 8 s (EDITOR.md §4.6).
+    this.deshacer.comentario(this.escena().id, k);
     if (siguiente !== null) this.enfocar(`comentario-${siguiente - 1}-texto`);
     else this.enfocar(grupos[gi]?.ref != null ? `comentarios-agregar-${gi}` : 'comentarios-titulo');
   }
@@ -339,6 +347,7 @@ export class ComentariosComponent {
 
   /** Pone el foco cuando ya se dibujó el cambio. */
   private enfocar(id: string): void {
-    afterNextRender(() => this.raiz.nativeElement.querySelector<HTMLElement>(`#${id}`)?.focus(), { injector: this.injector });
+    // El título puede vivir fuera (el botón del bloque plegado del guion): si no está aquí, se busca en la página.
+    afterNextRender(() => (this.raiz.nativeElement.querySelector<HTMLElement>(`#${id}`) ?? document.getElementById(id))?.focus(), { injector: this.injector });
   }
 }

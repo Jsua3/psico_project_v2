@@ -378,3 +378,14 @@ def test_privileged_fields_in_the_body_are_ignored_on_create(profesor, otro_prof
     row = CaseAssignment.objects.get(pk=response.data["data"]["id"])
     assert (row.assigned_by_id, row.active, row.grupo_id, row.estudiante_id) == (profesor.id, True, grupo.id, None)
     assert row.id != 12345
+
+
+def test_assignment_responses_include_case_title(profesor, grupo):
+    version = _published_version(profesor, "TITLE-CASE")
+    client = cl(profesor)
+    created = _create(client, grupo, version.id)
+    assert created.status_code == 201
+    assert created.json()["data"]["caseTitle"] == version.simulation_case.title
+    listed = client.get(API, {"groupId": grupo.id})
+    assert listed.status_code == 200
+    assert any(item["caseTitle"] == version.simulation_case.title for item in listed.json()["data"])

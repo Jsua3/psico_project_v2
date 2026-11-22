@@ -1,12 +1,13 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 
 import { UiGalleryComponent } from './ui-gallery.component';
 
 /** Galería de desarrollo (plan visual F0-4 y F2-9, VD-11): cada componente en sus estados y en las dos pieles. */
 describe('UiGalleryComponent (/dev/ui)', () => {
   const render = async () => {
-    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection(), provideRouter([])] });
     const fixture = TestBed.createComponent(UiGalleryComponent);
     await fixture.whenStable();
     return fixture.nativeElement as HTMLElement;
@@ -50,7 +51,7 @@ describe('UiGalleryComponent (/dev/ui)', () => {
   it('«Simular guardado» pasa a cargando al pulsarlo y vuelve solo (para medir el ancho estable en el e2e)', async () => {
     vi.useFakeTimers();
     try {
-      TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
+      TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection(), provideRouter([])] });
       const fixture = TestBed.createComponent(UiGalleryComponent);
       fixture.detectChanges();
       const save = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('button.ui-gallery__save')!;
@@ -175,5 +176,43 @@ describe('UiGalleryComponent (/dev/ui)', () => {
       expect(panel.querySelector('ui-scope-notice[data-draft="true"]')).not.toBeNull();
       expect([...panel.querySelectorAll('button')].some(button => button.textContent?.includes('Iniciar un intento nuevo'))).toBe(true);
     }
+  });
+
+  // req: DISENO B2 (cada pieza nueva en /dev/ui en las dos pieles)
+  it('piezas del rediseño (B2): segmentado, filtros, barra de acciones, figuras, portadas, barras, archivo, doodles y tabla apilada en cada piel', async () => {
+    const host = await render();
+    const panels = host.querySelectorAll('.ui-gallery__skin');
+    expect(panels.length).toBe(2);
+    for (const panel of panels) {
+      expect(panel.querySelectorAll('ui-segmentado [role="radiogroup"]').length).toBeGreaterThanOrEqual(2);
+      expect(panel.querySelector('ui-filtros input[type="search"]')).not.toBeNull();
+      expect(panel.querySelector('ui-barra-acciones.ui-barra-acciones--pie')).not.toBeNull();
+      expect(panel.querySelector('ui-barra-acciones.ui-barra-acciones--columna')).not.toBeNull();
+      expect(panel.querySelectorAll('ui-figura-pixel').length).toBeGreaterThanOrEqual(4);
+      expect(panel.querySelector('ui-portada-caso.ui-portada-caso--respaldo')).not.toBeNull();
+      expect(panel.querySelector('ui-portada-caso:not(.ui-portada-caso--respaldo) img')).not.toBeNull();
+      expect(panel.querySelectorAll('ui-barras').length).toBe(2);
+      expect(panel.querySelector('ui-archivo input[type="file"]')).not.toBeNull();
+      expect(panel.querySelector('app-doodles.doodles--suave')).not.toBeNull();
+      expect(panel.querySelectorAll('ui-table.ui-table--apilar').length).toBe(2);
+      expect(panel.querySelector('.ui-gallery__estrecha ui-table.ui-table--apilar td[data-celda="principal"]')).not.toBeNull();
+      expect(panel.querySelector('ui-empty-state.ui-empty-state--figura ui-figura-pixel')).not.toBeNull();
+      expect(panel.querySelector('ui-card.ui-card--hundida')).not.toBeNull();
+      expect(panel.querySelector('a.ui-card--tinte')).not.toBeNull();
+    }
+    // Sigue habiendo un único h1, ahora con el enlace de regreso de la cabecera.
+    expect(host.querySelectorAll('h1')).toHaveLength(1);
+    expect(host.querySelector('ui-page-header a.ui-page-header__volver')?.getAttribute('href')).toBe('/dev/barra');
+  });
+
+  it('el filtro de muestra filtra y su segmentado lleva las cuentas en texto', async () => {
+    const host = await render();
+    const panel = host.querySelector('.ui-gallery__skin')!;
+    const estado = panel.querySelectorAll('ui-filtros ui-segmentado [role="radio"]');
+    expect(estado[1].textContent?.replace(/\s+/g, ' ').trim()).toBe('Sin empezar · 2');
+    (estado[1] as HTMLButtonElement).click();
+    await new Promise(resolve => setTimeout(resolve));
+    TestBed.tick();
+    expect(panel.querySelector('ui-filtros .ui-filtros__recuento')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Mostrando 2 de 4');
   });
 });

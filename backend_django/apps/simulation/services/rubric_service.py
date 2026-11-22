@@ -2,17 +2,19 @@ import json
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from shared import policies
 from shared.exceptions import ApiError
+from shared.jsonutils import read_map
 
 from apps.simulation.models import (
     LEVEL_INDEX,
     CaseVersion,
+    Competency,
     CriterionScore,
     EvaluationOrigin,
     Rubric,
@@ -25,7 +27,8 @@ from apps.simulation.models import (
 from . import competencies
 from ..assessment import competencies as assessment_competencies
 from .audit_service import arg, auditable
-from .authoring.guards import ensure_draft
+from .authoring.guards import bump_revision, ensure_draft
+from .text_rules import validate_plain_text
 
 BASIC_RUBRIC_NAME = "R\u00fabrica b\u00e1sica de desempe\u00f1o SIEP"
 BASIC_RUBRIC_DESCRIPTION = (
@@ -142,6 +145,64 @@ LEVELS = [
 ]
 
 
+#: El orden de los niveles, de En inicio a Destacado (el de ``LEVELS``): los descriptores se leen y se escriben así.
+_LEVEL_ORDER = tuple(level["value"] for level in LEVELS)
+_GENERAL_DESCRIPTOR = {level["value"]: level["descriptor"] for level in LEVELS}
+
+#: RK-2 · Tope de lo que significa un nivel en un criterio: unas tres o cuatro líneas de la celda de la matriz. Más que
+#: eso deja de ser un descriptor y quien valora ya no lo lee de un vistazo.
+MAX_LEVEL_DESCRIPTOR_LENGTH = 600
+
+
+def level_descriptors_of(criterion):
+    """RK-2 · Los descriptores propios del criterio: ``{nivel: texto}``, solo de los cuatro niveles, sin vacíos y en orden.
+
+    Lo que no cumple (una clave ajena o un valor que no es texto, escrito a mano en la base) se ignora al leer: la celda
+    vuelve al descriptor general en vez de romper la vista de quien valora.
+    """
+    raw = read_map(getattr(criterion, "level_descriptors_json", None))
+    return {
+        level: raw[level].strip()
+        for level in _LEVEL_ORDER
+        if isinstance(raw.get(level), str) and raw[level].strip()
+    }
+
+
+def descriptor_for(criterion, level):
+    """Qué significa ``level`` en este criterio: el descriptor propio (RK-2) o, si no lo tiene, el general del nivel."""
+    if not level:
+        return None
+    return level_descriptors_of(criterion).get(level) or _GENERAL_DESCRIPTOR.get(level)
+
+
+def _validated_level_descriptors(raw, index):
+    """``levelDescriptors`` de un criterio, validado: un objeto con las cuatro claves de nivel como mucho, cada valor texto
+    plano de hasta ``MAX_LEVEL_DESCRIPTOR_LENGTH``. El objeto REEMPLAZA los descriptores del criterio (la matriz manda sus
+    cuatro celdas a la vez): un nivel vacío, nulo o ausente queda sin descriptor propio y se lee con el general.
+    ``index`` es la posición del criterio en la lista (desde 0), para que la pantalla marque la fila."""
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict) or any(key not in LEVEL_INDEX for key in raw):
+        raise ApiError(
+            "VALIDATION_ERROR",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "Los descriptores van por nivel: EN_INICIO, EN_PROCESO, LOGRADO o DESTACADO.",
+            status.HTTP_400_BAD_REQUEST,
+            field="levelDescriptors",
+            index=index,
+        )
+    descriptors = {}
+    for level in _LEVEL_ORDER:
+        if level not in raw:
+            continue
+        text = validate_plain_text(
+            raw[level], MAX_LEVEL_DESCRIPTOR_LENGTH, "levelDescriptors", multiline=True, index=index
+        )
+        if text:
+            descriptors[level] = text
+    return descriptors
+
+
 def overall_level(weighted_levels):
     """Nivel global: promedio ponderado del índice de cada criterio.
 
@@ -203,9 +264,57 @@ def _validate_weights(criteria):
         raise ValidationError("La suma de ponderaciones activas debe ser exactamente 100")
 
 
-def _rubric_summary(rubric, actor=None):
+def _case_version_of(rubric):
+    """RK-3 · De qué caso y versión es una rúbrica propia de una versión, o ``None`` si es una plantilla de la biblioteca.
+
+    La biblioteca la agrupa en «De un caso» y dice «Violencia familiar · v2.1.0 · Publicado»: sin esto, las rúbricas
+    propias de dos versiones del mismo caso se ven como dos homónimas.
+    """
+    version = rubric.case_version
+    if version is None:
+        return None
+    return {
+        "id": version.id,
+        "title": version.simulation_case.title,
+        "semanticVersion": version.semantic_version,
+        "status": version.status,
+    }
+
+
+def _usage_by_rubric(rubrics):
+    """RK-3 · ``{rubric_id: {"caseVersions", "evaluations"}}`` de un lote de rúbricas, en dos consultas.
+
+    ``caseVersions``: cuántas versiones se valoran con ella de forma explícita (la asignación activa o ser la propia de la
+    versión; la predeterminada que se aplica «por descarte» no cuenta: no es un uso que alguien eligió).
+    ``evaluations``: cuántas valoraciones del DOCENTE la usan. Las del sistema no cuentan: la docente no las hizo y el aviso
+    «esta rúbrica ya se usó en N valoraciones» le habla de las suyas y las de sus colegas.
+    """
+    ids = [rubric.id for rubric in rubrics]
+    versions = {rubric.id: set() for rubric in rubrics}
+    for rubric in rubrics:
+        if rubric.case_version_id is not None:
+            versions[rubric.id].add(rubric.case_version_id)
+    for rubric_id, case_version_id in SimulationRubricAssignment.objects.filter(
+        rubric_id__in=ids, active=True
+    ).values_list("rubric_id", "case_version_id"):
+        versions[rubric_id].add(case_version_id)
+    evaluations = dict(
+        RubricEvaluation.objects.filter(rubric_id__in=ids, origin=EvaluationOrigin.DOCENTE)
+        .values("rubric_id")
+        .annotate(total=Count("id"))
+        .values_list("rubric_id", "total")
+    )
+    return {
+        rubric_id: {"caseVersions": len(versions[rubric_id]), "evaluations": evaluations.get(rubric_id, 0)}
+        for rubric_id in ids
+    }
+
+
+def _rubric_summary(rubric, actor=None, usage=None):
     criteria = list(RubricCriterion.objects.filter(rubric_id=rubric.id).order_by("display_order", "id"))
     total = sum((_weight(c) for c in criteria if c.active), Decimal("0"))
+    if usage is None:
+        usage = _usage_by_rubric([rubric])[rubric.id]
     summary = {
         "id": rubric.id,
         "ownerId": rubric.created_by_id,
@@ -218,6 +327,9 @@ def _rubric_summary(rubric, actor=None):
         "criteriaCount": len(criteria),
         "createdAt": rubric.created_at.isoformat() if rubric.created_at else None,
         "updatedAt": rubric.updated_at.isoformat() if rubric.updated_at else None,
+        # RK-3 (aditivos): de qué caso es y cuánto se usó; un cliente que no los conoce los ignora.
+        "caseVersion": _case_version_of(rubric),
+        "usage": usage,
     }
     if actor is not None:
         # Quien mira sabe de antemano si puede escribirla (sin intentar guardar para enterarse).
@@ -237,6 +349,8 @@ def rubric_detail(rubric, actor=None):
             "weight": float(_weight(c)),
             "displayOrder": c.display_order,
             "active": c.active,
+            # RK-2: solo los niveles con texto propio; el que falta se lee con el descriptor general (``LEVELS``).
+            "levelDescriptors": level_descriptors_of(c),
         }
         for c in RubricCriterion.objects.filter(rubric_id=rubric.id).order_by("display_order", "id")
     ]
@@ -276,10 +390,14 @@ def _load_editable(rubric_id, actor):
 
 
 def list_rubrics(actor):
-    return [
-        _rubric_summary(r, actor)
-        for r in _visible(actor).order_by("-is_default", "-active", "name", "id")
-    ]
+    rubrics = list(
+        _visible(actor)
+        .select_related("case_version__simulation_case")
+        .order_by("-is_default", "-active", "name", "id")
+    )
+    # El uso de todas en dos consultas, no dos por rúbrica: la lista del ADMIN trae todas.
+    usage = _usage_by_rubric(rubrics)
+    return [_rubric_summary(r, actor, usage[r.id]) for r in rubrics]
 
 
 def get_rubric(rubric_id, actor):
@@ -320,6 +438,11 @@ def _write_criteria(rubric, criteria_payload):
         criterion.max_score = int(weight)
         criterion.active = bool(item.get("active", True))
         criterion.display_order = int(item.get("displayOrder") or item.get("order") or index)
+        if "levelDescriptors" in item:
+            # RK-2 · «Ausente = no tocar»: un cliente que no conoce los descriptores (el de hoy) no borra los escritos.
+            criterion.level_descriptors_json = json.dumps(
+                _validated_level_descriptors(item.get("levelDescriptors"), index - 1), ensure_ascii=False
+            )
         criterion.save()
         kept_ids.append(criterion.id)
     if kept_ids:
@@ -456,6 +579,7 @@ def duplicate(rubric_id, user):
             max_score=c.max_score,
             active=c.active,
             display_order=c.display_order,
+            level_descriptors_json=c.level_descriptors_json,  # RK-2: la copia dice lo mismo en cada nivel
         )
     return rubric_detail(clone, user)
 
@@ -524,6 +648,171 @@ def assign_to_case_version(case_version_id, rubric_id, user):
     return {"caseVersionId": case_version.id, "rubric": rubric_detail(rubric, user)}
 
 
+# ─── RK-1 · adoptar una rúbrica en el caso ─────────────────────────────────────────────────
+#: La rúbrica que nace del catálogo de competencias del programa (BORRADOR: textos nuevos del servidor, VD-23).
+PROGRAM_RUBRIC_NAME = "Competencias del programa"
+PROGRAM_RUBRIC_DESCRIPTION = (
+    "Un criterio por cada competencia del programa, con el mismo peso. Mientras no escribas qué significa cada nivel en "
+    "un criterio, se aplican los descriptores generales."
+)
+
+
+def _equal_weights(count):
+    """``count`` pesos iguales que suman exactamente 100,00; el último absorbe el redondeo (3 → 33,33 · 33,33 · 33,34)."""
+    each = (Decimal("100") / count).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    weights = [each] * count
+    weights[-1] = Decimal("100.00") - each * (count - 1)
+    return weights
+
+
+def _criteria_from_catalog():
+    """Los criterios de la rúbrica «Competencias del programa»: uno por competencia activa del catálogo, en su orden,
+    con su nombre y su descripción, enlazado a ella y con el peso repartido por igual. No inventa contenido clínico: sale
+    de lo que Psicología ya fijó en el catálogo."""
+    catalog = list(Competency.objects.filter(active=True).order_by("sort_order", "code"))
+    if not catalog:
+        raise ApiError(
+            "VALIDATION_ERROR",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "El catálogo no tiene competencias activas: pide al administrador que las registre.",
+            status.HTTP_400_BAD_REQUEST,
+            field="fromCompetencies",
+        )
+    return [
+        {
+            "competency": competency.code,
+            "competency_ref": competency,
+            "title": competency.name,
+            "description": competency.description,
+            "weight": weight,
+            "max_score": int(weight),
+            "active": True,
+            "display_order": order,
+            "level_descriptors_json": "{}",
+        }
+        for order, (competency, weight) in enumerate(zip(catalog, _equal_weights(len(catalog))), start=1)
+    ]
+
+
+def _criteria_copied_from(source):
+    """Copia fiel de TODOS los criterios de ``source`` (también los inactivos, como ``duplicate``): texto, enlace con el
+    catálogo, peso, orden y descriptores por nivel."""
+    return [
+        {
+            "competency": c.competency,
+            "competency_ref": c.competency_ref,
+            "title": c.title,
+            "description": c.description,
+            "weight": _weight(c),
+            "max_score": c.max_score,
+            "active": c.active,
+            "display_order": c.display_order,
+            "level_descriptors_json": c.level_descriptors_json,
+        }
+        for c in RubricCriterion.objects.filter(rubric_id=source.id).select_related("competency_ref").order_by(
+            "display_order", "id"
+        )
+    ]
+
+
+def _adoption_source(data, actor):
+    """``(nombre, descripción, versión, criterios, id de origen)`` de lo que se adopta: una rúbrica que el actor ve, o
+    el catálogo. Exactamente una de las dos cosas: las dos juntas, o ninguna, es un 400."""
+    rubric_id = data.get("rubricId")
+    from_catalog = data.get("fromCompetencies") is True
+    if from_catalog == (rubric_id not in (None, "")):
+        raise ApiError(
+            "VALIDATION_ERROR",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "Elige una rúbrica para copiar o las competencias del programa (una de las dos).",
+            status.HTTP_400_BAD_REQUEST,
+            field="rubricId",
+        )
+    if from_catalog:
+        return PROGRAM_RUBRIC_NAME, PROGRAM_RUBRIC_DESCRIPTION, "1.0", _criteria_from_catalog(), None
+    try:
+        rubric_id = int(rubric_id)
+    except (TypeError, ValueError, OverflowError):
+        raise ApiError(
+            "VALIDATION_ERROR",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "rubricId debe ser un número entero.",
+            status.HTTP_400_BAD_REQUEST,
+            field="rubricId",
+        ) from None
+    # Una rúbrica que el actor no ve es 404, igual que una que no existe: no se confirma la de otro docente (R3).
+    source = _load_visible(rubric_id, actor)
+    return source.name, source.description, source.version, _criteria_copied_from(source), source.id
+
+
+@auditable(
+    "RUBRIC_UPDATED", "CASE_VERSION", 0,
+    context=lambda args, kwargs, result: {
+        "caseVersionId": arg(args, kwargs, 0, "case_version_id"),
+        "rubricId": next((r["rubricId"] for r in result.get("rubrics", [])), None),
+        "changed": ["adopted"],
+    },
+)
+@transaction.atomic
+def adopt_for_case_version(case_version_id, data, actor):
+    """RK-1 · ``POST …/cases/{id}/rubric``: la rúbrica del caso «viaja con el caso».
+
+    Guarda como rúbrica PROPIA de la versión (activa) una copia de la rúbrica pedida —o una nueva con un criterio por
+    competencia del catálogo—. Copia y no enlace: con el enlace (``SimulationRubricAssignment``), cambiar la plantilla en
+    la biblioteca cambiaba cómo se valora un caso ya publicado y con intentos; la copia se sella con el caso al publicar y
+    se clona con cada versión nueva. Por eso se desactivan la rúbrica propia anterior y la asignación activa de la versión:
+    después, ``rubric_for_case_version`` devuelve la adoptada.
+
+    Solo en un borrador y con su revisión (como toda edición del editor), solo quien autora el caso (o el ADMIN). Los pesos
+    activos deben sumar 100: una rúbrica que no se puede aplicar no se adopta. Sube la revisión, deja la fila de auditoría y
+    devuelve la vista del editor, que ya trae la rúbrica nueva en ``rubrics``.
+    """
+    version = ensure_draft(case_version_id, data.get("revision"))
+    owner_id = (
+        CaseVersion.objects.filter(pk=version.id).values_list("simulation_case__created_by_id", flat=True).first()
+    )
+    if not policies.can(actor, "case", "author", owner_id=owner_id):
+        # La vista ya lo comprueba (``authorize_case_version``); aquí se repite porque el servicio no debe depender de ello.
+        raise ApiError(
+            "CASE_NOT_OWNED",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "Solo quien autora el caso puede modificarlo.",
+            status.HTTP_403_FORBIDDEN,
+        )
+    name, description, rubric_version, criteria, _source_id = _adoption_source(data, actor)
+    active_total = sum((Decimal(c["weight"]) for c in criteria if c["active"]), Decimal("0"))
+    if not any(c["active"] for c in criteria) or active_total != Decimal("100.00"):
+        raise ApiError(
+            "VALIDATION_ERROR",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "Esa rúbrica no se puede aplicar: los pesos de sus criterios activos deben sumar 100. Corrígela en Rúbricas y "
+            "vuelve a intentarlo.",
+            status.HTTP_400_BAD_REQUEST,
+            field="rubricId",
+        )
+
+    now = timezone.now()
+    Rubric.objects.filter(case_version_id=version.id, active=True).update(active=False, updated_at=now)
+    SimulationRubricAssignment.objects.filter(case_version_id=version.id, active=True).update(active=False)
+    adopted = Rubric.objects.create(
+        case_version=version,
+        name=name[:255],
+        description=description,
+        active=True,
+        version=rubric_version or "1.0",
+        is_default=False,
+        updated_at=now,
+        created_by=actor,
+    )
+    RubricCriterion.objects.bulk_create(RubricCriterion(rubric=adopted, **values) for values in criteria)
+    _validate_weights(list(_criteria_qs(adopted)))
+    bump_revision(version.id)
+
+    from .authoring.editor_view import editor  # perezoso: el editor importa medio subsistema de autoría
+
+    return editor(version.id)
+
+
 def rubric_for_case_version(case_version_id):
     """La rúbrica con que se evalúa una versión: la asignada; si no, la propia de la versión; si no, la de la plataforma.
 
@@ -584,6 +873,7 @@ def attempt_rubric_view(attempt_id, instructor=None):
     criteria = list(_criteria_qs(rubric).select_related("competency_ref"))
     # El mismo código que `competencyLevels[].code` de la valoración del sistema: así se emparejan lado a lado.
     competency_codes = {c.id: assessment_competencies.competency_code_of(c) for c in criteria}
+    descriptors = {c.id: level_descriptors_of(c) for c in criteria}
     items = []
     for c in criteria:
         score = scores.get(c.id)
@@ -617,6 +907,8 @@ def attempt_rubric_view(attempt_id, instructor=None):
                 "description": item["description"],
                 "weight": item["weight"],
                 "displayOrder": item["displayOrder"],
+                # RK-2: lo que significa cada nivel en ESTE criterio; el que falta se lee con ``levels[].descriptor``.
+                "levelDescriptors": descriptors[item["criterionId"]],
             }
             for item in items
         ],
@@ -653,12 +945,52 @@ def rubric_snapshot(rubric, criteria):
     return _rubric_snapshot(rubric, criteria)
 
 
+def _deliver_flag(data):
+    """RK-5 · ``deliver`` del cuerpo: verdadero si no viene (el comportamiento de siempre). Solo un booleano: un ``"false"``
+    escrito como texto sería verdadero en Python y entregaría lo que la docente quiso guardar sin entregar."""
+    deliver = data.get("deliver", True)
+    if not isinstance(deliver, bool):
+        raise ApiError(
+            "VALIDATION_ERROR",
+            # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+            "deliver debe ser verdadero o falso.",
+            status.HTTP_400_BAD_REQUEST,
+            field="deliver",
+        )
+    return deliver
+
+
 @transaction.atomic
 def save_attempt_evaluation(attempt_id, data, instructor):
-    attempt = SimulationAttempt.objects.filter(pk=attempt_id).first()
+    """Guarda la valoración del docente sobre un intento.
+
+    RK-5 · ``deliver`` (por defecto verdadero, lo de siempre): con todos los criterios con nivel queda ``EVALUATED`` y el
+    estudiante la ve. Con ``deliver: false`` queda ``PENDING`` aunque esté completa: es el «Guardar sin entregar» de quien
+    quiere releerla mañana. Pero solo ANTES de la primera entrega: la fila de la valoración es una por docente y se
+    reescribe, así que un ``deliver: false`` sobre una ya ``EVALUATED`` la retiraría en silencio de la vista del estudiante.
+    Eso es un 409 ``EVALUATION_ALREADY_DELIVERED`` y no cambia nada; para corregir una entregada se guarda entregada.
+    Todo va en una transacción: un fallo a mitad (al escribir un nivel) deja la valoración como estaba.
+    """
+    deliver = _deliver_flag(data)
+    # Se toma la fila del INTENTO, que siempre existe, y no la de la valoración, que puede no existir todavía o estar
+    # ``PENDING``: así dos guardados del mismo intento (una entrega y un «guardar sin entregar» desde otra pestaña) se
+    # ponen en fila, y el segundo relee el estado ya con el primero confirmado. Bloquear solo las valoraciones
+    # ``EVALUATED`` no bastaba: sin esa fila no había nada que bloquear y el borrador podía pisar la entrega.
+    attempt = SimulationAttempt.objects.select_for_update().filter(pk=attempt_id).first()
     if not attempt:
         raise NotFound("Intento no encontrado")
     rubric = rubric_for_case_version(attempt.case_version_id)
+    if not deliver:
+        delivered = RubricEvaluation.objects.filter(
+            attempt_id=attempt.id, rubric_id=rubric.id, instructor_id=instructor.id, status="EVALUATED"
+        ).exists()
+        if delivered:
+            raise ApiError(
+                "EVALUATION_ALREADY_DELIVERED",
+                # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología (VD-23).
+                "Esta valoración ya se entregó al estudiante. Para corregirla, guárdala entregada.",
+                status.HTTP_409_CONFLICT,
+            )
     criteria = _normalize_criteria_weights(list(_criteria_qs(rubric)))
     _validate_weights(criteria)
 
@@ -699,7 +1031,8 @@ def save_attempt_evaluation(attempt_id, data, instructor):
         if criterion.id in score_by_id:
             total += score_by_id[criterion.id]["score"] * _weight(criterion) / Decimal("100")
     total = total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    eval_status = "EVALUATED" if len(score_by_id) == len(criteria) else "PENDING"
+    # RK-5: guardar sin entregar deja PENDING aunque esté completa (la bandeja la sigue mostrando «por revisar»).
+    eval_status = "EVALUATED" if deliver and len(score_by_id) == len(criteria) else "PENDING"
 
     evaluation = RubricEvaluation.objects.filter(
         attempt_id=attempt.id, rubric_id=rubric.id, instructor_id=instructor.id
@@ -783,16 +1116,23 @@ def owner_evaluation_view(attempt_id, actor):
     )
     for evaluation in queryset:
         levels, scores = _evaluation_levels(evaluation)
-        criteria = [
-            {
+        criteria = []
+        for c in _criteria_qs(evaluation.rubric):
+            if c.id not in scores:
+                continue
+            level = _level_of(scores[c.id])
+            entry = {
                 "criterionId": c.id,
                 "title": c.title,
-                "level": _level_of(scores[c.id]),
+                "level": level,
                 "comment": scores[c.id].comment or "",
             }
-            for c in _criteria_qs(evaluation.rubric)
-            if c.id in scores
-        ]
+            # RK-6 · Qué significa ese nivel en ese criterio, en palabras (el propio del criterio o el general). Es un
+            # texto, nunca un número (RN-09); sin nivel no hay nada que explicar y la clave no viaja.
+            descriptor = descriptor_for(c, level)
+            if descriptor:
+                entry["descriptor"] = descriptor
+            criteria.append(entry)
         evaluations.append({
             "rubricName": evaluation.rubric.name,
             "origin": evaluation.origin,

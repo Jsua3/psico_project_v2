@@ -33,7 +33,7 @@ describe('movimiento: botones y páginas', () => {
 describe('movimiento: hover sin desplazamiento en el portal', () => {
   const files: Record<string, string> = {
     shell: source('../app/shared/layout/shell.component.ts'),
-    quickActions: source('../app/features/dashboard/quick-actions.component.ts'),
+    // B5a retiró `quick-actions.component.ts` (el Inicio ya no tiene accesos rápidos); el hover del Inicio lo cubre `dashboard`.
     // F7: la clase y sus estilos viven en archivos distintos; el contrato mira los dos.
     trace: source('../app/features/simulator/instructor-trace.component.ts') + source('../app/features/simulator/instructor-trace.component.scss'),
     grupos: source('../app/features/grupos/grupo-list.component.ts') + source('../app/features/grupos/grupo-list.component.scss'),
@@ -42,13 +42,11 @@ describe('movimiento: hover sin desplazamiento en el portal', () => {
 
   it('ninguna tarjeta ni fila se mueve en hover', () => {
     expect(files['shell']).not.toContain('transform: translate(-1px, -1px);');
-    expect(files['quickActions']).not.toContain('transform: translate(-1px, -1px);');
     expect(files['trace']).not.toContain('transform: translate(-2px, -2px);');
     expect(files['grupos']).not.toContain('.group-card:hover { transform: translateY(-1px);');
   });
 
   it('el foco de teclado de las tarjetas no comparte regla con el hover', () => {
-    expect(files['quickActions']).not.toMatch(/\.quick-action-card:hover,\s*\.quick-action-card:focus-visible/);
     expect(files['trace']).not.toMatch(/\.attempt-card:hover,\s*\.attempt-card:focus-visible/);
     expect(files['trace']).not.toMatch(/\.review-summary-card--action:hover,\s*\.review-summary-card--action:focus-visible/);
   });
@@ -68,5 +66,30 @@ describe('movimiento: juego', () => {
   it('el aviso de interacción aparece sin animación', () => {
     const play = source('../app/features/simulator/simulation-play.component.ts');
     expect(play).not.toContain('hint-rise');
+  });
+});
+
+// B0 (rediseño del portal, DISENO §2.1 y P10): el paso del portal al juego es el único momento cinematográfico del
+// portal y es corto; el velo que deja ver el mundo, más corto aún. Con movimiento reducido valen 0,01 ms.
+describe('movimiento: umbral al juego', () => {
+  const tokens = source('./tokens/_motion.scss');
+  const reducido = source('./base/_motion.scss');
+
+  it('define umbral (420 ms) y revelar (300 ms) como duraciones', () => {
+    expect(tokens).toMatch(/\$durations: \([^)]*umbral: 420ms[^)]*\)/);
+    expect(tokens).toMatch(/\$durations: \([^)]*revelar: 300ms[^)]*\)/);
+  });
+
+  it('ninguna duración del portal pasa de 420 ms, salvo la de la barra de vidrio (glass)', () => {
+    const mapa = /\$durations: \(([^)]*)\)/.exec(tokens)?.[1] ?? '';
+    for (const [, nombre, ms] of mapa.matchAll(/(\w+): (\d+)ms/g)) {
+      if (nombre === 'glass') continue;
+      expect(Number(ms), nombre).toBeLessThanOrEqual(420);
+    }
+  });
+
+  it('con movimiento reducido las dos duraciones nuevas se anulan como el resto', () => {
+    expect(reducido).toContain('--ds-dur-umbral: 0.01ms;');
+    expect(reducido).toContain('--ds-dur-revelar: 0.01ms;');
   });
 });

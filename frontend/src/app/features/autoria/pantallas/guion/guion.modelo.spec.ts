@@ -38,30 +38,42 @@ async function montar() {
       await listo();
     }
   };
-  return { fixture, store, id, raiz, listo, respuesta, agregarRespuesta };
+  /** Abre una faceta de la primera respuesta por el nombre de su ficha («Pasos», «Criterios», «Persona»…). */
+  const abrirFaceta = async (nombre: string) => {
+    [...raiz.querySelectorAll<HTMLButtonElement>('button.faceta')].find((b) => b.querySelector('.faceta__nombre')!.textContent === nombre)!.click();
+    await listo();
+  };
+  return { fixture, store, id, raiz, listo, respuesta, agregarRespuesta, abrirFaceta };
 }
 
 describe('GuionComponent · persona, hitos y competencias de cada respuesta', () => {
   it('una respuesta sin clase empieza en modo automático y pide la clase para decir qué le pasa a la persona', async () => {
-    const { raiz, agregarRespuesta } = await montar();
+    const { raiz, agregarRespuesta, abrirFaceta } = await montar();
     await agregarRespuesta();
+    // La ficha cerrada ya dice lo que falta; abierta, la faceta lo explica.
+    expect(raiz.textContent).toContain('falta la clase');
+    await abrirFaceta('Persona');
     expect(raiz.textContent).toContain('Elige la clase para ver qué le pasa a la persona.');
     const persona = raiz.querySelector('fieldset.persona')!;
     expect(persona.querySelector<HTMLInputElement>('input[value="automatica"]')!.checked).toBe(true);
   });
 
   it('con la clase elegida, la persona reacciona sola y la frase cambia con la clase', async () => {
-    const { raiz, listo, agregarRespuesta } = await montar();
+    const { raiz, listo, agregarRespuesta, abrirFaceta } = await montar();
     await agregarRespuesta('RECOMMENDED');
+    await abrirFaceta('Persona');
     expect(raiz.querySelector('.persona-auto')!.textContent).toContain('la persona se abre y se calma');
     raiz.querySelector<HTMLInputElement>('fieldset.clasificacion input[value="CONTRAINDICATED"]')!.click();
     await listo();
     expect(raiz.querySelector('.persona-auto')!.textContent).toContain('la persona se cierra y se tensa');
+    // La ficha de la faceta dice lo mismo sin abrirse.
+    expect(raiz.querySelector('button.faceta[aria-expanded="true"] .faceta__valor')!.textContent).toBe('se cierra y se tensa');
   });
 
   it('en modo propio la docente elige el vínculo y la activación; volver a automático no guarda nada', async () => {
-    const { raiz, listo, respuesta, agregarRespuesta } = await montar();
+    const { raiz, listo, respuesta, agregarRespuesta, abrirFaceta } = await montar();
     await agregarRespuesta('RECOMMENDED');
+    await abrirFaceta('Persona');
     raiz.querySelector<HTMLInputElement>('fieldset.persona input[value="propia"]')!.click();
     await listo();
     // empieza donde la dejaba la clase
@@ -83,8 +95,9 @@ describe('GuionComponent · persona, hitos y competencias de cada respuesta', ()
   });
 
   it('cada respuesta marca los hitos que cumple con casillas del catálogo del caso', async () => {
-    const { store, raiz, listo, respuesta, agregarRespuesta } = await montar();
+    const { store, raiz, listo, respuesta, agregarRespuesta, abrirFaceta } = await montar();
     await agregarRespuesta('RECOMMENDED');
+    await abrirFaceta('Pasos');
     const casillas = [...raiz.querySelectorAll<HTMLLabelElement>('fieldset.hitos label')];
     expect(casillas.map((l) => l.textContent!.trim())).toEqual(store.caso()!.hitos.map((h) => h.nombre));
     casillas[0].querySelector('input')!.click();
@@ -94,11 +107,13 @@ describe('GuionComponent · persona, hitos y competencias de cada respuesta', ()
     casillas[0].querySelector('input')!.click();
     await listo();
     expect(respuesta().efectos.hitos).toEqual([store.caso()!.hitos[3].clave]);
+    expect(raiz.querySelector('button.faceta[aria-expanded="true"] .faceta__valor')!.textContent).toBe('1');
   });
 
   it('las competencias de la rúbrica del caso se marcan con casillas', async () => {
-    const { raiz, listo, respuesta, agregarRespuesta } = await montar();
+    const { raiz, listo, respuesta, agregarRespuesta, abrirFaceta } = await montar();
     await agregarRespuesta('ACCEPTABLE');
+    await abrirFaceta('Criterios');
     const casillas = [...raiz.querySelectorAll<HTMLLabelElement>('fieldset.competencias label')];
     expect(casillas.map((l) => l.textContent!.trim())).toEqual(['Ética profesional', 'Escucha activa']);
     casillas[1].querySelector('input')!.click();
@@ -107,17 +122,20 @@ describe('GuionComponent · persona, hitos y competencias de cada respuesta', ()
   });
 
   it('un caso sin competencias en su rúbrica lo dice y no ofrece casillas', async () => {
-    const { store, raiz, listo, agregarRespuesta } = await montar();
+    const { store, raiz, listo, agregarRespuesta, abrirFaceta } = await montar();
     store.fijar({ ...store.caso()!, competencias: [] });
     await agregarRespuesta();
     await listo();
+    expect(raiz.textContent).toContain('sin rúbrica');
+    await abrirFaceta('Criterios');
     expect(raiz.querySelector('fieldset.competencias label')).toBeNull();
-    expect(raiz.textContent).toContain('La rúbrica de este caso todavía no tiene competencias.');
+    expect(raiz.textContent).toContain('Este caso aún no tiene rúbrica propia. Elígela en Evaluación.');
   });
 
   it('en ningún lado aparece una cifra de estrés ni de puntaje', async () => {
-    const { raiz, listo, agregarRespuesta } = await montar();
+    const { raiz, listo, agregarRespuesta, abrirFaceta } = await montar();
     await agregarRespuesta('CONTRAINDICATED');
+    await abrirFaceta('Persona');
     raiz.querySelector<HTMLInputElement>('fieldset.persona input[value="propia"]')!.click();
     await listo();
     expect(raiz.textContent).not.toMatch(/estr[eé]s|puntaje|puntos|\d\s?%|[+-]\s?\d/i);
@@ -128,13 +146,13 @@ describe('GuionComponent · intensidad de la escena', () => {
   it('se elige baja, media o alta y una escena alta pide su aviso para el estudiante', async () => {
     const { store, id, raiz, listo } = await montar();
     const escena = () => store.caso()!.escenas.find((e) => e.id === id)!;
-    const intensidad = raiz.querySelector<HTMLSelectElement>('select#intensidad-escena')!;
-    expect([...intensidad.options].map((o) => o.textContent!.trim())).toEqual(['Baja', 'Media', 'Alta']);
-    expect(intensidad.value).toBe('MEDIUM');
+    // Un control de tres segmentos con botones de opción reales (teclado y lector de pantalla como cualquier radio).
+    const opciones = [...raiz.querySelectorAll<HTMLInputElement>('fieldset.intensidad input[type="radio"]')];
+    expect(opciones.map((o) => o.closest('label')!.textContent!.trim())).toEqual(['Baja', 'Media', 'Alta']);
+    expect(opciones.find((o) => o.checked)!.value).toBe('MEDIUM');
     expect(raiz.querySelector('#aviso-escena')).toBeNull();
 
-    intensidad.value = 'HIGH';
-    intensidad.dispatchEvent(new Event('change'));
+    opciones[2].click();
     await listo();
     expect(escena().intensidad).toBe('HIGH');
     const aviso = raiz.querySelector<HTMLTextAreaElement>('textarea#aviso-escena')!;
@@ -181,7 +199,9 @@ describe('GuionComponent · una contraindicada sin razón', () => {
     expect(store.sinGuardar()).toEqual([expect.objectContaining({ respuestaId: idRespuesta, mensaje: 'Escribe por qué es contraindicada para guardarla.' })]);
     const razon = raiz.querySelector<HTMLTextAreaElement>('textarea[id^="rz"]')!;
     expect(razon.getAttribute('aria-invalid')).toBe('true');
-    expect(raiz.querySelector('li.respuesta')!.textContent).toContain('Sin esta razón la respuesta no se guarda');
+    // La ficha dice por qué no se guarda, con las palabras de `motivoSinGuardar` y la marca «Solo en esta pantalla».
+    expect(raiz.querySelector('li.respuesta .sin-guardar')!.textContent).toContain('Solo en esta pantalla');
+    expect(raiz.querySelector('li.respuesta .sin-guardar')!.textContent).toContain('Escribe por qué es contraindicada para guardarla.');
     expect(store.haySinGuardar()).toBe(true);
 
     razon.value = 'Apura a la persona.';
@@ -191,6 +211,6 @@ describe('GuionComponent · una contraindicada sin razón', () => {
     expect(servidor.metodos).toEqual(['createDecision']);
     expect(servidor.editor.decisions[0]).toMatchObject({ responseClass: 'CONTRAINDICATED', prohibitionReason: 'Apura a la persona.' });
     expect(razon.getAttribute('aria-invalid')).not.toBe('true');
-    expect(raiz.querySelector('li.respuesta')!.textContent).not.toContain('Sin esta razón la respuesta no se guarda');
+    expect(raiz.querySelector('li.respuesta .sin-guardar')).toBeNull();
   });
 });

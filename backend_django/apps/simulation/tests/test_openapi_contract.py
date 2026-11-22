@@ -27,7 +27,7 @@ MAX_OPENAPI_ERRORS = 0
 #: Contratos tipados del documento (respuesta de éxito con ``data`` de forma conocida). El trinquete va en los dos
 #: sentidos, como el baseline de arquitectura: bajar es perder un contrato; subir exige anotarlo aquí. Cada uno tiene
 #: su caso contra el servidor en ``test_openapi_matches_responses.CALLS``.
-TYPED_CONTRACTS = 50  # 14 + 10 de F9-10 (C3, C4 y C5) + el consentimiento al aviso de contenido: GET, POST y DELETE (S3-2a, C12) + 3 de E6 (C13 `GET`, C14 `GET` y `POST`) + el estado del intento `GET` (metricas, T15) + 6 del asistente de autoría (P5: `status`, `propose` y `guide` en las dos familias de rutas) + 6 del ensayo del borrador (A2: `POST`, `GET` y `PATCH` en las dos familias de rutas) + 7 de la generación de casos por etapas (C1: `status`, crear, leer, cancelar, esqueleto, escena y ensamblar)
+TYPED_CONTRACTS = 54  # 14 + 10 de F9-10 (C3, C4 y C5) + el consentimiento al aviso de contenido: GET, POST y DELETE (S3-2a, C12) + 3 de E6 (C13 `GET`, C14 `GET` y `POST`) + el estado del intento `GET` (metricas, T15) + 6 del asistente de autoría (P5: `status`, `propose` y `guide` en las dos familias de rutas) + 6 del ensayo del borrador (A2: `POST`, `GET` y `PATCH` en las dos familias de rutas) + 7 de la generación de casos por etapas (C1: `status`, crear, leer, cancelar, esqueleto, escena y ensamblar) + 4 del rediseño del portal (BK: el catálogo, los intentos recientes y la lista de autoría en las dos familias de rutas)
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 TS_CONTRACTS_FILE = REPO_ROOT / "frontend" / "src" / "app" / "core" / "api" / "generated" / "openapi-contracts.d.ts"

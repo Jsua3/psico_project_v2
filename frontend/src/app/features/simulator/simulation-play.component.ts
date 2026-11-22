@@ -1,6 +1,6 @@
 import { A11yModule } from '@angular/cdk/a11y';
 import { perfCancel, perfEnd, perfEndNextPaint, perfStart } from '../../core/perf/perf-marks';
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 import { Component, ElementRef, HostListener, Injector, OnDestroy, OnInit, ViewChild, afterNextRender, afterRenderEffect, viewChild, computed, effect, inject, signal, untracked, ChangeDetectionStrategy } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Observable, catchError, defaultIfEmpty, of, retry, switchMap, tap, throwError, timeout } from 'rxjs';
@@ -82,20 +82,24 @@ import {
 } from './scene-map-display.util';
 import { AttemptOutcomeComponent } from './attempt-outcome.component';
 import { accessErrorMessage } from './case-access.util';
+import { CaseAccessCache } from '../../core/api/case-access.cache';
+import { AuthService } from '../../core/auth/auth.service';
 import { resolveViewMode, SimulationViewMode } from './simulation-view-mode.util';
 import { IntroGateStep, introCardLines, resolveIntroStep } from './intro-gate.util';
 import { COARSE_POINTER_QUERY, matchesMedia, watchMedia } from './pointer-modality.util';
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { loadingPhase } from '../../shared/ui/skeleton/loading-phase';
-import { UiSpinner } from '../../shared/ui/spinner/ui-spinner';
 import { UiErrorKind } from '../../shared/ui/state/state-copy';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { UiScopeNotice } from '../../shared/ui/scope-notice/ui-scope-notice';
 import { CONSENT_RECORDER, ConsentNoticeStaleError, consentStorageKey } from './consent-recorder';
-import { DRAFT_COPY } from './draft-copy';
+import { CONTENT_NOTICE_TEXT, DRAFT_COPY } from './draft-copy';
 import { variablesDeArte } from './dialogo-arte';
 import { PixelIconoComponent } from './pixel/pixel-icono.component';
+import { FaseUmbral, UmbralCasoComponent } from './umbral/umbral-caso.component';
+import { NotaTransicionComponent } from './nota-transicion.component';
+import { ErrorConsentimientoComponent } from './error-consentimiento.component';
 
 /**
  * Plazo máximo de la precarga del consentimiento (S3-2b): antes de decidir si se pide el aviso se pregunta al servidor si la
@@ -153,8 +157,39 @@ const PLACAS_SOBRE_EL_MUNDO = [
 const COMPACT_QUERY = '(max-height: 520px), (pointer: coarse) and (orientation: landscape)';
 /** Pantalla estrecha (móvil vertical): la tarjeta también arranca plegada, el mundo ocupa el ancho (F§4.6). */
 const NARROW_QUERY = '(max-width: 760px)';
+/** Pasado esto sin terminar de cargar, el umbral ofrece volver (Nielsen: 10 s es el límite de la atención). */
+export const UMBRAL_LENTO_MS = 10_000;
+/** Lo que dura la clase `revelando`: el velo (300 ms) y la entrada escalonada del HUD (200 ms + 2 × 40 ms), con holgura. */
+const REVELAR_MS = 600;
+
+/** El servidor rechazó empezar de nuevo porque el intento abierto no es el esperado o ya está abierto (409). */
+function esConflictoDeIntento(error: unknown): boolean {
+  if (!(error instanceof HttpErrorResponse) || error.status !== 409) return false;
+  const code = (error.error as { code?: unknown } | null)?.code;
+  return code === 'ATTEMPT_CHANGED' || code === 'ATTEMPT_ALREADY_OPEN';
+}
+
+/** El estado de la navegación que trajo hasta aquí (`history.state`), o `null` si no hay o no se puede leer. */
+function estadoDeNavegacion(): Record<string, unknown> | null {
+  try {
+    const estado = window.history?.state as unknown;
+    return estado && typeof estado === 'object' ? estado as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+}
+
+/** `{ titulo, portada }` del umbral, si la navegación los trajo y tienen la forma esperada; si no, vacíos. */
+function umbralDelEstado(estado: Record<string, unknown> | null): { titulo: string | null; portada: string | null } {
+  const umbral = estado?.['umbral'] as { titulo?: unknown; portada?: unknown } | undefined;
+  const texto = (valor: unknown) => (typeof valor === 'string' && valor.trim() ? valor : null);
+  return { titulo: texto(umbral?.titulo), portada: texto(umbral?.portada) };
+}
 @Component({
   selector: 'app-simulation-play',
+  // El umbral y la revelación marcan el anfitrión (no el contenedor del juego, cuya etiqueta fijan los contratos): con el
+  // umbral, las tarjetas de entrada se posan sobre su mitad de abajo; al revelar, el HUD entra (DISENO §4.4).
+  host: { '[class.juego--umbral]': 'umbralVisible()', '[class.revelando]': 'revelando()' },
   standalone: true,
   imports: [
     A11yModule, CommonModule, RouterLink, MatIconModule,
@@ -162,7 +197,7 @@ const NARROW_QUERY = '(max-width: 760px)';
     ToolInventoryComponent, JournalPanelComponent, AttemptOutcomeComponent,
     SafeExitButtonComponent, PixelIconoComponent, SceneGoalCardComponent, GameHelpComponent, WorldPlacesListComponent,
     MinimapaComponent, PlanoCompletoComponent,
-    ReactionDirectorComponent, CommentBubbleComponent, RehearsalGoneComponent, RehearsalPanelComponent, SensitiveNoticeComponent, UiButton, UiErrorState, UiScopeNotice, UiSpinner
+    ReactionDirectorComponent, CommentBubbleComponent, RehearsalGoneComponent, RehearsalPanelComponent, SensitiveNoticeComponent, UiButton, UiErrorState, UiScopeNotice, UmbralCasoComponent, NotaTransicionComponent, ErrorConsentimientoComponent
   ],
   template: `
     <div class="game-container pixel-juego" data-skin="game" id="main-content" tabindex="-1" [attr.data-mode]="viewMode()" [style]="arteJuego"
@@ -178,11 +213,14 @@ const NARROW_QUERY = '(max-width: 760px)';
            está presente y el indicador aparece a los 150 ms (loadingPhase). Cubre solo la zona del mundo: con el intento
            ya cargado, la cabecera y «Salida segura» siguen a la vista (REGLA-004). -->
       <p class="sr-only" role="status">{{ bootVisible() ? bootLabel() : '' }}</p>
-      @if (bootVisible()) {
-        <div class="game-boot" aria-hidden="true">
-          <ui-spinner [size]="32" />
-          <p>{{ bootLabel() }}</p>
-        </div>
+      <!-- El umbral (DISENO §4.4, DP-09): la ÚNICA pantalla entre la ficha y el mundo. Reemplaza el indicador de arranque y
+           queda como velo opaco hasta que el mundo está dibujado y la persona pulsa Continuar; las tarjetas de entrada se
+           posan sobre su mitad de abajo. Mientras se ve, la barra, el mundo y el pie quedan inertes (.capas-del-mundo). -->
+      @if (umbralVisible() || revelando()) {
+        <app-umbral-caso [titulo]="umbralTitulo()" [portada]="umbralDatos().portada" [fase]="umbralFase()"
+          [lento]="umbralLento()" [conTarjeta]="umbralConTarjeta()" [salida]="umbralSalida()" [pausando]="pausing()"
+          [arrancando]="bootVisible()" [modo]="mode()" [saliendo]="!umbralVisible()"
+          (volver)="volverDesdeUmbral()" (salidaSegura)="pauseFromOverlay()" />
       }
       @if (rehearsalGone()) {
         <app-rehearsal-gone class="game-failure" [motivo]="rehearsalWhy()" [caseVersionId]="attempt()?.caseVersionId ?? 0" (restart)="restartRehearsalHere()" />
@@ -212,14 +250,7 @@ const NARROW_QUERY = '(max-width: 760px)';
       }
       @if (transitionNote()) {
         <!-- Bloque U1: la pestaña del capítulo sobre la placa del texto (como el nombre de quien habla sobre su placa). -->
-        <div class="transition-note">
-          <div class="transition-note__bloque">
-            @if (transitionParts().capitulo; as capitulo) {
-              <p class="transition-note__capitulo u-rotulo">{{ capitulo }}</p>
-            }
-            <p class="transition-note__texto u-placa u-sombra">{{ transitionParts().texto }}</p>
-          </div>
-        </div>
+        <app-nota-transicion class="transition-note" [capitulo]="transitionParts().capitulo" [texto]="transitionParts().texto" />
       }
 
       @if (showResumePrompt() && pendingActiveAttempt(); as active) {
@@ -264,32 +295,20 @@ const NARROW_QUERY = '(max-width: 760px)';
                 <span class="case-intro-card__chip">Simulación formativa con datos ficticios</span>
               </header>
 
-              <div class="case-intro-card__body">
+              <!-- En pantallas bajas el aviso se desplaza: el bloque es enfocable para leerlo con el teclado (como el de la tarjeta). -->
+              <div class="case-intro-card__body" tabindex="0" role="region" aria-label="Texto del aviso de contenido">
                 <!-- Solo el texto validado: aria-describedby lo lee tal cual; el aviso de alcance y el estado del
                      registro van fuera de este bloque. -->
                 <div id="content-warning-body">
-                  <p>
-                    Este caso presenta una situación ficticia de violencia basada en género
-                    y crisis familiar. Algunas escenas incluyen relatos y decisiones
-                    emocionalmente exigentes.
-                  </p>
-                  <p>
-                    Podrás pausar el caso en cualquier momento con el botón «Salida segura»
-                    (con teclado, también <kbd>Esc</kbd>). Tu avance se guarda y puedes retomarlo.
-                    Si prefieres no continuar ahora, vuelve al catálogo y retoma el caso
-                    cuando lo decidas.
-                  </p>
+                  <p>{{ contentNoticeText.contenido }}</p>
+                  <p>{{ contentNoticeText.salida }}</p>
                 </div>
                 <!-- Aviso de alcance (RN-01, borrador de Psicología): fuera del texto validado. -->
                 <ui-scope-notice />
                 @if (consentState() === 'error') {
                   <!-- ETH-01: un almacenamiento que falla NUNCA da el consentimiento por registrado. No se arranca
                        nada y se puede reintentar; «Volver al catálogo» sigue operable. Se anuncia por la región. -->
-                  <div class="consent-error">
-                    <mat-icon aria-hidden="true">error</mat-icon>
-                    <p>{{ consentErrorText() }}</p>
-                    <button ui-button type="button" variant="secondary" (click)="acceptContentWarning()">Reintentar</button>
-                  </div>
+                  <app-error-consentimiento [texto]="consentErrorText()" (reintentar)="acceptContentWarning()" />
                 }
               </div>
 
@@ -358,6 +377,9 @@ const NARROW_QUERY = '(max-width: 760px)';
         }
 
 
+        <!-- Envoltorio sin caja (display: contents): con el umbral a la vista, la barra, el mundo y el pie quedan inertes y
+             ocultos a la tecnología asistiva de una vez, sin tocar los enlaces de inert propios de cada capa. -->
+        <div class="capas-del-mundo" [attr.inert]="umbralVisible() ? '' : null" [attr.aria-hidden]="umbralVisible() ? 'true' : null">
         <header class="top-bar" [attr.inert]="inputBlocked() ? '' : null" [attr.aria-hidden]="inputBlocked() ? 'true' : null">
           @if (mode() === 'rehearsal') { <p class="rehearsal-banner" role="note">{{ draft.rehearsalBanner.text }}</p> }
           <!-- Bloque U1, variante B: una fila sobre el mundo. A la izquierda, el hueco de la ficha del objetivo (que vive en el
@@ -556,6 +578,7 @@ const NARROW_QUERY = '(max-width: 760px)';
             }
           </div>
         </footer>
+        </div>
 
         @if (viewMode() === 'dialogue-cinematic') {
           <app-dialogue-panel class="dialogue-cinematic" [reduceMotion]="reduceMotion()" [dialogue]="dialogue()" [avisoBreve]="softNotice()" [interaction]="selectedInteraction()" [speakerVisual]="speakerVisual()"
@@ -1096,13 +1119,12 @@ const NARROW_QUERY = '(max-width: 760px)';
     .scene-fade--active { opacity: 1; pointer-events: auto; }
     /* Arranque y fallo (F6-1): ocupan SOLO la zona del mundo (fila 2 de la rejilla). La cabecera y el pie —con
        «Salida segura»— quedan a la vista y operables mientras carga o falla (REGLA-004). */
-    .game-boot, .game-failure {
+    .game-failure {
       grid-area: 2 / 1; z-index: 300;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       gap: var(--ds-space-3); padding: var(--ds-space-5);
       background: var(--ds-surface-page); color: var(--ds-text-1); text-align: center;
     }
-    .game-boot p { margin: 0; color: var(--ds-text-2); font-size: .95rem; }
     .game-failure ui-error-state { max-inline-size: 28rem; }
     .game-container[data-rehearsal] { --alto-franja-ensayo: 30px; }
     .rehearsal-banner { box-sizing: border-box; height: var(--alto-franja-ensayo); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; line-height: 21px; margin: 0; padding: 4px 12px; font-size: .85rem; text-align: center; background: var(--ds-surface-2, rgba(18,24,42,.9)); color: var(--ds-text-1); border-block-end: 1px solid var(--ds-border, rgba(182,156,255,.3)); }
@@ -1124,36 +1146,15 @@ const NARROW_QUERY = '(max-width: 760px)';
     .room-banner { font-family: var(--pixel-f-nombre); font-weight: 700; color: var(--luz); animation: room-banner-in 260ms ease; }
     @keyframes room-banner-in { from { opacity: 0; transform: translateY(-8px); } }
     @keyframes room-banner-in-centered { from { opacity: 0; transform: translate(-50%, -8px); } }
-    /* Tarjeta de capítulo (U1): el velo fuerte de la paleta y, al centro, la pestaña del capítulo sobre la placa del texto.
-       El pie sube por encima del velo (REGLA-004, .bottom-zone--above-veils). */
-    .transition-note {
-      position: fixed; inset: 0; z-index: 340; display: grid; place-items: center;
-      background: var(--pixel-velo-fuerte); pointer-events: none;
-      animation: transition-note-in 420ms ease;
-    }
-    .transition-note__bloque { display: grid; justify-items: start; width: min(88vw, 640px); }
-    .transition-note__capitulo { margin-bottom: calc(-1 * var(--pixel-px)); }
-    .transition-note__texto {
-      box-sizing: border-box; width: 100%; margin: 0;
-      padding: calc(8 * var(--pixel-px)) calc(12 * var(--pixel-px)) calc(9 * var(--pixel-px));
-      text-align: center; font-family: var(--pixel-f-texto); font-size: calc(var(--pixel-tam) * 1.5); font-weight: 600; font-style: italic;
-      line-height: 1.6; letter-spacing: .02em;
-    }
-    @keyframes transition-note-in { from { opacity: 0; } }
+    /* Tarjeta de capítulo (U1): su forma vive en app-nota-transicion (tope de 20 kB); aquí solo su sitio en la pila de
+       capas. El pie sube por encima del velo (REGLA-004, .bottom-zone--above-veils). */
+    .transition-note { position: fixed; inset: 0; z-index: 340; }
     /* «Reanudar» es la misma entrada que las otras tres (F6-2): por encima de ellas y sin el CSS propio que tenía. */
     .case-intro-overlay--resume { z-index: 400; }
     .case-intro-card--entry { width: min(560px, 100%); }
 
     /* Las entradas en placas de pixel (U1, crítica r2) viven en la hoja común, src/styles/components/_pixel.scss. */
-    /* ETH-01: el almacenamiento falló y el consentimiento NO está registrado; el aviso previo sigue (sin mundo). */
-    .consent-error {
-      display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px 10px;
-      margin-top: 14px; padding: 12px 14px; border-radius: 12px;
-      border: 1px solid rgba(226,90,79,.5); background: rgba(226,90,79,.1);
-    }
-    .consent-error mat-icon { color: #f1a79f; }
-    .consent-error p { margin: 0; color: #f4f7fb; font-size: .9rem; line-height: 1.5; }
-    .consent-error button { grid-column: 2; justify-self: start; }
+    /* ETH-01: el error del registro del consentimiento vive en app-error-consentimiento (tope de 20 kB). */
 
     @keyframes panel-in {
       from { opacity: 0; transform: translateX(14px); }
@@ -1324,11 +1325,31 @@ const NARROW_QUERY = '(max-width: 760px)';
     @media (prefers-reduced-motion: reduce) {
       .scene-fade { transition: none; }
       .right-panel, .overlay-backdrop { animation: none; }
-      .room-banner, .transition-note { animation: none; }
+      .room-banner { animation: none; }
+    }
+
+    /* ── El umbral (DISENO §4.4, B4b) ─────────────────────────────────────────────────────────────────────────────
+       Las capas del mundo no tienen caja propia: el envoltorio solo sirve para volverlas inertes de una vez. */
+    .capas-del-mundo { display: contents; }
+    /* Con el umbral a la vista, las tarjetas de entrada se posan sobre su mitad de abajo, como una hoja y sin su velo
+       propio (el umbral ya es el fondo): una sola pantalla, no una tarjeta sobre otra. */
+    :host(.juego--umbral) .case-intro-overlay:not(.content-warning-overlay) { background: none; place-items: end center; padding-block-end: max(var(--ds-space-6), env(safe-area-inset-bottom, 0px)); }
+    :host(.juego--umbral) .case-intro-overlay:not(.content-warning-overlay) .case-intro-card { max-height: min(56vh, 720px); }
+    /* El aviso de respaldo (URL directa) es texto que hay que leer entero: conserva su sitio al centro y su velo propio. */
+    /* Revelación: el HUD de arriba entra (8 px y opacidad, 200 ms, escalonado de 40 ms). El pie no se anima: «Salida
+       segura» está a la vista desde el primer cuadro del velo (REGLA-004). Con movimiento reducido, solo opacidad. */
+    :host(.revelando) .top-bar__fila > * { animation: hud-entra var(--ds-dur-base) var(--ds-ease-out) both; }
+    :host(.revelando) .top-bar__fila > :nth-child(2) { animation-delay: calc(var(--ds-dur-fast) / 4); }
+    :host(.revelando) .top-bar__fila > :nth-child(3) { animation-delay: calc(var(--ds-dur-fast) / 2); }
+    @keyframes hud-entra { from { opacity: 0; translate: 0 -8px; } }
+    @media (prefers-reduced-motion: reduce) {
+      :host(.revelando) .top-bar__fila > * { animation-name: hud-funde; animation-duration: var(--ds-dur-fade); animation-delay: 0s; }
+      @keyframes hud-funde { from { opacity: 0; } }
     }
   `]
 })
 export class SimulationPlayComponent implements OnInit, OnDestroy {
+  protected readonly contentNoticeText = CONTENT_NOTICE_TEXT;
   private readonly simulationService = inject(SimulationService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -1369,6 +1390,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   readonly placesOpen   = signal(false);
   readonly placeOptions = signal<readonly PlaceCandidate[]>([]);
   private readonly injector = inject(Injector);
+  private readonly location = inject(Location, { optional: true });
+  // Opcional: las pruebas de instancia crean el componente sin vista (y sin ElementRef).
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef, { optional: true });
   /** «Atajos de una tecla» (F6-10, WCAG 2.1.4): J, E, WASD, números del diálogo y A/D/E del lobby; apagables. */
   readonly shortcuts = inject(ShortcutSettings);
   /** Vista cercana (Z) y acercamiento automático (bloque M1). */
@@ -1474,6 +1498,48 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   /** «Salida segura» del pie está a la vista: el error no repite la salida con un segundo botón. */
   readonly footerExit = computed(() => this.worldStarted() && (this.attempt()?.status === 'IN_PROGRESS' || this.reactingToLast()));
   readonly showCaseIntro = signal(false);
+
+  // ── El umbral (DISENO §4.4; DP-09, DP-26) ────────────────────────────────────────────────────────────────────
+  /** Lo que la ficha, Inicio o Casos mandaron al navegar para pintar el umbral desde el primer cuadro (`history.state`). */
+  readonly umbralDatos = signal<{ titulo: string | null; portada: string | null }>(umbralDelEstado(estadoDeNavegacion()));
+  /** El título del caso: el del intento cuando llega; antes, el que trajo la navegación (sin estado, se espera). */
+  readonly umbralTitulo = computed(() =>
+    this.attempt()?.caseTitle || this.pendingActiveAttempt()?.caseTitle || this.umbralDatos().titulo || null);
+  /**
+   * El umbral está a la vista: desde el primer cuadro hasta que el mundo está dibujado y la persona pasó la tarjeta.
+   * Nunca tapa un error (el error trae su salida), un ensayo perdido ni un intento que ya no está en curso (la pausa o el
+   * resultado se ven sobre el mundo, como siempre).
+   */
+  readonly umbralVisible = computed(() => {
+    if (this.error() || this.rehearsalGone()) return false;
+    if ((this.attempt()?.status ?? 'IN_PROGRESS') !== 'IN_PROGRESS') return false;
+    return !this.worldRendered() || this.showCaseIntro();
+  });
+  /** Una tarjeta de entrada (la tarjeta, reanudar o el aviso de respaldo) se posa sobre el umbral. */
+  readonly umbralConTarjeta = computed(() => this.showCaseIntro() || this.showResumePrompt() || this.showContentWarning());
+  /** La fase REAL del arranque: cada una enciende un píxel (el intento respondió, la sala llegó, el primer cuadro). */
+  readonly umbralFase = computed<FaseUmbral>(() => {
+    if (this.worldRendered()) return 'listo';
+    if (this.worldStarted() && this.world()) return 'escena';
+    if (this.attempt()) return 'sala';
+    return 'intento';
+  });
+  /** Con un intento en curso y sin tarjeta, el umbral ofrece la salida segura (REGLA-004: nunca tapada). */
+  readonly umbralSalida = computed(() =>
+    this.worldStarted() && this.attempt()?.status === 'IN_PROGRESS' && !this.umbralConTarjeta());
+  /** Se carga de verdad (no se espera a la persona): lo que puede volverse «lento». */
+  private readonly umbralCargando = computed(() => this.umbralVisible() && !this.umbralConTarjeta() && this.umbralFase() !== 'listo');
+  /** Pasaron 10 s cargando: se ofrece volver a la ficha (lo que está en curso sigue; nada se lanza dos veces). */
+  readonly umbralLento = signal(false);
+  private umbralLentoTimer: number | null = null;
+  /** El velo del umbral se retira y el HUD entra (600 ms): clase `revelando` en el contenedor. */
+  readonly revelando = signal(false);
+  private revelandoTimer: number | null = null;
+  /**
+   * Cada arranque (pedir el intento abierto, empezarlo o reanudarlo, y sus reintentos) lleva su número: la respuesta de
+   * un arranque que ya no es el vigente se ignora, así un reintento nunca se cruza con una respuesta lenta del anterior.
+   */
+  readonly arranque = signal(0);
   /** Pantalla «Cómo se juega»: no modal; Esc la cierra antes que cualquier otra cosa (F§7.8). */
   readonly helpOpen = signal(false);
   /** La tarjeta de primera vez ya se vio en este navegador (`siep.ayuda.v1`). La lectura no es reactiva: se actualiza a mano. */
@@ -1895,6 +1961,32 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     effect(() => {
       if (this.dialogue()) untracked(() => perfEndNextPaint('interaction-to-response'));
     });
+    // Umbral lento (> 10 s cargando): la marca se arma al empezar a cargar y se desarma al terminar o al pedir algo a la
+    // persona (una tarjeta no es «lento»: espera a quien lee).
+    effect(() => {
+      const cargando = this.umbralCargando();
+      untracked(() => {
+        if (this.umbralLentoTimer !== null) window.clearTimeout(this.umbralLentoTimer);
+        this.umbralLentoTimer = null;
+        this.umbralLento.set(false);
+        if (cargando) this.umbralLentoTimer = window.setTimeout(() => this.umbralLento.set(true), UMBRAL_LENTO_MS);
+      });
+    });
+    // El umbral se retira: el velo pasa de 1 a 0, el HUD entra y el foco pasa al juego (Continuar, o el ensayo y una
+    // introducción ya leída, que revelan directamente).
+    let umbralAntes = false;
+    effect(() => {
+      const visible = this.umbralVisible();
+      untracked(() => {
+        if (umbralAntes && !visible) this.revelarMundo();
+        if (visible) this.revelando.set(false);
+        umbralAntes = visible;
+      });
+    });
+    // La tarjeta «Antes de comenzar» con el mundo ya dibujado detrás: se dice una vez que todo está listo.
+    effect(() => {
+      if (this.showCaseIntro() && this.worldRendered()) untracked(() => this.announce(DRAFT_COPY.umbralReady.text));
+    });
   }
 
   ngOnDestroy(): void {
@@ -1912,7 +2004,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     // Los avisos accionables son del sistema y viven en un anfitrión global: no se quedan en el resto de la app.
     this.dismissDoorNotice();
     this.dismissActionError();
-    for (const timer of [this.softNoticeTimer, this.roomBannerTimer, this.nothingNearbyTimer, this.transitionNoteTimer, this.worldRevealTimer, this.consentPrimeTimer, this.positionSaveHandle]) {
+    for (const timer of [this.softNoticeTimer, this.roomBannerTimer, this.nothingNearbyTimer, this.transitionNoteTimer, this.worldRevealTimer, this.consentPrimeTimer, this.positionSaveHandle, this.umbralLentoTimer, this.revelandoTimer]) {
       if (timer !== null) window.clearTimeout(timer);
     }
     this.audioDirector.stopIntroLament();
@@ -1931,29 +2023,108 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // DP-26: el permiso de reemplazo viaja en el estado de la navegación y se BORRA en el acto, antes de usarlo: una
+    // recarga, «atrás/adelante» o un marcador ya no lo traen. Solo vale para el intento exacto que la persona aceptó perder.
+    const reemplazar = this.tomarPermisoDeReemplazo();
+    // `?intento=continuar` (Inicio, Casos, la ficha): continuar no destruye nada, así que puede ir en la URL. Cualquier otro
+    // valor, como el antiguo `?intento=nuevo`, ya no significa nada: se ofrece reanudar como siempre.
+    const continuar = this.route.snapshot.queryParamMap?.get('intento') === 'continuar';
     const offer = (active: SimulationAttemptState) => {
       this.pendingActiveAttempt.set(active);
       this.showResumePrompt.set(true);
       this.loading.set(false);
     };
+    const decidir = (active: SimulationAttemptState) => {
+      if (reemplazar !== null && active.attemptId === reemplazar) {
+        // El intento abierto es EXACTAMENTE el que la persona vio y aceptó perder en la ficha: se reemplaza una vez.
+        this.pendingActiveAttempt.set(active);
+        this.startNewAttempt();
+        return;
+      }
+      if (continuar) {
+        this.pendingActiveAttempt.set(active);
+        this.resumeAttempt();
+        return;
+      }
+      offer(active);
+    };
+    const numero = this.nuevoArranque();
+    // Siempre una lectura FRESCA del intento abierto (nunca la caché de acceso): de ella depende reemplazar o no.
     this.simulationService.getActiveAttempt(id).subscribe({
       next: active => {
+        if (!this.esArranqueVigente(numero)) return;
         if (active && (active.status === 'IN_PROGRESS' || active.status === 'PAUSED')) {
           // Una pausa que quedó sin registrar (salió sin red): se registra ANTES de la tarjeta, que así dice «Reanudar intento en pausa».
           if (active.status === 'IN_PROGRESS' && hayMarcaDePausa(this.almacen, active.attemptId)) {
             this.simulationService.safeExit(active.attemptId, active.attemptToken, 'Salida segura solicitada').pipe(timeout(PLAZO_ACCION_MS)).subscribe({
-              next: paused => { borrarMarcaDePausa(this.almacen, active.attemptId); offer(paused); },
-              error: () => offer(active),
+              next: paused => {
+                if (!this.esArranqueVigente(numero)) return;
+                borrarMarcaDePausa(this.almacen, active.attemptId);
+                decidir(paused);
+              },
+              error: () => { if (this.esArranqueVigente(numero)) decidir(active); },
             });
             return;
           }
-          offer(active);
+          decidir(active);
           return;
         }
+        // Sin intento abierto no hay nada que reemplazar: se empieza uno con forceNew = false (DP-26, paso 4).
         this.beginAttempt(id, false);
       },
-      error: () => this.beginAttempt(id, false)
+      error: () => { if (this.esArranqueVigente(numero)) this.beginAttempt(id, false); }
     });
+  }
+
+  /**
+   * Lee y borra el permiso de reemplazo de `history.state` (DP-26). Devuelve el `attemptId` aceptado, o `null` si no hay
+   * permiso o si no trae un `attemptId` (un permiso sin intento no reemplaza nada).
+   */
+  private tomarPermisoDeReemplazo(): string | null {
+    const estado = estadoDeNavegacion();
+    if (!estado || !('reemplazar' in estado)) return null;
+    const permiso = estado['reemplazar'] as { attemptId?: unknown } | null | undefined;
+    try {
+      const [ruta, consulta = ''] = (this.location?.path() ?? '').split('?');
+      if (this.location) this.location.replaceState(ruta, consulta, { ...estado, reemplazar: undefined });
+      else window.history.replaceState({ ...estado, reemplazar: undefined }, '');
+    } catch {
+      // Sin historial que reescribir (pruebas, un navegador raro): el permiso igual se lee una sola vez por montaje.
+    }
+    return typeof permiso?.attemptId === 'string' && permiso.attemptId ? permiso.attemptId : null;
+  }
+
+  /** Un arranque nuevo: su número pasa a ser el vigente y las respuestas de los anteriores se ignoran. */
+  private nuevoArranque(): number {
+    const numero = this.arranque() + 1;
+    this.arranque.set(numero);
+    return numero;
+  }
+
+  private esArranqueVigente(numero: number): boolean {
+    return !this.destroyed && numero === this.arranque();
+  }
+
+  /** «Volver a la ficha» (o al editor, en ensayo) desde un umbral lento: lo que estaba en curso se descarta al salir. */
+  volverDesdeUmbral(): void {
+    const id = this.attempt()?.caseVersionId ?? Number(this.route.snapshot.paramMap.get('caseVersionId'));
+    // Lo que llegue después ya no es de nadie: ni mundo ni audio (la bandera `destroyed` hace el resto al desmontar).
+    this.nuevoArranque();
+    void this.router.navigate(this.mode() === 'rehearsal' ? ['/portal/casos', id, 'editor'] : ['/portal/simulador', id, 'ficha']);
+  }
+
+  /** El velo se retira (300 ms) y el HUD entra escalonado (clase `revelando`); el foco pasa al juego si quedó suelto. */
+  private revelarMundo(): void {
+    this.revelando.set(true);
+    if (this.revelandoTimer !== null) window.clearTimeout(this.revelandoTimer);
+    this.revelandoTimer = window.setTimeout(() => { this.revelandoTimer = null; this.revelando.set(false); }, REVELAR_MS);
+    afterNextRender(() => {
+      const activo = document.activeElement as HTMLElement | null;
+      if (activo && activo !== document.body && activo.isConnected && !activo.closest('app-umbral-caso')) return;
+      // El contenedor del juego (tabindex="-1"): las teclas del mundo se escuchan en la ventana, así que basta con que el
+      // foco no quede en el cuerpo ni en un nodo que ya no existe.
+      this.host?.nativeElement.querySelector<HTMLElement>('.game-container')?.focus({ preventScroll: true });
+    }, { injector: this.injector });
   }
 
   resumeAttempt() {
@@ -1966,9 +2137,10 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     if (active.status === 'PAUSED') {
       // Pausa reanudable real (ETH-02 A): transición explícita en backend,
       // mismo attemptId; el consentimiento se vuelve a pedir en bootstrap.
+      const numero = this.nuevoArranque();
       this.simulationService.resumeAttempt(active.attemptId, active.attemptToken).pipe(timeout(PLAZO_ACCION_MS)).subscribe({
-        next: attempt => this.bootstrapAttempt(attempt),
-        error: cause => this.fail('No pudimos reanudar el intento.', cause, () => this.resumeAttempt()),
+        next: attempt => { if (this.esArranqueVigente(numero)) this.bootstrapAttempt(attempt); },
+        error: cause => { if (this.esArranqueVigente(numero)) this.fail('No pudimos reanudar el intento.', cause, () => this.resumeAttempt()); },
       });
       return;
     }
@@ -2112,12 +2284,24 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     this.pausa.cancelar();
     this.decisionOnline.cancelar();
     this.positionRetry.cancelar();
+    // Al salir del juego, Inicio y Casos no deben pintar lo de antes (Codex B4a, hallazgo 2): aquí se empieza, pausa,
+    // reanuda o termina el intento, así que lo guardado de este caso ya no vale. Se pide perezoso y a prueba de fallos:
+    // las pruebas de instancia montan el juego sin la sesión que la caché necesita.
+    const caso = this.attempt()?.caseVersionId ?? Number(this.route.snapshot?.paramMap?.get('caseVersionId'));
+    // La caché sigue a la sesión con un effect sobre `currentUser`: sin una sesión de verdad (pruebas de instancia con un
+    // AuthService de mentira) no se crea, porque su effect fallaría después, fuera de este try.
+    const sesion = this.injector.get(AuthService, null) as { currentUser?: unknown } | null;
+    if (caso && typeof sesion?.currentUser === 'function') {
+      try { this.injector.get(CaseAccessCache).olvidarCaso(caso); } catch { /* sin caché no hay nada viejo que olvidar */ }
+    }
   }
 
   startNewAttempt() {
     const id = Number(this.route.snapshot.paramMap.get('caseVersionId'));
     if (!id) return;
     if (this.mode() === 'rehearsal') { this.beginRehearsal(id, this.rehearsalFrom); return; }
+    // El intento que la persona vio y aceptó perder: se toma ANTES de limpiar el estado y viaja al servidor.
+    const aceptado = this.pendingActiveAttempt()?.attemptId;
     this.showResumePrompt.set(false);
     this.resetAttemptScopedState();
     // Nada del intento anterior sobrevive: ni su diálogo o selección, ni la bitácora abierta, ni una
@@ -2128,7 +2312,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     // Los avisos pendientes eran del intento anterior.
     this.resetNotices();
     this.loading.set(true);
-    this.beginAttempt(id, true);
+    this.beginAttempt(id, true, aceptado);
   }
 
   /** Abre (o reabre) el ensayo: `POST rehearsal` cierra el anterior; sin consentimiento ni introducción (4.2.1) y sin guardar el token. */
@@ -2241,15 +2425,41 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     });
   }
 
-  private beginAttempt(caseVersionId: number, forceNew: boolean) {
-    this.simulationService.startAttempt(caseVersionId, forceNew).subscribe({
-      next: attempt => this.bootstrapAttempt(attempt),
+  private beginAttempt(caseVersionId: number, forceNew: boolean, expectedAttemptId?: string) {
+    const numero = this.nuevoArranque();
+    this.simulationService.startAttempt(caseVersionId, forceNew, expectedAttemptId).subscribe({
+      next: attempt => { if (this.esArranqueVigente(numero)) this.bootstrapAttempt(attempt); },
       // Un rechazo de acceso (cerró, aún no abre, secuencia) se dice con el aviso del caso y no se reintenta: repetirlo
       // da el mismo 403. Cualquier otro fallo conserva su mensaje y su reintento.
       error: cause => {
+        if (!this.esArranqueVigente(numero)) return;
+        // 409: el intento abierto ya no es el que la persona aceptó perder (otra pestaña lo reemplazó o lo abrió) o el
+        // servidor no deja reemplazarlo. Nunca se reintenta a ciegas: se relee y se vuelve a preguntar.
+        if (forceNew && esConflictoDeIntento(cause)) { this.volverAPreguntar(caseVersionId); return; }
         const refused = accessErrorMessage(cause);
         if (refused) this.fail(refused, cause, null);
-        else this.fail('No pudimos iniciar la simulación. Inténtalo de nuevo.', cause, () => this.beginAttempt(caseVersionId, forceNew));
+        else this.fail('No pudimos iniciar la simulación. Inténtalo de nuevo.', cause, () => this.beginAttempt(caseVersionId, forceNew, expectedAttemptId));
+      },
+    });
+  }
+
+  /** Relee el intento abierto tras un conflicto y ofrece otra vez «Continuar / Iniciar nuevo» con lo que hay ahora. */
+  private volverAPreguntar(caseVersionId: number): void {
+    const numero = this.nuevoArranque();
+    this.announce(DRAFT_COPY.intentoCambio.text, 'assertive');
+    this.simulationService.getActiveAttempt(caseVersionId).subscribe({
+      next: active => {
+        if (!this.esArranqueVigente(numero)) return;
+        if (active && (active.status === 'IN_PROGRESS' || active.status === 'PAUSED')) {
+          this.pendingActiveAttempt.set(active);
+          this.showResumePrompt.set(true);
+          this.loading.set(false);
+          return;
+        }
+        this.beginAttempt(caseVersionId, false);
+      },
+      error: cause => {
+        if (this.esArranqueVigente(numero)) this.fail('No pudimos iniciar la simulación. Inténtalo de nuevo.', cause, () => this.volverAPreguntar(caseVersionId));
       },
     });
   }
@@ -3929,6 +4139,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
   requestNewAttempt(): void {
     const copy = DRAFT_COPY.newAttemptConsequence;
     void this.dialog.consequence({
+      // La capa se abre tras pulsar un botón del juego, pero el foco puede estar en el cuerpo: la piel no se adivina.
+      piel: 'game',
       title: copy.title,
       consequence: copy.text,
       continueLabel: 'Continuar',

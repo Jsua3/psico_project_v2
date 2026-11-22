@@ -86,6 +86,9 @@ describe('SimulationPlayComponent: una sola «Salida segura» operable por estad
     component = fixture.componentInstance;
     component.attempt.set(ATTEMPT);
     component.worldStarted.set(true);
+    // El mundo ya pintó su primer cuadro: sin esto el umbral (B4b) seguiría a la vista y su salida segura sería la única
+    // operable. Estas pruebas miran los estados JUGABLES; la salida del umbral la prueba umbral-caso.component.spec.
+    component.worldRendered.set(true);
     component.loading.set(false);
     fixture.detectChanges();
   });

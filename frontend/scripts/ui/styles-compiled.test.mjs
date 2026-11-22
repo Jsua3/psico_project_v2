@@ -72,7 +72,7 @@ const rootProps = (media = null) => new Map(parsed.decls
 
 test('movimiento: duraciones y curvas separadas con los valores de §2.3', () => {
   const t = rootProps();
-  const durations = { press: '100ms', fast: '160ms', base: '200ms', slow: '300ms', glass: '620ms', move: '200ms', fade: '160ms' };
+  const durations = { press: '100ms', fast: '160ms', base: '200ms', slow: '300ms', glass: '620ms', move: '200ms', fade: '160ms', umbral: '420ms', revelar: '300ms' };
   for (const [name, value] of Object.entries(durations)) assert.equal(t.get(`--ds-dur-${name}`), value, `--ds-dur-${name}`);
   assert.equal(t.get('--ds-ease-out'), 'cubic-bezier(0.23, 1, 0.32, 1)');
   assert.equal(t.get('--ds-ease-in-out'), 'cubic-bezier(0.77, 0, 0.175, 1)');
@@ -95,7 +95,7 @@ test('movimiento: los resortes de la barra de vidrio usan linear() donde existe 
 test('movimiento reducido: la geometría se anula por tokens y la opacidad conserva su fundido corto', () => {
   const reduced = rootProps('prefers-reduced-motion: reduce');
   // Revisión de F1 (I1): todas las duraciones colapsan salvo el fundido de opacidad.
-  for (const name of ['press', 'fast', 'base', 'slow', 'move', 'glass']) assert.equal(reduced.get(`--ds-dur-${name}`), '0.01ms', name);
+  for (const name of ['press', 'fast', 'base', 'slow', 'move', 'glass', 'umbral', 'revelar']) assert.equal(reduced.get(`--ds-dur-${name}`), '0.01ms', name);
   assert.equal(reduced.has('--ds-dur-fade'), false, 'el fundido de opacidad sigue (≤ 160 ms)');
 });
 
@@ -124,16 +124,17 @@ test('el foco programático de main no deja halo (revisión de F1)', () => {
   assert.equal(props.get('box-shadow'), 'none');
 });
 
-test('la fila de la tabla de intentos del dashboard conserva su hover (F7-1: ahora es la fila de ui-table, solo con puntero fino)', () => {
-  // Antes `.attempts-table .mat-mdc-row:hover` en el SCSS del dashboard; desde F7-1 el panel usa `tr[uiRow]` de la
-  // biblioteca, cuyo hover vive en `ui-table.scss` y no depende de ninguna regla local.
+test('las filas de ui-table conservan su hover (F7-1: la fila de la biblioteca, solo con puntero fino)', () => {
+  // Antes `.attempts-table .mat-mdc-row:hover` en el SCSS del dashboard; desde F7-1 las tablas usan `tr[uiRow]` de la
+  // biblioteca, cuyo hover vive en `ui-table.scss` y no depende de ninguna regla local. B5a quitó la tabla de intentos
+  // del Inicio (ahora es la bandeja «Por revisar»): el consumidor que se comprueba es la tabla de Usuarios.
   const table = parseCss({ text: compileStylesFile('../app/shared/ui/table/ui-table.scss').css, startLine: 1 });
   const hover = table.decls.find(d => d.selector.trim() === '.ui-table__row:hover');
   assert.ok(hover, 'regla de hover de la fila');
   assert.ok(hover.ats.some(at => at.includes('(hover: hover) and (pointer: fine)')), 'solo con puntero fino');
   assert.equal(hover.value, 'var(--ds-surface-2)');
-  const html = readFileSync(new URL('../../src/app/features/dashboard/dashboard.component.html', import.meta.url), 'utf8');
-  assert.match(html, /<tr uiRow>/, 'las filas del panel son filas de ui-table');
+  const html = readFileSync(new URL('../../src/app/features/admin/users.component.html', import.meta.url), 'utf8');
+  assert.match(html, /<tr uiRow[\s>]/, 'las filas de Usuarios son filas de ui-table');
 });
 
 // ── F2-1: utilidad global .ds-sr-only (la usan los componentes de shared/ui y sus consumidores) ───────────────

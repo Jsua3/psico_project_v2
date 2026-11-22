@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 import { loginAs } from './support/screen-tour';
 import { runAxe } from './support/quality-gates';
@@ -75,6 +75,8 @@ async function openPanel(page: Page, data: PanelData = {}): Promise<void> {
     ? route.fulfill({ status: data.dashboardStatus, json: { success: false, message: 'Error simulado' } })
     : route.fulfill({ json: { success: true, data: data.dashboard ?? DASHBOARD } }));
   await page.route('**/api/grupos', route => route.fulfill({ json: { success: true, data: data.grupos ?? GRUPOS } }));
+  await page.route(/\/api\/assignments(\?.*)?$/, route => route.fulfill({ json: { success: true, data: [{ id: 5, caseVersionId: 1, target: { type: 'GROUP', groupId: 1 }, state: 'OPEN', active: true, sortOrder: 0 }] } }));
+  await page.route('**/api/simulation/cases', route => route.fulfill({ json: { success: true, data: CASOS } }));
   await page.route('**/api/simulation/attempts/history', route => route.fulfill({ json: { success: true, data: [] } }));
   await page.goto('/portal/dashboard');
 }
@@ -110,7 +112,7 @@ test.describe('@docencia grupos', () => {
       await page.setViewportSize(viewport);
       await openGroups(page);
       await expect(page.getByRole('heading', { level: 1, name: 'Grupos' })).toBeVisible();
-      await page.getByRole('button', { name: 'Ver detalle de Psicología Jurídica · 2026-2' }).click();
+      await page.getByRole('link', { name: /Psicolog\u00eda Jur\u00eddica/ }).click();
       await expect(page.getByText('Marta Ríos')).toBeVisible();
       expect(await overflowX(page)).toBeLessThanOrEqual(0);
       expect(await blockingViolations(page, 'app-grupo-list')).toEqual([]);
@@ -119,7 +121,7 @@ test.describe('@docencia grupos', () => {
 
   test('sin grupos: un solo vacío de primer uso, sin cifras, y el formulario a la vista', async ({ page }) => {
     await openGroups(page, []);
-    await expect(page.locator('app-grupo-list ui-empty-state')).toHaveCount(1);
+    await expect(page.locator('app-grupo-list ui-vacio-ilustrado')).toHaveCount(1);
     await expect(page.locator('app-grupo-list ui-stat')).toHaveCount(0);
     await expect(page.getByRole('textbox', { name: /Nombre del grupo/ })).toBeVisible();
     expect(await blockingViolations(page, 'app-grupo-list')).toEqual([]);
@@ -143,6 +145,7 @@ test.describe('@docencia grupos', () => {
       if (request.method() === 'DELETE') deletes.push(request.url());
     });
     await openGroups(page);
+    await page.getByRole('link', { name: /Intervenci\u00f3n en Crisis/ }).click();
     await page.getByRole('button', { name: 'Más acciones de Intervención en Crisis · 2026-2' }).click();
     await page.getByRole('menuitem', { name: 'Borrar' }).click();
 
@@ -151,13 +154,14 @@ test.describe('@docencia grupos', () => {
     await dialog.getByRole('button', { name: 'Cancelar' }).click();
     await expect(dialog).toHaveCount(0);
     expect(deletes).toEqual([]);
-    await expect(page.getByRole('row', { name: /Intervención en Crisis/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Intervenci\u00f3n en Crisis/ })).toBeVisible();
   });
 
   test('importar: soltar un archivo que no es .xlsx lo rechaza con un mensaje, y el control nativo sigue ahí', async ({ page }) => {
     await openGroups(page);
-    await page.getByRole('button', { name: 'Ver detalle de Psicología Jurídica · 2026-2' }).click();
-    const zone = page.locator('.gl-drop');
+    await page.getByRole('link', { name: /Psicolog\u00eda Jur\u00eddica/ }).click();
+    await page.getByRole('button', { name: 'Importar desde Excel' }).click();
+    const zone = page.locator('ui-archivo .ui-archivo__zona');
     await expect(zone.locator('input[type="file"]')).toHaveCount(1);
 
     await zone.evaluate(element => {
@@ -165,7 +169,8 @@ test.describe('@docencia grupos', () => {
       transfer.items.add(new File(['x'], 'lista.pdf'));
       element.dispatchEvent(new DragEvent('drop', { dataTransfer: transfer, bubbles: true, cancelable: true }));
     });
-    await expect(page.locator('.gl-message')).toHaveText('Selecciona un archivo .xlsx.');
+    await expect(page.locator('ui-archivo')).toContainText('Ese archivo no es del formato pedido.');
+    await expect(zone.locator('input[type="file"]')).toHaveCount(1);
   });
 });
 
@@ -225,7 +230,7 @@ test.describe('@docencia reportes', () => {
     await page.route('**/api/grupos', route => route.fulfill({ json: { success: true, data: GRUPOS } }));
     const requested = await mockReports(page);
     await page.goto('/portal/reportes');
-    await expect(page.locator('app-reporte-grupo ui-empty-state')).toContainText('Selecciona un grupo');
+    await expect(page.locator('app-reporte-grupo ui-vacio-ilustrado')).toContainText('Selecciona un grupo');
     expect(requested).toEqual([]);
     expect(await blockingViolations(page, 'app-reporte-grupo')).toEqual([]);
   });
@@ -233,10 +238,11 @@ test.describe('@docencia reportes', () => {
   test('un grupo sin intentos dice «Sin intentos en este corte», no «Selecciona un grupo»', async ({ page }) => {
     await loginAs(page, 'profesor');
     await page.route('**/api/grupos', route => route.fulfill({ json: { success: true, data: GRUPOS } }));
-    await mockReports(page, { grupoId: 2, caseVersionId: null, simulacion: null });
+    await mockReports(page, { grupoId: 2, caseVersionId: 1, simulacion: null });
     await page.goto('/portal/reportes?grupo=2');
-    await expect(page.locator('app-reporte-grupo ui-empty-state')).toContainText('Sin intentos en este corte');
-    await expect(page.locator('app-reporte-grupo ui-empty-state')).not.toContainText('Selecciona un grupo');
+    await page.getByLabel('Caso de simulación').selectOption({ label: `${CASE_TITLE} · v1.0.0` });
+    await expect(page.locator('app-reporte-grupo ui-vacio-ilustrado')).toContainText('Sin intentos en este corte');
+    await expect(page.locator('app-reporte-grupo ui-vacio-ilustrado')).not.toContainText('Selecciona un grupo');
     expect(await blockingViolations(page, 'app-reporte-grupo')).toEqual([]);
   });
 
@@ -244,20 +250,19 @@ test.describe('@docencia reportes', () => {
     await mockReports(page);
     await openPanel(page);
 
-    // Camino corto: Grupos → «Ver reporte» del grupo, dos clics. Cada gesto se comprueba por la pantalla a la que
-    // llega: si se interpone un paso (un aviso, un menú), el enlace siguiente no existe y la prueba falla.
-    await page.locator('app-quick-actions').getByRole('link', { name: 'Gestionar grupos' }).click(); // gesto 1
-    await expect(page).toHaveURL(/\/portal\/grupos$/);
-    await page.getByRole('link', { name: 'Ver reporte de Psicología Jurídica · 2026-2' }).click(); // gesto 2
-    await expect(page).toHaveURL(/\/portal\/reportes\?grupo=1$/);
+    // El panel ofrece el reporte del grupo directamente con el caso asignado: un gesto.
+    const group = page.locator('app-dashboard article').filter({ has: page.getByRole('heading', { name: GRUPOS[0].nombre }) });
+    await group.getByRole('link', { name: 'Ver reporte' }).click();
+    await expect(page).toHaveURL(/\/portal\/reportes\?grupo=1&caseVersionId=1$/);
     await expect(page.getByRole('rowheader', { name: 'Marta Ríos' })).toBeVisible();
 
-    // Camino por Reportes: el acceso (gesto 1) y, con un <select> nativo, abrir la lista y elegir el grupo (gestos
-    // 2 y 3). El reporte sale al elegir, sin un botón «Consultar» de por medio.
+    // También se conserva el recorrido por los filtros de Reportes.
     await page.goto('/portal/dashboard');
-    await page.locator('app-quick-actions').getByRole('link', { name: 'Ver reportes' }).click(); // gesto 1
+    await page.getByRole('navigation', { name: 'Navegación principal' }).getByRole('link', { name: 'Reportes', exact: true }).click();
     await expect(page).toHaveURL(/\/portal\/reportes$/);
-    await page.locator('app-reporte-grupo select').first().selectOption({ label: 'Intervención en Crisis · 2026-2 · IC-2026' }); // gestos 2 y 3
+    // El campo es obligatorio: su rótulo visible es «Grupo *»; se busca por su nombre accesible.
+    await page.getByRole('combobox', { name: 'Grupo', exact: true }).selectOption({ index: 1 });
+    await expect(page.getByLabel('Caso de simulación').locator('option:checked')).toHaveText(`${CASE_TITLE} · v1.0.0`);
     await expect(page.getByRole('rowheader', { name: 'Marta Ríos' })).toBeVisible();
   });
 });
@@ -340,6 +345,25 @@ async function openTrace(page: Page, recent: unknown[] = RECENT_ATTEMPTS): Promi
   return { saved };
 }
 
+/**
+ * La revisión del intento va en dos mitades (B5b): la evidencia a la izquierda y «Tu valoración» a la derecha. Desde 1024 px
+ * se ven juntas; por debajo, un control «Qué ver» muestra una a la vez. Estas dos ayudas llevan la mitad pedida a la vista
+ * en cualquier ancho (si el control no se ve, ya están las dos).
+ */
+async function verMitad(page: Page, mitad: 'Evidencia' | 'Valoración'): Promise<void> {
+  const control = page.getByRole('radiogroup', { name: 'Qué ver' });
+  if (await control.isVisible()) await control.getByRole('radio', { name: mitad }).click();
+}
+
+/** Abre una pestaña de la evidencia («Recorrido», «Decisiones» o «Reflexiones»); por defecto abre «Decisiones». */
+async function verPestana(page: Page, nombre: 'Recorrido' | 'Decisiones' | 'Reflexiones'): Promise<void> {
+  await verMitad(page, 'Evidencia');
+  await page.getByRole('tab', { name: nombre }).click();
+}
+
+/** Un nivel de un criterio de la valoración: se pulsa su tarjeta (el botón de opción nativo queda oculto tras ella). */
+const nivel = (criterio: Locator, nombre: string) => criterio.locator('.ri-nivel').filter({ hasText: nombre });
+
 // req: RNF-04, BLOQUE-H, SIEP-CU-04, RN-09 (RN-09 ya no es un conflicto: la rúbrica es solo niveles)
 test.describe('@docencia traza', () => {
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
@@ -347,6 +371,10 @@ test.describe('@docencia traza', () => {
       await page.setViewportSize(viewport);
       await openTrace(page);
       await expect(page.getByRole('heading', { level: 2, name: CASE_TITLE })).toBeVisible();
+      expect(await overflowX(page)).toBeLessThanOrEqual(0);
+      expect(await blockingViolations(page, 'app-instructor-trace')).toEqual([]);
+      // La otra mitad (en el teléfono, tras el control «Qué ver»): la valoración de la rúbrica, también sin desborde.
+      await verMitad(page, 'Valoración');
       await expect(page.getByRole('heading', { level: 2, name: 'Rúbrica básica de desempeño' })).toBeVisible();
       expect(await overflowX(page)).toBeLessThanOrEqual(0);
       expect(await blockingViolations(page, 'app-instructor-trace')).toEqual([]);
@@ -362,20 +390,26 @@ test.describe('@docencia traza', () => {
 
   test('SIEP-CU-04: califica por niveles, exige uno por criterio y no envía nada incompleto', async ({ page }) => {
     const { saved } = await openTrace(page);
-    const first = page.locator('.tr-criterion').nth(0).getByLabel('Nivel logrado');
-    const second = page.locator('.tr-criterion').nth(1).getByLabel('Nivel logrado');
+    await verMitad(page, 'Valoración');
+    // R2: «Nivel logrado» dejó de ser una lista desplegable: es un grupo de cuatro botones de opción por criterio.
+    const first = page.locator('.tr-criterion').nth(0).getByRole('radiogroup', { name: /^Nivel logrado/ });
+    const second = page.locator('.tr-criterion').nth(1).getByRole('radiogroup', { name: /^Nivel logrado/ });
     await expect(first).toBeVisible();
-    // La rúbrica ya no lleva campos numéricos: solo el selector de niveles y la observación.
+    // La rúbrica no lleva campos numéricos: solo los niveles en palabras y la observación. Sin «Sin calificar»: no elegir
+    // ninguno es no haber valorado.
     await expect(page.locator('.tr-criterion input[type="number"]')).toHaveCount(0);
-    await expect(first.locator('option')).toHaveText(['Sin calificar', 'En inicio', 'En proceso', 'Logrado', 'Destacado']);
+    await expect(first.getByRole('radio')).toHaveCount(4);
+    await expect(first.locator('.ri-nivel__nombre')).toHaveText(['En inicio', 'En proceso', 'Logrado', 'Destacado']);
 
     // Con un criterio sin nivel el aviso dice qué falta y no se envía nada.
-    await first.selectOption('EN_INICIO');
+    await nivel(page.locator('.tr-criterion').nth(0), 'En inicio').click();
+    await expect(first.getByRole('radio', { name: 'En inicio' })).toBeChecked();
     await page.getByRole('button', { name: 'Guardar evaluación' }).click({ force: true });
     await expect(page.locator('.tr-criterion').nth(1)).toContainText('Elige un nivel para este criterio.');
     expect(saved).toEqual([]);
 
-    await second.selectOption('DESTACADO');
+    await nivel(page.locator('.tr-criterion').nth(1), 'Destacado').click();
+    await expect(second.getByRole('radio', { name: 'Destacado' })).toBeChecked();
     await expect(page.locator('.tr-criterion .ui-field__message--error')).toHaveCount(0);
     await page.getByRole('button', { name: 'Guardar evaluación' }).click();
     await expect.poll(() => saved.length).toBe(1);
@@ -388,18 +422,21 @@ test.describe('@docencia traza', () => {
 
   test('RN-09: la valoración se rotula «Valoración formativa» con el nivel y sin números', async ({ page }) => {
     await openTrace(page);
-    const valuation = page.locator('.tr-valuation');
+    await verMitad(page, 'Valoración');
+    const valuation = page.locator('.ri-valoracion');
     await expect(valuation).toContainText('Valoración formativa');
     await expect(valuation).toContainText('Pendiente');
     await expect(valuation).not.toContainText(/\d/);
-    // Cada nivel se explica con su descriptor, no con una cifra.
-    await expect(page.locator('.tr-levels')).toContainText('La muestra de forma consistente.');
+    // Cada nivel se explica con su descriptor, no con una cifra: «Qué significa cada nivel» (plegado) los junta.
+    await page.getByText('Qué significa cada nivel').click();
+    await expect(page.locator('.ri-niveles')).toContainText('La muestra de forma consistente.');
     await expect(page.locator('.tr-rubric')).not.toContainText(/\b\d+\s*(?:\/|de)\s*5\b|\b1\s*(?:a|–|-)\s*5\b|%/);
   });
 
   test('la traza cuenta hitos, la persona por escena y el final con su razón, sin puntaje ni estrés', async ({ page }) => {
     await openTrace(page);
     const trace = page.locator('app-instructor-trace');
+    await verPestana(page, 'Recorrido');
     await expect(trace.locator('.tr-milestones')).toContainText('Recomendar medidas de protección');
     await expect(trace.locator('.tr-milestones')).toContainText('Valorar el riesgo de feminicidio');
     await expect(trace.locator('.tr-persona')).toContainText('se muestra abierta y serena');
@@ -444,7 +481,8 @@ const RUBRICS = [
     ] },
 ];
 
-async function openRubrics(page: Page, list: unknown[] = RUBRICS): Promise<void> {
+/** `aQuery`: `?rubrica=<id>` abre el editor de esa rúbrica (R1); sin él se ve la biblioteca. */
+async function openRubrics(page: Page, list: unknown[] = RUBRICS, aQuery = ''): Promise<void> {
   await loginAs(page, 'profesor');
   await page.route('**/api/rubrics/**', route => {
     // `/api/rubrics/` es la lista; `/api/rubrics/<id>` es el detalle.
@@ -453,7 +491,7 @@ async function openRubrics(page: Page, list: unknown[] = RUBRICS): Promise<void>
     return route.fulfill({ json: { success: true, data } });
   });
   await page.route('**/api/simulation/cases', route => route.fulfill({ json: { success: true, data: CASOS } }));
-  await page.goto('/portal/rubricas');
+  await page.goto(`/portal/rubricas${aQuery}`);
 }
 
 // req: RNF-04, BLOQUE-H
@@ -461,10 +499,15 @@ test.describe('@docencia rubricas', () => {
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
     test(`con rúbricas: sin desborde y Axe sin hallazgos serios (${viewport.width})`, async ({ page }) => {
       await page.setViewportSize(viewport);
+      // R1: dos niveles en la misma ruta. La biblioteca, y la matriz de una rúbrica con `?rubrica=<id>`.
       await openRubrics(page);
       await expect(page.getByRole('heading', { level: 1, name: 'Rúbricas' })).toBeVisible();
-      await expect(page.getByRole('heading', { level: 2, name: 'Editar rúbrica' })).toBeVisible();
-      // Los botones pasan de «sin rúbrica abierta» a «abierta» con una transición de color: Axe la mediría a medias.
+      await expect(page.getByRole('heading', { level: 2, name: 'Biblioteca de rúbricas' })).toBeVisible();
+      await settle(page);
+      expect(await overflowX(page)).toBeLessThanOrEqual(0);
+      expect(await blockingViolations(page, 'app-rubrics')).toEqual([]);
+      await page.goto('/portal/rubricas?rubrica=4');
+      await expect(page.getByRole('heading', { level: 2, name: /^Criterios/ })).toBeVisible();
       await settle(page);
       expect(await overflowX(page)).toBeLessThanOrEqual(0);
       expect(await blockingViolations(page, 'app-rubrics')).toEqual([]);
@@ -481,10 +524,11 @@ test.describe('@docencia rubricas', () => {
   });
 
   test('con la ponderación en 90 %: Activar dice por qué no se puede, sin desactivarse en silencio', async ({ page }) => {
-    await openRubrics(page);
-    await page.getByRole('button', { name: /Observación de aula/ }).click();
+    await openRubrics(page, RUBRICS, '?rubrica=7');
     await expect(page.locator('#rubric-weight-hint')).toContainText('la ponderación debe sumar 100 %');
 
+    // «Activar» vive en el menú «Más» del pie (R1): una acción primaria y un menú.
+    await page.getByRole('button', { name: 'Más', exact: true }).click();
     const activate = page.getByRole('button', { name: 'Activar', exact: true });
     await expect(activate).toHaveAttribute('aria-disabled', 'true');
     await activate.focus();
@@ -540,6 +584,7 @@ test.describe('@docencia usuarios', () => {
 
   test('si las solicitudes de acceso no cargan, se ve el error en su sección', async ({ page }) => {
     await openUsers(page, { requestsStatus: 500 });
+    await page.getByRole('radio', { name: /^Solicitudes/ }).click();
     await expect(page.locator('.us-requests ui-error-state')).toContainText('No pudimos cargar las solicitudes de acceso.');
   });
 
@@ -615,7 +660,7 @@ test.describe('@docencia hub de casos', () => {
     test(`con casos: sin desborde y Axe sin hallazgos serios (${viewport.width})`, async ({ page }) => {
       await page.setViewportSize(viewport);
       await openHub(page);
-      await expect(page.getByRole('heading', { level: 1, name: 'Edición de casos' })).toBeVisible();
+      await expect(page.getByRole('heading', { level: 1, name: 'Casos' })).toBeVisible();
       await expect(page.getByRole('heading', { level: 3, name: CASE_TITLE })).toBeVisible();
       await settle(page);
       expect(await overflowX(page)).toBeLessThanOrEqual(0);
@@ -638,7 +683,7 @@ test.describe('@docencia hub de casos', () => {
   // P6: todo caso nuevo empieza eligiendo un lugar; ya no hay formulario de caso en blanco en la lista.
   test('sin casos: vacío con «Crear un caso nuevo» que lleva a elegir un lugar', async ({ page }) => {
     await openHub(page, { cases: [] });
-    await page.locator('app-case-authoring-hub ui-empty-state').getByRole('button', { name: 'Crear un caso nuevo' }).click();
+    await page.getByRole('link', { name: 'Crear un caso' }).first().click();
     await expect(page).toHaveURL(/\/portal\/casos\/nuevo$/);
   });
 });
@@ -649,8 +694,9 @@ test.describe('@docencia panel', () => {
     test(`con datos: sin desborde y Axe sin hallazgos serios (${viewport.width})`, async ({ page }) => {
       await page.setViewportSize(viewport);
       await openPanel(page);
-      await expect(page.getByRole('heading', { level: 1, name: 'Seguimiento de tus grupos' })).toBeVisible();
-      await expect(page.locator('app-dashboard ui-stat').first()).toBeVisible();
+      await expect(page.getByRole('heading', { level: 1, name: 'Hola, Profesora' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Tus grupos' })).toBeVisible();
+      await expect(page.locator('app-dashboard article').filter({ has: page.getByRole('heading', { name: GRUPOS[0].nombre }) })).toContainText('24 estudiantes');
       expect(await overflowX(page)).toBeLessThanOrEqual(0);
       expect(await blockingViolations(page, 'app-dashboard')).toEqual([]);
     });
@@ -663,7 +709,7 @@ test.describe('@docencia panel', () => {
     });
     await loginAs(page, 'profesor');
     await page.goto('/portal/dashboard');
-    await expect(page.getByRole('heading', { level: 1, name: 'Seguimiento de tus grupos' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Hola, Profesora' })).toBeVisible();
     await page.waitForLoadState('networkidle');
 
     expect(forbidden).toEqual([]);
@@ -672,10 +718,10 @@ test.describe('@docencia panel', () => {
 
   test('el panel muestra cada acceso una sola vez', async ({ page }) => {
     await openPanel(page);
-    await expect(page.locator('app-dashboard app-quick-actions a')).not.toHaveCount(0);
-    const labels = await page.locator('app-dashboard app-quick-actions a').allInnerTexts();
-    const cleaned = labels.map(label => label.replace(/\s+/g, ' ').trim());
-    expect(new Set(cleaned).size).toBe(cleaned.length);
+    const links = page.locator('app-dashboard a[href]');
+    await expect(links).not.toHaveCount(0);
+    const destinations = await links.evaluateAll(items => items.map(item => item.getAttribute('href')));
+    expect(new Set(destinations).size).toBe(destinations.length);
   });
 
   test('sin grupos: un solo vacío de primer uso y «Crear grupo» lleva a los grupos', async ({ page }) => {
@@ -695,13 +741,13 @@ test.describe('@docencia panel', () => {
   });
 
   test('«Ver detalle» abre la traza del intento elegido, no la del más reciente', async ({ page }) => {
-    await page.route('**/api/instructor/attempts/recent', route => route.fulfill({ json: { success: true, data: RECENT } }));
+    await page.route(/\/api\/instructor\/attempts\?.*/, route => route.fulfill({ json: { success: true, data: { items: RECENT.map(item => ({ ...item, caseVersionId: 1, caseVersionStatus: 'PUBLISHED', endedAt: null, activeSeconds: 0 })), page: 1, pageSize: 5, coverage: { shown: 3, total: 3 } } } }));
     // La respuesta de la traza no importa aquí: solo qué intento pide la pantalla.
     await page.route('**/api/instructor/attempts/*/trace', route => route.fulfill({ status: 500, json: { success: false } }));
     await openPanel(page);
 
     const requested = page.waitForRequest(request => /\/api\/instructor\/attempts\/[^/]+\/trace$/.test(request.url()));
-    await page.getByRole('link', { name: `Ver detalle de ${CASE_TITLE} de Laura P.` }).click();
+    await page.getByRole('link', { name: `Revisar ${CASE_TITLE} de Laura P.` }).click();
 
     await expect(page).toHaveURL(/\/portal\/docente\/trazabilidad\?intento=a-3$/);
     expect((await requested).url()).toMatch(/\/api\/instructor\/attempts\/a-3\/trace$/);

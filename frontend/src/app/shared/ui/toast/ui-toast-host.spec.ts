@@ -5,6 +5,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { LiveRegionAnnouncer } from '../../../core/a11y/live-announcer.service';
 import { MAX_NOTIFICATIONS, NotificationService } from '../../../core/notifications/notification.service';
+import { TemaService } from '../../../core/tema/tema.service';
 import { UiToastHost } from './ui-toast-host';
 
 /**
@@ -189,6 +190,23 @@ describe('ui-toast-host', () => {
     fixture.componentRef.setInput('placement', 'portal');
     fixture.detectChanges();
     expect(root().classList).not.toContain('ui-toast-host--game');
+  });
+
+  // req: DP-24 (los avisos llevan la piel de donde se muestran; nunca en body: REGLA-010)
+  it('la piel va en el anfitrión: en el juego siempre oscura; en el portal, la del tema', () => {
+    const tema = TestBed.inject(TemaService);
+    tema.fijar('claro');
+    fixture.detectChanges();
+    expect(root().getAttribute('data-skin')).toBe('portal');
+    tema.fijar('oscuro');
+    fixture.detectChanges();
+    expect(root().getAttribute('data-skin')).toBe('game');
+    tema.fijar('claro');
+    fixture.componentRef.setInput('placement', 'game');
+    fixture.detectChanges();
+    expect(root().getAttribute('data-skin')).toBe('game');
+    expect(document.body.hasAttribute('data-skin')).toBe(false);
+    tema.fijar('sistema');
   });
 
   // req: REGLA-004 (revisión de F6: cuatro avisos persistentes a 844×390 llegaban al pie y tapaban «Salida segura»)

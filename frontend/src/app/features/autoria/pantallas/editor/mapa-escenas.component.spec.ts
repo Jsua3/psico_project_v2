@@ -1,3 +1,4 @@
+import { type WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
 import { universidad } from '../../testing/universidad';
@@ -26,6 +27,37 @@ const menuitems = () => [...document.querySelectorAll<HTMLElement>('[role="menui
 
 describe('MapaEscenasComponent', () => {
   afterEach(() => document.querySelectorAll('.cdk-overlay-container').forEach((o) => (o.innerHTML = '')));
+
+  // req: EDITOR-PRO punto 3 y 4: encuadre completo y regreso legible al inicio.
+  it('F y el botón encuadran todo; Volver al inicio recupera el encuadre legible', async () => {
+    const { fixture, caso, raiz } = await montar();
+    fixture.componentRef.setInput('caso', { ...caso, inicioId: caso.escenas[1].id, escenas: [
+      { ...caso.escenas[0], posicion: { x: 0, y: 0 } },
+      { ...caso.escenas[1], posicion: { x: 9000, y: 0 } },
+    ] });
+    await fixture.whenStable();
+    const estado = fixture.componentInstance as unknown as {
+      tamMarco: WritableSignal<{ w: number; h: number }>;
+      camara: WritableSignal<{ x: number; y: number; z: number }>;
+      limites: () => { ancho: number; alto: number };
+    };
+    estado.tamMarco.set({ w: 800, h: 600 });
+    const comprobarTodo = () => {
+      const c = estado.camara(), l = estado.limites();
+      expect(c.z).toBeLessThan(0.3);
+      expect(c.x).toBeGreaterThanOrEqual(16);
+      expect(c.x + l.ancho * c.z).toBeLessThanOrEqual(784);
+      expect(c.y).toBeGreaterThanOrEqual(16);
+      expect(c.y + l.alto * c.z).toBeLessThanOrEqual(584);
+    };
+    raiz.querySelector<HTMLButtonElement>('[aria-label="Ver todo el mapa"]')!.click();
+    comprobarTodo();
+    raiz.querySelector<HTMLButtonElement>('[aria-label="Volver al inicio"]')!.click();
+    expect(estado.camara().z).toBe(0.75);
+    expect(estado.camara().x).toBeLessThan(-5000);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', bubbles: true }));
+    comprobarTodo();
+  });
 
   it('pasar el cursor por una escena muestra la miniatura de su sala', async () => {
     const { fixture, raiz } = await montar();
@@ -156,6 +188,15 @@ describe('MapaEscenasComponent', () => {
     expect(menuitems()).toContain('Marcar como final');
   });
 
+  it('al destruir el mapa cancela la apertura diferida del menú contextual', async () => {
+    const { fixture, raiz } = await montar();
+    nodo(raiz, 0).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, buttons: 2 }));
+    fixture.destroy();
+    window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve));
+    expect(menuitems()).toEqual([]);
+  });
+
   // Axe (color-contrast) en un caso de solo lectura: el fieldset deshabilitado atenúa «Acciones», pero un aria-disabled="false"
   // explícito decía lo contrario, y Axe y el lector de pantalla lo tomaban por habilitado.
   it('«Acciones» nunca dice aria-disabled="false": sin escena elegida va deshabilitado y con escena no lo dice', async () => {
@@ -218,5 +259,66 @@ describe('MapaEscenasComponent', () => {
     fixture.detectChanges();
     expect(menuitems()).toEqual([]);
     expect(raiz.querySelector('[role="status"]')!.textContent).toContain('Primero elige una escena en el mapa.');
+  });
+
+  // req: EDITOR.md §7.3 E1, criterios 5 y 7
+  it('E1 · una sala sin fondo dibujado no deja una imagen con src vacío en el globo', async () => {
+    const { fixture, caso, raiz } = await montar();
+    fixture.componentRef.setInput('caso', { ...caso, salas: caso.salas.map((s) => ({ ...s, fondo: '' })) });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    nodo(raiz, 0).dispatchEvent(new MouseEvent('mouseenter'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const vista = raiz.querySelector('[role="tooltip"]')!;
+    expect(vista).not.toBeNull();
+    expect(vista.querySelector('img')).toBeNull();
+    expect([...raiz.querySelectorAll('img')].every((i) => !!i.getAttribute('src'))).toBe(true);
+  });
+
+  it('E1 · el menú «Acciones» lleva la piel de quien lo abre (oscuro en oscuro), sin tocar body', async () => {
+    const contenedor = document.createElement('section');
+    contenedor.setAttribute('data-skin', 'game');
+    document.body.appendChild(contenedor);
+    const { fixture, raiz } = await montar();
+    contenedor.appendChild(raiz);
+    nodo(raiz, 0).dispatchEvent(new KeyboardEvent('keydown', { key: 'F10', shiftKey: true, bubbles: true }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(document.querySelector('.cdk-overlay-container [role="menu"]')!.getAttribute('data-skin')).toBe('game');
+    expect(menuitems()).toContain('Marcar como final');
+    contenedor.remove();
+    expect(document.body.hasAttribute('data-skin')).toBe(false);
+  });
+
+  it('E1 · los números de las tarjetas son los del orden de la historia (los del riel)', async () => {
+    const { fixture, caso, raiz } = await montar();
+    // La segunda escena del arreglo es el inicio: el número sigue a la historia, no al arreglo.
+    const volver = { id: 'r2', texto: 'Volver', clase: 'RECOMMENDED' as const, razon: '', efectos: {}, retroalimentacion: '', destinoId: caso.escenas[0].id, marcaIa: false };
+    fixture.componentRef.setInput('caso', {
+      ...caso, inicioId: caso.escenas[1].id,
+      escenas: [{ ...caso.escenas[0], respuestas: [] }, { ...caso.escenas[1], respuestas: [volver] }],
+    });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(nodo(raiz, 0).querySelector('.numero')!.textContent).toBe('2');
+    expect(nodo(raiz, 1).querySelector('.numero')!.textContent).toBe('1');
+  });
+
+  it('E1 · «Teclas del mapa» abre la ayuda en un globo y Esc lo pliega; la ayuda sigue describiendo el mapa', async () => {
+    const { fixture, raiz } = await montar();
+    const boton = raiz.querySelector<HTMLButtonElement>('button[aria-label="Teclas del mapa"]')!;
+    const ayuda = raiz.querySelector<HTMLElement>('#mapa-ayuda')!;
+    expect(ayuda.hidden).toBe(true);
+    expect(raiz.querySelector('.plano')!.getAttribute('aria-describedby')).toBe('mapa-ayuda');
+    boton.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(boton.getAttribute('aria-expanded')).toBe('true');
+    expect(ayuda.hidden).toBe(false);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(ayuda.hidden).toBe(true);
   });
 });

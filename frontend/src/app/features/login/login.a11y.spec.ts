@@ -17,8 +17,9 @@ describe('login: accesibilidad de los paneles', () => {
   it('solo los formularios tienen h1 (uno por rama, que recibe el foco al alternar); el panel usa h2', () => {
     expect((html.match(/<h1\b/g) ?? []).length).toBe(2);
     expect((html.match(/<h1 #heading id="acceso-titulo" tabindex="-1">/g) ?? []).length).toBe(2);
-    expect(html).toContain('<h2>¡Bienvenido de nuevo!</h2>');
-    expect(html).toContain('<h2>¿Nuevo en {{ brand.shortName }}?</h2>');
+    // Rediseño Metafrónesis 2026-11-20: los encabezados del panel no marcan género («Te damos la bienvenida»).
+    expect(html).toContain('<h2>Te damos la bienvenida</h2>');
+    expect(html).toContain('<h2>¿Primera vez en {{ brand.shortName }}?</h2>');
     expect(scss).toContain('.acceso__panel h2 {');
   });
 });
@@ -26,7 +27,9 @@ describe('login: accesibilidad de los paneles', () => {
 describe('login: nombres accesibles y roles', () => {
   // F3-4: el enlace fijo propio dejó paso a la barra pública compartida (app-public-bar, modo «acceso»), cuyo
   // «Volver al inicio» se nombra por su texto visible (WCAG 2.5.3; probado en DOM en public-bar.component.spec.ts).
-  it('la cabecera del acceso es la barra pública compartida, fuera del <main>', () => {
+  it('la cabecera del acceso es la barra pública compartida, fuera del <main> y dentro del contenedor con la piel', () => {
+    // Rediseño 2026-11-20: la barra y el <main> viven en el contenedor que lleva la piel del tema (REGLA-010).
+    expect(html.indexOf('<div class="acceso publico" [attr.data-skin]="tema.piel()">')).toBeLessThan(html.indexOf('<app-public-bar'));
     expect(html.indexOf('<app-public-bar mode="acceso" />')).toBeGreaterThanOrEqual(0);
     expect(html.indexOf('<app-public-bar mode="acceso" />')).toBeLessThan(html.indexOf('<main'));
     expect(html).not.toContain('siep-login__back');

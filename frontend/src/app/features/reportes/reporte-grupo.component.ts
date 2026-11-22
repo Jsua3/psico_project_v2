@@ -5,7 +5,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { Subscription } from 'rxjs';
+import { Observable, Subscription, concatMap, defaultIfEmpty, filter, from, map, take } from 'rxjs';
 import { Grupo, GrupoService } from '../../core/api/grupo.service';
 import { ReporteService } from '../../core/api/reporte.service';
 import { SimulationService } from '../../core/api/simulation.service';
@@ -14,17 +14,18 @@ import {
   CoberturaCategoria, EstudianteSimulacionReporte, HitoCobertura, ReporteGrupo, ReporteSimulacionGrupo,
 } from '../../core/models/sesion.model';
 import { SimulationCaseSummary } from '../../core/models/simulation.model';
+import { UiBarras, UiBarrasDato } from '../../shared/ui/barras/ui-barras';
 import { UiBadge, UiBadgeTone } from '../../shared/ui/badge/ui-badge';
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiCard } from '../../shared/ui/card/ui-card';
 import { UiControl, UiField } from '../../shared/ui/field/ui-field';
-import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { UiVacioIlustrado } from '../../shared/ui/vacio-ilustrado/ui-vacio-ilustrado';
+import { UiCabeceraIlustrada } from '../../shared/ui/cabecera-ilustrada/ui-cabecera-ilustrada';
 import { UiProgress } from '../../shared/ui/progress/ui-progress';
 import { UiSection } from '../../shared/ui/section/ui-section';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { UiStat } from '../../shared/ui/stat/ui-stat';
 import { uiDataState } from '../../shared/ui/state/ui-data-state';
-import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { UiLink } from '../../shared/ui/link/ui-link';
 import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
@@ -53,12 +54,12 @@ const COBERTURA_SIN_DATOS = 'Aún no hay datos suficientes para mostrarlo';
   standalone: true,
   imports: [
     ReactiveFormsModule, RouterLink,
-    UiBadge, UiButton, UiCard, UiControl, UiField, UiLink, UiPageHeader, UiProgress, UiSection, UiSkeleton, UiStat,
-    UiEmptyState, UiErrorState, UiTable, UiTableRow, UiTableTable,
+    UiBarras, UiBadge, UiButton, UiCard, UiControl, UiField, UiLink, UiCabeceraIlustrada, UiVacioIlustrado, UiProgress, UiSection, UiSkeleton, UiStat,
+    UiErrorState, UiTable, UiTableRow, UiTableTable,
   ],
   templateUrl: './reporte-grupo.component.html',
   styleUrl: './reporte-grupo.component.scss',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ReporteGrupoComponent {
   private readonly reporteService = inject(ReporteService);
@@ -72,6 +73,7 @@ export class ReporteGrupoComponent {
 
   /** La consulta en curso: elegir otro corte la cancela. */
   private request: Subscription | null = null;
+  private casosCargados = false;
 
   readonly form = this.fb.group({
     grupoId: [null as number | null, Validators.required],
@@ -105,6 +107,14 @@ export class ReporteGrupoComponent {
     caseVersionId: this.selectedCaseVersionId(),
   }));
 
+  /**
+   * Sin caso elegido el servidor no consolida el grupo (`simulacion: null` a propósito): no es «nadie ha empezado»,
+   * es que falta elegir el caso. Decir lo primero sería falso (pasada final).
+   */
+  protected readonly faltaCaso = computed(() => {
+    const data = this.reporte();
+    return data !== null && data.simulacion === null && (data.caseVersionId ?? null) === null;
+  });
   /** La consulta respondió, pero sin intentos que mostrar. */
   private readonly sinIntentos = computed(() => {
     const data = this.reporte();
@@ -121,7 +131,11 @@ export class ReporteGrupoComponent {
     this.destroyRef.onDestroy(() => this.request?.unsubscribe());
     // Primero se escucha el formulario: la carga de grupos puede preseleccionar uno (`?grupo=`) y eso debe generar.
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
-      const { grupoId, caseVersionId } = this.form.getRawValue();
+      let { grupoId, caseVersionId } = this.form.getRawValue();
+      if (this.selectedGrupoId() !== null && grupoId !== this.selectedGrupoId()) {
+        caseVersionId = null;
+        this.form.controls.caseVersionId.setValue(null, { emitEvent: false });
+      }
       this.selectedGrupoId.set(grupoId);
       this.selectedCaseVersionId.set(caseVersionId);
       this.request?.unsubscribe();
@@ -131,6 +145,7 @@ export class ReporteGrupoComponent {
         this.loading.set(false);
         return;
       }
+      if (caseVersionId === null && !this.casosCargados) return;
       this.generar();
     });
     this.cargarFiltros();
@@ -151,7 +166,11 @@ export class ReporteGrupoComponent {
       }
     });
     this.simulationService.listCases().subscribe({
-      next: casos => this.casos.set(casos),
+      next: casos => {
+        this.casos.set(casos);
+        this.casosCargados = true;
+        if (this.selectedGrupoId() !== null && this.selectedCaseVersionId() === null) this.generar();
+      },
       error: () => this.loadFiltersError.update(msg => msg || 'No fue posible cargar los casos de simulación.')
     });
   }
@@ -173,11 +192,6 @@ export class ReporteGrupoComponent {
     this.form.reset({ grupoId: null, caseVersionId: null });
   }
 
-  /** Quita el filtro de caso (con un caso elegido y sin intentos, es lo único que puede cambiar el resultado). */
-  verTodosLosCasos() {
-    this.form.patchValue({ caseVersionId: null });
-  }
-
   generar() {
     const { grupoId, caseVersionId } = this.form.getRawValue();
     if (grupoId === null) return;
@@ -185,8 +199,26 @@ export class ReporteGrupoComponent {
     this.loading.set(true);
     this.error.set('');
     this.reporte.set(null);
-    this.request = this.reporteService.getReporteGrupo(grupoId, caseVersionId).subscribe({
-      next: reporte => {
+    // Se busca en orden el primer caso con intentos; si ninguno tiene, se muestra el primero vacío.
+    const casos = this.casos();
+    const consulta: Observable<{ caso: SimulationCaseSummary | null; reporte: ReporteGrupo }> = caseVersionId === null && casos.length
+      ? from(casos).pipe(
+          concatMap(caso => this.reporteService.getReporteGrupo(grupoId, caso.caseVersionId).pipe(
+            map(reporte => ({ caso, reporte })))),
+          filter(({ reporte }) => (reporte.simulacion?.totalIntentos ?? 0) > 0),
+          take(1),
+          defaultIfEmpty(null),
+          concatMap(resultado => resultado
+            ? from([resultado])
+            : this.reporteService.getReporteGrupo(grupoId, casos[0].caseVersionId).pipe(map(reporte => ({ caso: casos[0], reporte })))),
+        )
+      : this.reporteService.getReporteGrupo(grupoId, caseVersionId).pipe(map(reporte => ({ caso: null, reporte })));
+    this.request = consulta.subscribe({
+      next: ({ caso, reporte }) => {
+        if (caso) {
+          this.form.controls.caseVersionId.setValue(caso.caseVersionId, { emitEvent: false });
+          this.selectedCaseVersionId.set(caso.caseVersionId);
+        }
         this.reporte.set(reporte);
         this.loading.set(false);
       },
@@ -219,14 +251,61 @@ export class ReporteGrupoComponent {
     });
   }
 
+  /** Los porcentajes publicados no permiten reconstruir cantidades sin revelar celdas suprimidas. */
+  barrasHitos(sim: ReporteSimulacionGrupo): UiBarrasDato[] {
+    return sim.hitos.filter(h => h.porcentaje != null).map(h => ({
+      etiqueta: h.label, valor: h.porcentaje!, tono: 'info', patron: 'rayas',
+    }));
+  }
+
+  barrasDecisiones(sim: ReporteSimulacionGrupo): UiBarrasDato[] {
+    const suma = (clave: keyof EstudianteSimulacionReporte['clases']) => sim.estudiantes.reduce((n, e) => n + e.clases[clave], 0);
+    return [
+      { etiqueta: 'Recomendadas', valor: suma('recommended'), tono: 'success', patron: 'liso' },
+      { etiqueta: 'Aceptables', valor: suma('acceptable'), tono: 'info', patron: 'rayas' },
+      { etiqueta: 'Con riesgo', valor: suma('risky'), tono: 'warning', patron: 'puntos' },
+      { etiqueta: 'Contraindicadas', valor: suma('contraindicated'), tono: 'danger', patron: 'rayas' },
+    ];
+  }
+
+  /**
+   * La lectura del gráfico de hitos en palabras: el paso menos logrado (con empates) y por qué no hay «de N». El servidor
+   * da solo el porcentaje (y lo oculta en grupos de menos de 20), no cuántas personas lo cumplieron.
+   */
+  descripcionHitos(sim: ReporteSimulacionGrupo): string {
+    const filas = this.barrasHitos(sim);
+    const base = 'Cada barra es el porcentaje del grupo que cumplió ese paso. El servidor no informa cuántas personas son. Los pasos sin porcentaje disponible no aparecen.';
+    if (!filas.length) return base;
+    const minimo = Math.min(...filas.map(fila => fila.valor));
+    const menos = filas.filter(fila => fila.valor === minimo).map(fila => `«${fila.etiqueta}»`);
+    const lectura = menos.length === 1
+      ? `El paso menos logrado es ${menos[0]}, con ${this.porcentaje(minimo)} %.`
+      : `Los pasos menos logrados, empatados con ${this.porcentaje(minimo)} %, son ${menos.join(', ')}.`;
+    return `${base} ${lectura}`;
+  }
+
+  /** La lectura del reparto de decisiones: qué clase predomina (con empates) y cuántas decisiones piden atención. */
+  descripcionDecisiones(sim: ReporteSimulacionGrupo): string {
+    const filas = this.barrasDecisiones(sim);
+    const total = this.totalDecisiones(sim);
+    const maximo = Math.max(...filas.map(fila => fila.valor));
+    const mayores = filas.filter(fila => fila.valor === maximo).map(fila => `«${fila.etiqueta}»`);
+    const predomina = mayores.length === 1 ? `Predomina ${mayores[0]} con ${maximo}.` : `Empatan ${mayores.join(' y ')} con ${maximo} cada una.`;
+    const valor = (etiqueta: string) => filas.find(fila => fila.etiqueta === etiqueta)?.valor ?? 0;
+    const atencion = valor('Con riesgo') + valor('Contraindicadas');
+    const piden = atencion === 0
+      ? 'Ninguna decisión es de riesgo ni contraindicada.'
+      : `Piden atención ${atencion} (${valor('Con riesgo')} con riesgo y ${valor('Contraindicadas')} contraindicadas).`;
+    return `Reparto de ${total} decisiones registradas en este corte. ${predomina} ${piden}`;
+  }
+
+  totalDecisiones(sim: ReporteSimulacionGrupo): number {
+    return this.barrasDecisiones(sim).reduce((total, fila) => total + fila.valor, 0);
+  }
+
   /** Un porcentaje con coma decimal y un decimal como máximo («62,5»). */
   porcentaje(value: number): string {
     return this.decimal.transform(value, '1.0-1') ?? '0';
-  }
-
-  /** Proporción 0–1 del porcentaje del grupo (el relleno de la barra escala con transform). */
-  ratio(percent: number): number {
-    return Math.min(1, Math.max(0, percent / 100));
   }
 
   /** La cobertura de un hito en palabras; sin categoría (celda mínima), dice que aún no hay datos suficientes. */
@@ -237,11 +316,6 @@ export class ReporteGrupoComponent {
   /** La palabra «clave» de un hito que decide el final. */
   marca(hito: HitoCobertura): string | null {
     return milestoneMark(hito);
-  }
-
-  /** Lo que lee quien usa lector de pantalla en la barra: el hito, la cobertura en palabras y el porcentaje. */
-  barraEtiqueta(hito: HitoCobertura): string {
-    return `${hito.label}: ${this.coberturaPalabras(hito)}, ${this.porcentaje(hito.porcentaje ?? 0)} % del grupo`;
   }
 
   /** «2 de 3»: los hitos que cumplió en su último intento completado; sin ese dato, un guion. */

@@ -154,7 +154,7 @@ describe('SimulationPlayComponent: diálogo sin callejones', () => {
 
       component.startNewAttempt();
 
-      expect(sim['startAttempt']).toHaveBeenCalledWith(CASE_VERSION_ID, true);
+      expect(sim['startAttempt']).toHaveBeenCalledWith(CASE_VERSION_ID, true, undefined);
       expect(component.dialogue()).toBeNull();
       expect(component.selectedInteraction()).toBeNull();
       expect(component.nearbyInteraction()).toBeNull();

@@ -12,6 +12,8 @@
     --ds-dur-slow: 0.01ms;
     --ds-dur-move: 0.01ms;
     --ds-dur-glass: 0.01ms;
+    --ds-dur-umbral: 0.01ms;
+    --ds-dur-revelar: 0.01ms;
   }
 
   :where(:not(.ds-motion)),

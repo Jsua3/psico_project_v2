@@ -7,6 +7,9 @@
 @use 'base/overlays';
 @use 'tokens/glass-bar' as glass-bar-tokens;
 @use 'components/glass-bar';
+@use 'components/publico';
+@use 'components/portal';
+@use 'components/transiciones';
 @use 'components/autoria';
 @use 'tokens/pixel' as pixel-tokens;
 @use 'components/pixel';
@@ -30,7 +33,8 @@ body {
   margin: 0;
   font-family: var(--ds-font-sans);
   color: var(--psy-ink);
-  background: linear-gradient(180deg, #FAFAFA 0%, var(--psy-bg) 54%, #ECECEC 100%);
+  /* Sin degradado ni literales: el fondo del portal lo pinta `.portal` (components/_portal.scss), con su piel. */
+  background: var(--ds-surface-page);
   text-rendering: optimizeLegibility;
 }
 
@@ -116,8 +120,9 @@ code {
 }
 
 /* Both the Angular Material host (.mat-icon) and the bare utility class render
-   ligatures. MatIconRegistry usa 'material-symbols-rounded' como clase por defecto
-   (app.config.ts), así que no hace falta !important. Size comes from font-size;
+   ligatures. La fuente la fija esta regla sobre `.mat-icon` (no la clase del registro: fijarla desde app.config.ts
+   metía el registro de iconos en el paquete inicial), y ninguna hoja define `.material-icons`, así que no hace falta
+   !important. Size comes from font-size;
    width/height use 1em so per-component font-size overrides scale the icon box too. */
 .mat-icon,
 .material-symbols-rounded {

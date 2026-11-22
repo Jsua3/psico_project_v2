@@ -11,15 +11,15 @@ class Screen {}
 
 /**
  * Acción principal de cada rol (T15.4), reescrita para la barra de vidrio (plan visual F3-3). Antes era un botón al
- * pie del menú lateral; ahora es el destino principal de la barra, que nunca se pliega. El estudiante va al
- * simulador (el menú no sabe si hay un intento activo, así que no promete «Continuar»); el docente, a revisar
- * intentos (trazabilidad); el administrador, a crear o editar casos.
+ * pie del menú lateral; ahora es el destino principal de la barra, que nunca se pliega. El estudiante va a sus casos
+ * (el menú no sabe si hay un intento activo, así que no promete «Continuar»); el docente, a revisar intentos
+ * (Revisión); el administrador, a Usuarios (DISENO §3.2: su tarea principal, que deja de plegarse).
  */
 describe('acción principal de cada rol en la barra (T15.4)', () => {
   const cases: Array<[User['role'], string]> = [
     ['ESTUDIANTE', '/portal/simulador'],
     ['PROFESOR', '/portal/docente/trazabilidad'],
-    ['ADMIN', '/portal/casos'],
+    ['ADMIN', '/portal/admin/usuarios'],
   ];
 
   for (const [role, route] of cases) {

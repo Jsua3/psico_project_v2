@@ -11,6 +11,7 @@ from shared.response import api_created, api_ok
 from apps.simulation.serializers.contracts import (
     AttemptStateSerializer,
     CaseBriefSerializer,
+    CatalogItemSerializer,
     HintStateSerializer,
     SurveyRequestSerializer,
     SurveyStateSerializer,
@@ -82,7 +83,8 @@ class StartAttemptView(APIView):
         ser.is_valid(raise_exception=True)
         normalize_request_id(ser.validated_data.get("requestId"))  # 400 si el formato no vale
         state = game_service.start_attempt(
-            ser.validated_data["caseVersionId"], request.user, ser.validated_data["forceNew"]
+            ser.validated_data["caseVersionId"], request.user, ser.validated_data["forceNew"],
+            expected_attempt_id=ser.validated_data.get("expectedAttemptId"),
         )
         return api_ok(state, message="Intento iniciado")
 
@@ -351,6 +353,7 @@ class EnterRoomView(APIView):
 class CatalogView(APIView):
     permission_classes = [policy_permission("catalog", "read")]
 
+    @extend_schema(responses={200: envelope_of(CatalogItemSerializer, many=True), **error_responses(401)})
     def get(self, request):
         from apps.progression.catalog import build_catalog
         return api_ok(build_catalog(request.user))

@@ -158,11 +158,12 @@ describe('AutoriaShellComponent · como ruta del programa', () => {
     expect(store.caso()!.id).toBe('41');
     expect(raiz.querySelector('header .caso-actual')!.textContent).toContain('Primera escucha en Bienestar');
     expect(raiz.querySelector('main h1')!.textContent).toContain('Escenas y caminos');
-    // Los enlaces del marco cuelgan del caso abierto y de la lista de casos: la marca, «Mis casos» y las secciones, todo en la barra
+    // Los enlaces del marco cuelgan del caso abierto y de la lista de casos: la marca, «Casos», las cinco etapas del hilo y
+    // «Probar», todo en la barra (E0: el hilo cambia las cuatro secciones de antes por las cinco etapas de EDITOR.md §3.1).
     const enlaces = [...raiz.querySelectorAll<HTMLAnchorElement>('header a')].map((a) => a.getAttribute('href'));
     expect(enlaces).toEqual([
-      '/portal/casos', '/portal/casos', '/portal/casos/41/editor', '/portal/casos/41/editor/datos', '/portal/casos/41/editor/finales',
-      '/portal/casos/41/editor/revision', '/portal/casos/41/ensayo',
+      '/portal/casos', '/portal/casos', '/portal/casos/41/editor/datos', '/portal/casos/41/editor/plano', '/portal/casos/41/editor',
+      '/portal/casos/41/editor/evaluacion', '/portal/casos/41/editor/revision', '/portal/casos/41/ensayo',
     ]);
   });
 
@@ -220,7 +221,8 @@ describe('AutoriaShellComponent · como ruta del programa', () => {
     expect(servidor.llamadasA('caseEditor')).toHaveLength(0);
     expect(raiz.querySelector('main h1')!.textContent).toContain('¿Dónde pasa tu caso?');
     // Solo la marca y «Mis casos» de la barra: sin caso no hay secciones.
-    expect([...raiz.querySelectorAll<HTMLAnchorElement>('nav a')].map((a) => a.getAttribute('href'))).toEqual(['/portal/casos', '/portal/casos']);
+    // Solo los enlaces del marco: la página de crear un caso trae su propia barra de pasos dentro de <main>.
+    expect([...raiz.querySelectorAll<HTMLAnchorElement>('nav a')].filter((a) => !a.closest('main')).map((a) => a.getAttribute('href'))).toEqual(['/portal/casos', '/portal/casos']);
   });
 
   it('salir del editor espera a que lo pendiente llegue al servidor y cierra el caso', async () => {
@@ -239,7 +241,8 @@ describe('AutoriaShellComponent · como ruta del programa', () => {
 
   it('S8 · el indicador cuenta las respuestas que solo están en pantalla, no dice «Todo guardado»', async () => {
     const { raiz, listo, store } = await irA('/portal/casos/41/editor');
-    const indicador = () => raiz.querySelector('[data-estado-guardado]')!.textContent!.trim();
+    // E0: el indicador vive en la barra; a la vista va la forma corta y la frase entera es la que se anuncia (y la del globo).
+    const indicador = () => raiz.querySelector('header [data-estado-guardado] .solo-lector')!.textContent!.trim();
     expect(indicador()).toBe('Todo guardado');
 
     const origen = store.caso()!.escenas[0];

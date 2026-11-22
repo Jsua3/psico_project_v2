@@ -1,8 +1,7 @@
 import { ApplicationConfig, ErrorHandler, inject, provideAppInitializer, provideBrowserGlobalErrorListeners } from '@angular/core';
-import { TitleStrategy, provideRouter, withComponentInputBinding, withNavigationErrorHandler, withPreloading } from '@angular/router';
+import { TitleStrategy, provideRouter, withComponentInputBinding, withNavigationErrorHandler, withPreloading, withViewTransitions } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { MAT_CARD_CONFIG } from '@angular/material/card';
-import { MatIconRegistry } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 import { routes } from './app.routes';
 import { CachedSimulationService } from './core/api/cached-simulation.service';
@@ -13,6 +12,7 @@ import { watchConnectionRecovery } from './core/notifications/connection-recover
 import { SiepErrorHandler } from './core/error/siep-error-handler';
 import { offlineNavigationHandler } from './core/navigation/offline-navigation';
 import { PreloadMarkedRoutes } from './core/navigation/preload-marked';
+import { filtrarTransiciones } from './core/navigation/transiciones';
 import { AuthService } from './core/auth/auth.service';
 import { settleWithin } from './core/auth/settle-within.util';
 import { User } from './core/models/user.model';
@@ -36,7 +36,10 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     { provide: ErrorHandler, useExisting: SiepErrorHandler },
     // Sin red, una navegación que no pudo descargar su código lleva a «Sin conexión», precargada con red (F4-3).
-    provideRouter(routes, withNavigationErrorHandler(offlineNavigationHandler), withPreloading(PreloadMarkedRoutes), withComponentInputBinding()),
+    // Transiciones de vistas (DISENO §4.4, DP-10): solo los cambios de lugar (portal → juego y vuelta, editor ↔ ensayo)
+    // corren; `filtrarTransiciones` salta el resto. Sin soporte del navegador, la navegación es la de siempre.
+    provideRouter(routes, withNavigationErrorHandler(offlineNavigationHandler), withPreloading(PreloadMarkedRoutes), withComponentInputBinding(),
+      withViewTransitions({ skipInitialTransition: true, onViewTransitionCreated: info => filtrarTransiciones(info) })),
     { provide: TitleStrategy, useClass: SiepTitleStrategy },
     provideHttpClient(withInterceptors([jwtInterceptor])),
     // Proxy de caché: los componentes siguen inyectando SimulationService (ver CachedSimulationService).
@@ -44,8 +47,10 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(initializeAuthSession),
     // El aviso de conexión se retira solo al volver la red (evento `online`) o con la primera respuesta correcta.
     provideAppInitializer(() => { watchConnectionRecovery(inject(NotificationService)); }),
-    // Material Symbols (subconjunto autoalojado) como fuente de los <mat-icon>, sin `font-family !important` (F1-3).
-    provideAppInitializer(() => { inject(MatIconRegistry).setDefaultFontSetClass('material-symbols-rounded'); }),
+    // Material Symbols (subconjunto autoalojado): la fuente la pone la regla `.mat-icon` de styles.scss, que todo
+    // <mat-icon> lleva. Antes se fijaba también la clase por defecto del registro, pero ninguna regla la usa y tocar
+    // `@angular/material/icon` desde aquí (registro o ficha de opciones: esbuild parte por módulo) metía <mat-icon> y
+    // su registro (~19 kB) en el paquete inicial, que la portada y el login no usan hasta cargar su ruta (pasada final).
     // Tarjetas con borde fino por token y elevación suave (F1-4): la apariencia «elevated» fija border-width 0.
     { provide: MAT_CARD_CONFIG, useValue: { appearance: 'outlined' } },
   ]

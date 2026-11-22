@@ -11,7 +11,9 @@ describe('portal: feedback de acciones', () => {
   const grupos = source('../grupos/grupo-list.component.ts') + source('../grupos/grupo-list.component.html');
   // Los casos asignados al grupo viven en su propia sección desde F10-5 (C7).
   const asignaciones = source('../grupos/group-assignments.component.ts');
-  const rubrics = source('rubrics.component.ts') + source('rubrics.component.html');
+  // R1: las órdenes de una rúbrica viven en su editor; las de la biblioteca (duplicar, activar desde la fila), aquí.
+  const rubrics = source('rubrics.component.ts') + source('rubrics.component.html')
+    + source('rubrica-editor.component.ts') + source('rubrica-editor.component.html');
 
   it('Usuarios avisa el éxito con un aviso que no se borra', () => {
     expect(users).toContain("this.notify.success(selected ? 'La información se guardó correctamente.' : 'Usuario creado correctamente.');");
@@ -56,6 +58,6 @@ describe('portal: feedback de acciones', () => {
 
   it('Rúbricas avisa el resultado de sus acciones', () => {
     expect(rubrics).toContain("this.notify.success('Rúbrica guardada.')");
-    expect(rubrics).toContain("this.notify.success('Rúbrica asignada a la simulación.')");
+    expect(rubrics).toContain("this.notify.success('Rúbrica asignada al caso.')");
   });
 });

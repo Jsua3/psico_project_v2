@@ -2,6 +2,7 @@ import { Component, Input, provideZonelessChangeDetection } from '@angular/core'
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
+import { TemaService } from '../../core/tema/tema.service';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { SiepParticleLayerComponent } from '../../shared/ui/siep-particle-layer.component';
 import { LandingComponent } from './landing.component';
@@ -46,11 +47,62 @@ describe('LandingComponent', () => {
     expect(host().querySelectorAll('header.cromo .modulo-principal a.nav-enlace').length).toBeGreaterThan(0);
   });
 
-  it('el héroe presenta el simulador en la piel juego; nada más de la página la lleva (VD-2)', () => {
-    const skinned = [...host().querySelectorAll('[data-skin]')];
-    expect(skinned).toHaveLength(1);
-    expect(skinned[0].matches('section.landing-hero')).toBe(true);
-    expect(skinned[0].getAttribute('data-skin')).toBe('game');
+  // Rediseño Metafrónesis (2026-11-20): la portada tiene modo claro y oscuro. La piel la lleva SOLO el contenedor de la
+  // página (REGLA-010: nunca body ni :root) y sigue al tema: oscuro = juego, claro = portal. Reemplaza a VD-2.
+  it('la piel va solo en el contenedor de la página y sigue al tema (oscuro = juego, claro = portal)', async () => {
+    const tema = TestBed.inject(TemaService);
+    const skinned = () => [...host().querySelectorAll('[data-skin]')];
+    tema.fijar('oscuro');
+    await fixture.whenStable();
+    expect(skinned()).toHaveLength(1);
+    expect(skinned()[0].matches('div.landing')).toBe(true);
+    expect(skinned()[0].getAttribute('data-skin')).toBe('game');
+    tema.fijar('claro');
+    await fixture.whenStable();
+    expect(skinned()[0].getAttribute('data-skin')).toBe('portal');
+    tema.fijar('sistema');
+  });
+
+  it('«Cómo funciona» es un relato: un paso por clip del simulador, con pausa y salto de sección', () => {
+    const pasos = [...host().querySelectorAll('#como-funciona .landing-relato__paso h3')].map(text);
+    expect(pasos).toEqual(['Entra al caso', 'Escucha a las personas', 'Decide con criterio', 'Revisa el sentido de tus decisiones']);
+    expect(host().querySelector<HTMLAnchorElement>('.landing-relato__saltar')!.getAttribute('href')).toBe('#roles');
+    expect(host().querySelector('.landing-relato__pantalla')!.getAttribute('aria-hidden')).toBe('true');
+    const pausa = host().querySelector<HTMLButtonElement>('.landing-relato__pausa')!;
+    expect(spoken(pausa)).toMatch(/videos$/);
+  });
+
+  // 2026-11-20: el video de fondo tapa a los doodles y se funde con ellos por los bordes (las máscaras viven en
+  // _publico.scss). Aquí, que siga siendo decorativo y que vaya antes del contenido, que se pinta encima.
+  it('el fondo del relato es decorativo: el cuadro del clip va en un lienzo dentro de su vista, antes del contenido', () => {
+    const fondo = host().querySelector('#como-funciona > .landing-relato__fondo')!;
+    expect(fondo.getAttribute('aria-hidden')).toBe('true');
+    expect(fondo.querySelector('.landing-relato__vista > canvas.landing-relato__ambiente')).not.toBeNull();
+    expect(fondo.nextElementSibling?.classList.contains('landing-wrap')).toBe(true);
+  });
+
+  // 2026-11-20: en Chrome 156 los VP9 fallaban al decodificar tras el primer cuadro (PIPELINE_ERROR_DECODE) y el clip
+  // quedaba congelado: el navegador solo salta de <source> con formatos que ni intenta, no con uno que falla a medias.
+  it('los clips piden primero H.264 y, si un formato no se decodifica, pasan solos al siguiente', () => {
+    const video = host().querySelector<HTMLVideoElement>('.landing-relato__capa video')!;
+    const fuentes = [...video.querySelectorAll('source')];
+    expect(fuentes.map(s => s.getAttribute('type'))).toEqual(['video/mp4', 'video/webm']);
+    const load = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
+    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    const actual = (src: string) => Object.defineProperty(video, 'currentSrc', { configurable: true, get: () => src });
+
+    actual(fuentes[0].src);
+    video.dispatchEvent(new Event('error'));
+    expect(video.getAttribute('src')).toMatch(/caminar\.webm$/);
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(play).toHaveBeenCalled();
+
+    // Con la última fuente ya no hay a dónde ir: no se recarga en bucle.
+    actual(fuentes[1].src);
+    video.dispatchEvent(new Event('error'));
+    expect(load).toHaveBeenCalledTimes(1);
+    load.mockRestore();
+    play.mockRestore();
   });
 
   it('la maqueta es una vista previa honesta: sin botones ni «disabled» falsos, y las decisiones son una lista de ejemplo', () => {

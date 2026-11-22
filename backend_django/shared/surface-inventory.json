@@ -390,6 +390,14 @@
       "audit": "EXENTO: ensayo del borrador de su autora (docente dueña o ADMIN): un intento aparte que ningún informe, lista ni métrica cuenta y que nadie más lee; no son datos de estudiantes"
     },
     {
+      "route": "api/admin/cases/<int:case_version_id>/rubric",
+      "method": "POST",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "RUBRIC_UPDATED"
+    },
+    {
       "route": "api/admin/cases/<int:case_version_id>/rules/endings",
       "method": "PUT",
       "exposure": "role:ADMIN,PROFESOR",
@@ -990,6 +998,14 @@
         "heavy_user"
       ],
       "audit": "EXENTO: ensayo del borrador de su autora (docente dueña o ADMIN): un intento aparte que ningún informe, lista ni métrica cuenta y que nadie más lee; no son datos de estudiantes"
+    },
+    {
+      "route": "api/authoring/cases/<int:case_version_id>/rubric",
+      "method": "POST",
+      "exposure": "role:ADMIN,PROFESOR",
+      "body": "json-small",
+      "throttle": null,
+      "audit": "RUBRIC_UPDATED"
     },
     {
       "route": "api/authoring/cases/<int:case_version_id>/rules/endings",

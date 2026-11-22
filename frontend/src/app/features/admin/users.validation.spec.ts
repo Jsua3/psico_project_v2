@@ -1,3 +1,5 @@
+import { AuthService } from '../../core/auth/auth.service';
+import { Router, ActivatedRoute } from '@angular/router';
 import { ElementRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
@@ -44,6 +46,8 @@ describe('usuarios: validar al enviar (comportamiento)', () => {
 
     TestBed.configureTestingModule({
       providers: [
+        { provide: AuthService, useValue: { currentUser: () => ({ id: 99 }) } },
+        { provide: Router, useValue: null }, { provide: ActivatedRoute, useValue: null },
         { provide: UserAdminService, useValue: service },
         { provide: AccessRequestAdminService, useValue: { listPending: vi.fn(() => of([])), updateStatus: vi.fn() } },
         { provide: NotificationService, useValue: notify },

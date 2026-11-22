@@ -235,7 +235,7 @@ function listaDesdeApi(lista: CaseEditorView['checklist'] | undefined): NonNulla
   return {
     items: (lista?.items ?? []).map((i) => ({
       codigo: i.code, texto: i.label, obligatorio: i.required, cumplido: i.fulfilled, enBorrador: i.draft,
-      respaldo: i.backingLabel ?? null, respaldado: i.backed ?? null,
+      respaldo: i.backingLabel ?? null, respaldado: i.backed ?? null, quien: i.backing ?? null,
     })),
     constanciaRegistrada: lista?.contentReview?.fulfilled === true,
   };
@@ -297,6 +297,7 @@ export function casoDesdeApi(editor: CaseEditorView, mundos: WorldDefinition[], 
   return {
     id: String(editor.caseVersionId), revision: editor.revision, titulo: editor.title, lugarId, salas, escenas,
     contexto: editor.context ?? '', objetivos: [...(editor.learningObjectives ?? [])],
+    ...(editor.contentWarnings ? { temasSensibles: [...editor.contentWarnings] } : {}),
     inicioId: inicio ? String(inicio.id) : null,
     hitos, nivelRiesgo: editor.rules.riskLevel,
     modoFinales: guardados.length > 0 && !textosPlantilla ? 'propio' : 'automatico',

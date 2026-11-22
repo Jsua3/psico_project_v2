@@ -3,36 +3,57 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { Observable } from 'rxjs';
 
 import { apiErrorMessage } from '../../core/api/api-error.util';
+import { CaseAccessCache } from '../../core/api/case-access.cache';
 import { Invitation, InvitationsApi } from '../../core/api/invitations.api';
 import { NotificationService } from '../../core/notifications/notification.service';
-import { UiBadge, UiBadgeTone } from '../../shared/ui/badge/ui-badge';
+import { NavBadgesService } from '../../shared/layout/nav-badges.service';
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiCard } from '../../shared/ui/card/ui-card';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
-import { invitationLabel } from '../../shared/ui/labels';
-import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { UiMenu, UiMenuItem } from '../../shared/ui/menu/ui-menu';
+import { UiCabeceraIlustrada } from '../../shared/ui/cabecera-ilustrada/ui-cabecera-ilustrada';
+import { UiSection } from '../../shared/ui/section/ui-section';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { errorKindFromStatus, uiDataState } from '../../shared/ui/state/ui-data-state';
-import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
+import { UiVacioIlustrado } from '../../shared/ui/vacio-ilustrado/ui-vacio-ilustrado';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { formatDate } from '../dashboard/student-dashboard.util';
 
-const TONES: Record<Invitation['status'], UiBadgeTone> = { INVITED: 'info', ACTIVE: 'success', DECLINED: 'neutral', REMOVED: 'neutral' };
+/** Lo que dice la pantalla; aparte para que quien redacta lo revise sin abrir la plantilla. */
+const GRUPOS_COPY = {
+  eyebrow: 'Tu entrenamiento',
+  titulo: 'Tus grupos',
+  descripcion: 'Tus docentes te invitan a sus grupos. Al aceptar, verás los casos que te asignen en ese grupo.',
+  pendientes: {
+    titulo: 'Invitaciones pendientes',
+    vacio: 'No tienes invitaciones pendientes.',
+    ayuda: 'Cuando tu docente te invite a un grupo, aparecerá aquí.',
+  },
+  miembro: { titulo: 'Grupos a los que perteneces', vacio: 'Aún no perteneces a ningún grupo.', ayuda: 'Acepta una invitación para entrar a un grupo.' },
+  vacio: { titulo: 'Aún no perteneces a ningún grupo', texto: 'Tu docente te invitará; la invitación aparecerá aquí.' },
+  error: 'No pudimos cargar tus grupos.',
+  cargando: 'Cargando tus grupos…',
+} as const;
 
 /**
- * Bandeja de invitaciones del estudiante (plan visual F7b-5; C5 de E2-10; decisión 22 del usuario: un docente no suma
- * a un estudiante sin su aceptación). Ruta propia del portal con entrada en la barra (decisión del usuario,
- * 2026-10-14). Aceptar, rechazar (confirma) y salir de un grupo (confirma); una invitación que ya no está vigente
- * (409) se dice y la lista se vuelve a pedir. Sin ella, con el servidor de E2 un estudiante invitado no tenía forma de
- * aceptar (hacía falta el puente `SIEP_INVITATIONS_AUTO_ACCEPT`).
+ * Grupos del estudiante (DISENO §4.6; plan visual F7b-5; C5 de E2-10; decisión 22 del usuario: un docente no suma a un
+ * estudiante sin su aceptación). Antes se llamaba «Invitaciones» y mostraba membresías: el nombre mentía. Ahora son dos
+ * secciones: las invitaciones pendientes arriba (aceptar, rechazar con confirmación) y los grupos a los que se pertenece
+ * debajo (salir, con confirmación y nunca a un clic, desde un menú). Una invitación que ya no está vigente (409) se dice
+ * y la lista se vuelve a pedir. Escribe el número de pendientes en la insignia de la barra (`NavBadgesService`).
+ *
+ * Al cambiar de grupo cambian los casos asignados: se vacía la caché de acceso, que si no seguiría mostrando por hasta
+ * un minuto los casos de antes.
  */
 @Component({
   selector: 'app-invitations',
-  imports: [UiBadge, UiButton, UiCard, UiEmptyState, UiErrorState, UiPageHeader, UiSkeleton],
+  imports: [UiButton, UiCabeceraIlustrada, UiCard, UiErrorState, UiMenu, UiSection, UiSkeleton, UiVacioIlustrado],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <ui-page-header eyebrow="Mi entrenamiento" title="Invitaciones"
-      description="Tus docentes te invitan a sus grupos. Al aceptar, verás los casos que te asignen en ese grupo." />
+    <!-- Cabecera ilustrada (ronda 3): el buzón de bienestar y el carné que da acceso. Sin invitaciones, la escena pasa al
+         vacío (una sola viñeta por pantalla). -->
+    <ui-cabecera-ilustrada [eyebrow]="copy.eyebrow" [title]="copy.titulo" [description]="copy.descripcion"
+      [escena]="state() === 'empty' ? null : 'invitacion'" />
 
     <p class="ds-sr-only" role="status">{{ statusText() }}</p>
 
@@ -45,52 +66,81 @@ const TONES: Record<Invitation['status'], UiBadgeTone> = { INVITED: 'info', ACTI
         </div>
       }
       @case ('error') {
-        <ui-error-state [kind]="errorKind()" [status]="errorStatus()" message="No pudimos cargar tus invitaciones." (retry)="load()" />
+        <ui-error-state [kind]="errorKind()" [status]="errorStatus()" [message]="copy.error" (retry)="load()" />
       }
       @case ('empty') {
-        <ui-empty-state kind="first-use" title="No tienes invitaciones"
-          description="Cuando un docente te invite a uno de sus grupos, la invitación aparecerá aquí para que la aceptes." />
+        <ui-vacio-ilustrado escena="invitacion" [titulo]="copy.vacio.titulo" [frase]="copy.vacio.texto" />
       }
       @case ('ready') {
-        <ul class="inv-list">
-          @for (item of invitations(); track item.groupId) {
-            <li>
-              <ui-card class="inv-item">
-                <div class="inv-item__text">
-                  <h2 class="inv-item__title">{{ item.groupName }}</h2>
-                  <p class="inv-item__meta">
-                    <ui-badge [tone]="tone(item)">{{ label(item.status) }}</ui-badge>
-                    <span>Te invitó {{ item.teacherName || 'tu docente' }} · {{ date(item.invitedAt) }}</span>
-                  </p>
-                </div>
-                @if (item.status === 'INVITED') {
-                  <div class="inv-item__actions">
-                    <button ui-button type="button" [loading]="busy() === item.groupId"
-                      [attr.aria-label]="'Aceptar la invitación a ' + item.groupName" (click)="accept(item)">Aceptar</button>
-                    <button ui-button type="button" variant="secondary"
-                      [attr.aria-label]="'Rechazar la invitación a ' + item.groupName" (click)="decline(item)">Rechazar</button>
-                  </div>
-                } @else if (item.status === 'ACTIVE') {
-                  <div class="inv-item__actions">
-                    <button ui-button type="button" variant="secondary" [loading]="busy() === item.groupId"
-                      [attr.aria-label]="'Salir del grupo ' + item.groupName" (click)="leave(item)">Salir del grupo</button>
-                  </div>
-                }
-              </ui-card>
-            </li>
+        <ui-section [title]="copy.pendientes.titulo">
+          @if (pendientes().length) {
+            <ul class="inv-list">
+              @for (item of pendientes(); track item.groupId) {
+                <li>
+                  <ui-card class="inv-item" superficie="tinte">
+                    <div class="inv-item__text">
+                      <h3 class="inv-item__title">{{ item.groupName }}</h3>
+                      @if (detalle(item); as linea) {
+                        <p class="inv-item__meta">{{ linea }}</p>
+                      }
+                    </div>
+                    <div class="inv-item__actions">
+                      <button ui-button type="button" [loading]="busy() === item.groupId"
+                        [attr.aria-label]="'Aceptar la invitación a ' + item.groupName" (click)="accept(item)">Aceptar</button>
+                      <button ui-button type="button" variant="secondary"
+                        [attr.aria-label]="'Rechazar la invitación a ' + item.groupName" (click)="decline(item)">Rechazar</button>
+                    </div>
+                  </ui-card>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="inv-vacio"><strong class="inv-vacio__titulo">{{ copy.pendientes.vacio }}</strong> {{ copy.pendientes.ayuda }}</p>
           }
-        </ul>
+        </ui-section>
+
+        <ui-section [title]="copy.miembro.titulo">
+          @if (miembro().length) {
+            <ul class="inv-list">
+              @for (item of miembro(); track item.groupId) {
+                <li>
+                  <ui-card class="inv-item">
+                    <div class="inv-item__text">
+                      <h3 class="inv-item__title">{{ item.groupName }}</h3>
+                      @if (detalle(item); as linea) {
+                        <p class="inv-item__meta">{{ linea }}</p>
+                      }
+                    </div>
+                    <ui-menu iconOnly [label]="'Más acciones de ' + item.groupName" [items]="acciones" (itemSelected)="onAccion($event, item)" />
+                  </ui-card>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="inv-vacio"><strong class="inv-vacio__titulo">{{ copy.miembro.vacio }}</strong> {{ copy.miembro.ayuda }}</p>
+          }
+        </ui-section>
       }
     }
   `,
   styles: [`
-    :host { display: block; }
+    /* Maquetación de página del portal: ancho máximo centrado y secciones con aire entre ellas. */
+    :host {
+      display: grid;
+      gap: var(--ds-space-6);
+      box-sizing: border-box;
+      inline-size: 100%;
+      min-inline-size: 0;
+      max-inline-size: var(--l-ancho-pagina);
+      margin-inline: auto;
+      color: var(--ds-text-1);
+    }
     .inv-loading,
     .inv-list {
       display: grid;
       grid-template-columns: minmax(0, 1fr);
-      gap: var(--ds-space-4);
-      margin: var(--ds-space-6) 0 0;
+      gap: var(--ds-space-3);
+      margin: 0;
       padding: 0;
       list-style: none;
     }
@@ -103,9 +153,9 @@ const TONES: Record<Invitation['status'], UiBadgeTone> = { INVITED: 'info', ACTI
     }
     .inv-item__text {
       display: grid;
-      flex: 1 1 16rem;
-      gap: var(--ds-space-2);
-      min-width: 0;
+      flex: 1 1 14rem;
+      gap: var(--ds-space-1);
+      min-inline-size: 0;
     }
     .inv-item__title {
       margin: 0;
@@ -114,15 +164,36 @@ const TONES: Record<Invitation['status'], UiBadgeTone> = { INVITED: 'info', ACTI
       font-weight: var(--ds-type-h3-weight);
       overflow-wrap: anywhere;
     }
-    .inv-item__meta {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: var(--ds-space-3);
+    .inv-item__meta,
+    .inv-vacio {
       margin: 0;
       color: var(--ds-text-2);
       font-size: var(--ds-type-body-s-size);
       line-height: var(--ds-type-body-s-line);
+    }
+    /* Una sección vacía se lee como un hueco que espera, no como una nota suelta: el contorno punteado ocupa el lugar de
+       la tarjeta que vendrá, y el cuadrito hueco (un píxel de la firma, sin relleno) dice «nada pendiente». */
+    .inv-vacio {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: var(--ds-space-1) var(--ds-space-2);
+      padding: var(--ds-space-4) var(--ds-space-5);
+      border: 1px dashed var(--ds-border);
+      border-radius: var(--l-radio-tarjeta, var(--ds-radius-lg));
+    }
+    .inv-vacio::before {
+      content: '';
+      flex: none;
+      align-self: center;
+      box-sizing: border-box;
+      inline-size: 0.625rem;
+      block-size: 0.625rem;
+      border: 2px solid var(--l-acento, var(--ds-primary));
+    }
+    .inv-vacio__titulo {
+      color: var(--ds-text-1);
+      font-weight: var(--ds-type-h3-weight);
     }
     .inv-item__actions {
       display: flex;
@@ -135,8 +206,15 @@ export class InvitationsComponent {
   private readonly api = inject(InvitationsApi);
   private readonly dialog = inject(UiDialog);
   private readonly notify = inject(NotificationService);
+  private readonly badges = inject(NavBadgesService);
+  private readonly cache = inject(CaseAccessCache);
 
+  protected readonly copy = GRUPOS_COPY;
   protected readonly invitations = signal<Invitation[]>([]);
+  /** Lo que ve el estudiante: las pendientes y los grupos donde está. Las rechazadas y las retiradas no se muestran. */
+  protected readonly pendientes = computed(() => this.invitations().filter(i => i.status === 'INVITED'));
+  protected readonly miembro = computed(() => this.invitations().filter(i => i.status === 'ACTIVE'));
+  protected readonly acciones: UiMenuItem[] = [{ value: 'salir', label: 'Salir del grupo', icon: 'logout', tone: 'danger' }];
   private readonly loading = signal(true);
   private readonly error = signal<{ status?: number } | null>(null);
   /** El grupo cuya respuesta está en curso: sus botones esperan y nada se envía dos veces. */
@@ -146,23 +224,25 @@ export class InvitationsComponent {
   protected readonly state = uiDataState({
     loading: this.loading,
     error: this.error,
-    isEmpty: computed(() => this.invitations().length === 0),
+    isEmpty: computed(() => this.pendientes().length === 0 && this.miembro().length === 0),
   });
   /** Región de estado SIEMPRE presente: la carga y el resultado de cada respuesta. */
-  protected readonly statusText = computed(() => (this.state() === 'loading' ? 'Cargando tus invitaciones…' : this.actionStatus()));
+  protected readonly statusText = computed(() => (this.state() === 'loading' ? this.copy.cargando : this.actionStatus()));
   protected readonly errorKind = computed(() => errorKindFromStatus(this.error()?.status));
   protected readonly errorStatus = computed(() => this.error()?.status ?? null);
 
-  protected readonly label = invitationLabel;
-  protected readonly date = (value: string | null) => formatDate(value);
   private confirming = false;
 
   constructor() {
     this.load();
   }
 
-  protected tone(item: Invitation): UiBadgeTone {
-    return TONES[item.status] ?? 'neutral';
+  /** «Te invitó Paula · 10 oct 2026»: cada dato que no llega se omite (nunca «Sin fecha» ni un docente inventado). */
+  protected detalle(item: Invitation): string {
+    const partes: string[] = [];
+    if (item.teacherName) partes.push(`Te invitó ${item.teacherName}`);
+    if (item.invitedAt) partes.push(formatDate(item.invitedAt));
+    return partes.join(' · ');
   }
 
   load(): void {
@@ -170,6 +250,7 @@ export class InvitationsComponent {
     this.api.list().subscribe({
       next: invitations => {
         this.invitations.set(invitations);
+        this.badges.fijar('invitaciones', this.pendientes().length);
         this.error.set(null);
         this.loading.set(false);
       },
@@ -191,6 +272,10 @@ export class InvitationsComponent {
       confirmLabel: 'Rechazar',
     });
     if (confirmed) this.respond(item, this.api.decline(item.groupId), `Rechazaste la invitación a ${item.groupName}.`);
+  }
+
+  protected onAccion(accion: string | undefined, item: Invitation): void {
+    if (accion === 'salir') void this.leave(item);
   }
 
   protected async leave(item: Invitation): Promise<void> {
@@ -221,6 +306,9 @@ export class InvitationsComponent {
     request.subscribe({
       next: updated => {
         this.invitations.update(list => list.map(entry => (entry.groupId === updated.groupId ? updated : entry)));
+        // Al cambiar de grupo pueden cambiar las asignaciones visibles: lo que la caché sabía de los casos ya no vale.
+        this.cache.vaciar();
+        this.badges.fijar('invitaciones', this.pendientes().length);
         this.busy.set(null);
         this.actionStatus.set(success);
         this.notify.success(success);

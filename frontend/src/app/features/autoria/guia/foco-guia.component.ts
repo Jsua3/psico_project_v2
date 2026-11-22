@@ -12,8 +12,9 @@ interface Caja {
 const HOLGURA = 8;
 
 /**
- * Lo que se ve de la guía: el anillo morado con «Aquí», el velo oscuro (modo foco) con un
- * hueco sobre el elemento, y la burbuja con el texto, los pasos y «Cerrar guía».
+ * Lo que se ve de la guía: el anillo DISCONTINUO con la palabra «Guía», el velo oscuro (modo foco) con un hueco sobre el
+ * elemento, y la burbuja con el texto, los pasos y «Cerrar guía». Su color es `--guia` (= `--ds-info`), ya no el violeta:
+ * el violeta es el color de acción del portal (DP-03) y la guía se distingue por FORMA y PALABRA (EDITOR.md §4.7).
  */
 @Component({
   selector: 'app-foco-guia',
@@ -28,9 +29,9 @@ const HOLGURA = 8;
           <div class="velo" (click)="guia.cerrar()" [style.top.px]="c.top - holgura" [style.left.px]="c.left + c.width + holgura" [style.right.px]="0" [style.height.px]="c.height + 2 * holgura"></div>
         }
         @if (caja(); as c) {
-          <div class="anillo" aria-hidden="true" [style.top.px]="c.top - holgura" [style.left.px]="c.left - holgura"
+          <div class="anillo" aria-hidden="true" [class.etiqueta-abajo]="c.top - holgura < 40" [style.top.px]="c.top - holgura" [style.left.px]="c.left - holgura"
                [style.width.px]="c.width + 2 * holgura" [style.height.px]="c.height + 2 * holgura">
-            <span class="aqui">Aquí</span>
+            <span class="aqui">Guía</span>
           </div>
         }
         <div class="burbuja" role="group" [attr.aria-label]="g.modo === 'recorrido' ? 'Guía paso a paso' : 'Guía'"
@@ -65,16 +66,19 @@ const HOLGURA = 8;
     .guia { position: fixed; inset: 0; z-index: var(--autoria-capa-50); pointer-events: none; }
     .velo { position: fixed; background: var(--velo); pointer-events: auto; }
     .anillo {
-      position: fixed; border: 4px solid var(--guia); border-radius: 12px; background: transparent;
+      position: fixed; border: 4px dashed var(--guia); border-radius: 12px; background: transparent;
       box-shadow: 0 0 0 4px var(--sobre-primario); outline: 2px solid transparent; /* con colores forzados se ve el contorno */
     }
     .aqui {
       position: absolute; top: -32px; left: -4px; padding: 2px 10px; border-radius: 999px; background: var(--guia); color: var(--sobre-primario);
       font-size: var(--autoria-texto-16); font-weight: 700;
     }
+    /* Pegado al borde de arriba (la barra), la palabra «Guía» se saldría de la ventana: va debajo del anillo. */
+    .etiqueta-abajo .aqui { top: auto; bottom: -36px; }
     .burbuja {
       position: fixed; width: min(360px, calc(100vw - 32px)); box-sizing: border-box; padding: 16px; pointer-events: auto;
-      background: var(--superficie); border: 3px solid var(--guia); border-radius: 16px; box-shadow: var(--sombra-foco);
+      background: var(--superficie); border: 2px dashed var(--guia); border-radius: var(--radio-tarjeta); box-shadow: var(--sombra-foco);
+      color: var(--tinta);
       display: flex; flex-direction: column; gap: 8px;
     }
     .burbuja p { margin: 0; font-size: var(--autoria-texto-16); line-height: 24px; }
@@ -106,7 +110,8 @@ export class FocoGuiaComponent {
     const alto = typeof innerHeight === 'number' ? innerHeight : 768;
     const ancho = typeof innerWidth === 'number' ? innerWidth : 1366;
     if (!c) return { top: 96, left: Math.max(16, ancho - 392) };
-    const abajo = c.top + c.height + HOLGURA + 16;
+    // Si la palabra «Guía» va debajo del anillo (elemento pegado arriba), la burbuja baja lo que ella ocupa.
+    const abajo = c.top + c.height + HOLGURA + 16 + (c.top - HOLGURA < 40 ? 32 : 0);
     const top = abajo + 220 < alto ? abajo : Math.max(16, c.top - HOLGURA - 236);
     return { top, left: Math.min(Math.max(16, c.left), Math.max(16, ancho - 376)) };
   });

@@ -5,6 +5,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 
 import { ForbiddenComponent } from './forbidden.component';
 import { FULL_NAVIGATION, OfflineComponent } from './offline.component';
+import { PaginaEstadoComponent } from '../../shared/layout/pagina-estado/pagina-estado.component';
 
 /**
  * Páginas de estado (plan visual F4-3): «Sin permiso» (dentro del portal, con la sección pedida) y «Sin conexión»
@@ -37,22 +38,29 @@ describe('páginas de estado', () => {
   const retry = (host: HTMLElement) => [...host.querySelectorAll('button')].find(button => text(button) === 'Reintentar')!.click();
 
   it('sin permiso: un h1, el estado «forbidden» nombrando la sección pedida y «Volver al panel», sin <main> propio', async () => {
-    const host = await render('/portal/sin-permiso?desde=%2Fportal%2Frubricas');
-    expect([...host.querySelectorAll('h1')].map(text)).toEqual(['Sin permiso']);
-    expect(text(host.querySelector('ui-error-state .ui-error-state__message'))).toContain('«Rúbricas»');
-    expect(host.querySelector<HTMLAnchorElement>('a[href="/portal/dashboard"]')!.textContent!.trim()).toBe('Volver al panel');
+    const host = await render('/portal/sin-permiso?seccion=rubricas');
+    expect([...host.querySelectorAll('h1')].map(text)).toEqual(['Esta sección no es para tu rol']);
+    expect(text(host)).toContain('«Rúbricas»');
+    expect(host.querySelector<HTMLAnchorElement>('a[href="/portal/dashboard"]')!.textContent!.trim()).toBe('Volver al inicio');
     expect(host.querySelector('main')).toBeNull();
   });
 
   it('sin permiso con una ruta desconocida: el mensaje general, sin inventar un nombre', async () => {
     const host = await render('/portal/sin-permiso?desde=%2Fportal%2Fnada');
-    expect(text(host.querySelector('.ui-error-state__message'))).toBe('Tu cuenta no tiene permiso para ver esto. Si crees que es un error, escribe a la administración.');
+    expect(text(host.querySelector('app-pagina-estado'))).toContain('No tienes permiso para abrir esta página.');
   });
 
   it('una subruta de una sección (simulador/<id>) no se nombra como la sección: el docente SÍ tiene «Simulador» (M-1)', async () => {
     // roleGuard('ESTUDIANTE','ADMIN') protege simulador/:id; nombrar «Simulador» contradiría el menú del docente.
     const host = await render('/portal/sin-permiso?desde=%2Fportal%2Fsimulador%2F5');
-    expect(text(host.querySelector('.ui-error-state__message'))).toBe('Tu cuenta no tiene permiso para ver esto. Si crees que es un error, escribe a la administración.');
+    expect(text(host.querySelector('app-pagina-estado'))).toContain('No tienes permiso para abrir esta página.');
+  });
+
+  it('sin permiso lleva la viñeta de la zona restringida (decorativa)', async () => {
+    const host = await render('/portal/sin-permiso');
+    const vineta = host.querySelector('app-pagina-estado ui-vineta');
+    expect(vineta?.getAttribute('data-escena')).toBe('restringido');
+    expect(vineta?.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('sin conexión: su propio <main>, un h1, el estado bloqueante y «Reintentar» CARGA de nuevo la ruta pedida', async () => {
@@ -61,7 +69,11 @@ describe('páginas de estado', () => {
     const host = await render('/sin-conexion?desde=%2Fportal%2Fsimulador');
     expect(host.querySelector('main#main-content')).not.toBeNull();
     expect([...host.querySelectorAll('h1')].map(text)).toEqual(['Sin conexión']);
-    expect(host.querySelector('ui-error-state')!.getAttribute('role')).toBe('alert');
+    expect(host.querySelector('img')).toBeNull();
+    // Ni la hoja de estilos de la plantilla pide recursos por red (url()): la pantalla debe pintarse sin conexión.
+    const hojas = (PaginaEstadoComponent as unknown as { ɵcmp: { styles: string[] } }).ɵcmp.styles.join('');
+    expect(hojas).not.toContain('url(');
+    expect(text(host)).toContain('último guardado');
     retry(host);
     expect(fullNavigation).toHaveBeenCalledWith('/portal/simulador');
   });

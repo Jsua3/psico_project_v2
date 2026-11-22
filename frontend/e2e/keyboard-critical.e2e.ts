@@ -53,7 +53,7 @@ async function createGroup(request: APIRequestContext, name: string, code: strin
   return (await response.json()).data.id as number;
 }
 
-const groupDetailButton = (page: Page, name: string) => page.getByRole('button', { name: new RegExp(`^Ver detalle de ${name}`) });
+const groupDetailButton = (page: Page, name: string) => page.getByRole('link', { name: new RegExp(`^${name}`) });
 
 // ── Todos ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -115,7 +115,7 @@ test('[T04] saltar al contenido y a la navegación: los dos enlaces de salto sal
   const toNav = page.getByRole('link', { name: 'Saltar a la navegación' });
   await expect(toNav).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(header(page).locator('.modulo-principal').getByRole('link', { name: 'Panel', exact: true })).toBeFocused();
+  await expect(header(page).locator('.modulo-principal').getByRole('link', { name: 'Inicio', exact: true })).toBeFocused();
   await expectNoPointer(page, 'saltar al contenido y a la navegación');
 });
 
@@ -130,7 +130,9 @@ test('[T05] usar el menú y el menú de cuenta: un destino se abre con Enter y e
   await pressWithKeyboard(page, account);
   const logout = page.getByRole('menuitem', { name: 'Cerrar sesión' });
   await expect(logout).toBeVisible();
-  await expect(logout).toBeFocused();
+  // El foco entra al menú: a su primer ítem, que es la fila de identidad («Nombre · Rol», deshabilitada pero enfocable,
+  // como recomienda el patrón de menú de ARIA para que se anuncie).
+  await expect(page.locator('[role="menu"] [role="menuitem"]:focus')).toHaveCount(1);
   await page.keyboard.press('Escape');
   await expect(logout).toBeHidden();
   await expect(account).toBeFocused();
@@ -146,6 +148,7 @@ test('[T06] abrir y cerrar diálogos con el foco correcto: el foco entra, el Tab
   await page.goto('/portal/grupos');
   await expect(groupDetailButton(page, name)).toBeVisible({ timeout: scaled(30_000) });
 
+  await pressWithKeyboard(page, groupDetailButton(page, name));
   const trigger = page.getByRole('button', { name: `Más acciones de ${name}` });
   await pressWithKeyboard(page, trigger);
   const remove = page.getByRole('menuitem', { name: 'Borrar' });
@@ -197,14 +200,14 @@ async function completeAttempt(request: APIRequestContext, caseVersionId: number
   expect(decided.status(), `la decisión: ${await decided.text()}`).toBe(200);
 }
 
-const caseCard = (page: Page, title: string) => page.locator('.case-card').filter({ hasText: title });
+const caseCard = (page: Page, title: string) => page.locator('ui-card.cs-tarjeta').filter({ has: page.getByRole('heading', { name: title, exact: true }) });
 
 // req: RNF-004, WCAG 2.1.1
 test('[E01] abrir el catálogo: Tab hasta «Simulador» y Enter muestra los casos', async ({ page, request }) => {
   const fixture = await studentCase(request, 'Catálogo teclado');
   try {
     await keyboardLogin(page, ESTUDIANTE);
-    await goTo(page, 'Simulador', /\/portal\/simulador$/);
+    await goTo(page, 'Casos', /\/portal\/simulador$/);
     await expect(caseCard(page, fixture.title)).toBeVisible({ timeout: scaled(30_000) });
     await expectNoPointer(page, 'abrir el catálogo');
   } finally {
@@ -213,25 +216,23 @@ test('[E01] abrir el catálogo: Tab hasta «Simulador» y Enter muestra los caso
 });
 
 // req: RF-16, CU-07, RNF-004, WCAG 2.1.1
-test('[E02 E03] ver la ficha del caso y aceptar el aviso de contenido: el botón del caso, «Comenzar» y «Continuar» se alcanzan con Tab', async ({ page, request }) => {
+test('[E02 E03] ver la ficha y aceptar el aviso: entrar al caso y comenzar con teclado', async ({ page, request }) => {
   test.setTimeout(scaled(120_000));
   const fixture = await studentCase(request, 'Ficha teclado', true);
   try {
     await keyboardLogin(page, ESTUDIANTE);
-    await goTo(page, 'Simulador', /\/portal\/simulador$/);
-    await pressWithKeyboard(page, caseCard(page, fixture.title).locator('.case-card__actions button').first());
+    await goTo(page, 'Casos', /\/portal\/simulador$/);
+    await pressWithKeyboard(page, caseCard(page, fixture.title).getByRole('button', { name: 'Ver ficha' }));
     await page.waitForURL(/\/portal\/simulador\/\d+(\/ficha)?$/, { timeout: scaled(30_000) });
     await expect(page.getByRole('heading', { level: 1, name: fixture.title })).toBeVisible({ timeout: scaled(30_000) });
     await expect(page.getByText('Una mujer llega a urgencias tras una discusión.')).toBeVisible();
 
+    await expect(page.getByRole('heading', { level: 2, name: 'Antes de leer' })).toBeVisible();
+    await pressWithKeyboard(page, page.getByRole('link', { name: 'Leer el aviso' }));
+    await expect(page.locator('#aviso')).toBeFocused();
     await pressWithKeyboard(page, page.getByRole('button', { name: 'Comenzar', exact: true }));
-    const consent = page.getByRole('dialog').filter({ hasText: 'Antes de entrar al caso' });
-    await expect(consent).toBeVisible({ timeout: scaled(30_000) });
-    await expect.poll(() => consent.evaluate(element => element.contains(document.activeElement)), { message: 'el foco entra al aviso' }).toBe(true);
-    await pressWithKeyboard(page, consent.getByRole('button', { name: /^continuar$/i }));
-    // Registrado el aviso, el caso sigue: la introducción (un diálogo) o, si el caso no la trae, el mundo ya listo.
-    await expect(consent).toBeHidden({ timeout: scaled(30_000) });
-    await expect(page.getByRole('dialog').first().or(page.locator('app-game-world .phaser-host[data-world-ready="true"]'))).toBeVisible({ timeout: scaled(30_000) });
+    await page.waitForURL(/\/portal\/simulador\/\d+$/, { timeout: scaled(30_000) });
+    await expect(page.getByRole('dialog', { name: 'Antes de comenzar' }).or(page.locator('app-game-world .phaser-host[data-world-ready="true"]')).first()).toBeVisible({ timeout: scaled(30_000) });
     await expectNoPointer(page, 'ver la ficha y aceptar el aviso');
   } finally {
     await retireCase(request, fixture.caseVersionId, fixture.records);
@@ -245,16 +246,15 @@ test('[E11 E12] ver el historial y el resultado con su retroalimentación: «Ver
   try {
     await completeAttempt(request, fixture.caseVersionId);
     await keyboardLogin(page, ESTUDIANTE);
-    await goTo(page, 'Simulador', /\/portal\/simulador$/);
-    const summary = page.getByRole('button', { name: 'Ver resumen' }).first();
+    await goTo(page, 'Casos', /\/portal\/simulador$/);
+    const summary = caseCard(page, fixture.title).getByRole('button', { name: 'Ver tu recorrido', exact: true });
     await expect(summary).toBeVisible({ timeout: scaled(30_000) });
     await pressWithKeyboard(page, summary);
-    const report = page.getByRole('dialog');
-    await expect(report).toBeVisible();
-    await expect.poll(() => report.evaluate(element => element.contains(document.activeElement)), { message: 'el foco entra al resumen' }).toBe(true);
-    await expect(report).toContainText(fixture.title);
-    await page.keyboard.press('Escape');
-    await expect(report).toBeHidden();
+    await expect(page).toHaveURL(/\/cierre\//);
+    await expect(page.getByRole('heading', { level: 1, name: fixture.title })).toBeVisible({ timeout: scaled(30_000) });
+    await expect(page.getByRole('heading', { name: 'Tu retroalimentación docente' })).toBeVisible();
+    await pressWithKeyboard(page, page.getByRole('link', { name: 'Tus casos', exact: true }));
+    await expect(page).toHaveURL(/\/portal\/simulador$/);
     await expect(summary).toBeFocused();
     await expectNoPointer(page, 'ver el historial y el resultado');
   } finally {
@@ -263,18 +263,18 @@ test('[E11 E12] ver el historial y el resultado con su retroalimentación: «Ver
 });
 
 // req: RNF-004, WCAG 2.1.1
-test('[E13] editar el avatar: las flechas eligen, «Guardar personaje» guarda y «Restablecer» deshace', async ({ page }) => {
+test('[E13] editar el avatar: las flechas eligen, «Guardar» guarda y «Restablecer» deshace', async ({ page }) => {
   await keyboardLogin(page, ESTUDIANTE);
   await goTo(page, 'Mi personaje', /\/portal\/personaje$/);
-  const elenco = page.locator('fieldset').filter({ hasText: 'Elenco' }).locator('input[type="radio"]');
-  await tabTo(page, elenco.first().or(page.locator('fieldset').filter({ hasText: 'Elenco' }).locator('input[type="radio"]:checked')));
+  const elenco = page.locator('fieldset').filter({ hasText: 'Elige tu personaje' }).locator('input[type="radio"]');
+  await tabTo(page, elenco.first().or(page.locator('fieldset').filter({ hasText: 'Elige tu personaje' }).locator('input[type="radio"]:checked')));
   const before = await elenco.evaluateAll(items => items.findIndex(item => (item as HTMLInputElement).checked));
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('status').filter({ hasText: 'Cambios sin guardar' })).toBeVisible();
   const chosen = await elenco.evaluateAll(items => items.findIndex(item => (item as HTMLInputElement).checked));
   expect(chosen, 'la flecha cambió la elección').not.toBe(before);
 
-  await pressWithKeyboard(page, page.getByRole('button', { name: 'Guardar personaje' }));
+  await pressWithKeyboard(page, page.getByRole('button', { name: 'Guardar', exact: true }));
   await expect(page.getByRole('status').filter({ hasText: 'Cambios sin guardar' })).toHaveCount(0, { timeout: scaled(15_000) });
 
   await tabTo(page, elenco.nth(chosen), { backwards: true });
@@ -290,6 +290,7 @@ test('[E13] editar el avatar: las flechas eligen, «Guardar personaje» guarda y
 test('[P01] crear un grupo: Tab hasta el nombre y el código, se escriben y Enter lo crea', async ({ page }) => {
   await keyboardLogin(page, PROFESOR);
   await goTo(page, 'Grupos', /\/portal\/grupos/);
+  await pressWithKeyboard(page, page.getByRole('button', { name: 'Nuevo grupo' }));
   const name = `Grupo teclado ${stamp()}`;
   const code = `GT-${stamp()}`;
   await typeInto(page, page.getByRole('textbox', { name: /Nombre del grupo/ }), name);
@@ -310,14 +311,15 @@ test('[P02] agregar o importar estudiantes: «Invitar a uno» invita por correo 
   await page.goto('/portal/grupos');
   await pressWithKeyboard(page, groupDetailButton(page, name));
 
-  await pressWithKeyboard(page, page.getByRole('button', { name: 'Invitar a uno' }));
+  await pressWithKeyboard(page, page.getByRole('button', { name: 'Invitar estudiante' }));
   await typeInto(page, page.getByRole('textbox', { name: /Correo del estudiante/ }), ESTUDIANTE.email);
   await page.keyboard.press('Enter');
   await expect(page.locator('.gl-message')).toBeVisible({ timeout: scaled(15_000) });
   await expect(page.locator('.gl-message')).not.toHaveClass(/gl-message--error/);
 
+  await pressWithKeyboard(page, page.getByRole('button', { name: 'Importar desde Excel' }));
   const chooser = page.waitForEvent('filechooser', { timeout: scaled(15_000) });
-  await tabTo(page, page.getByLabel('Archivo de estudiantes (.xlsx)'));
+  await tabTo(page, page.getByLabel('Lista de estudiantes'));
   await page.keyboard.press('Enter');
   await chooser;
   await expectNoPointer(page, 'agregar o importar estudiantes');
@@ -333,6 +335,9 @@ test('[P03] asignar un caso: «Asignar un caso», el caso elegido con las flecha
     await keyboardLogin(page, PROFESOR);
     await page.goto('/portal/grupos');
     await pressWithKeyboard(page, groupDetailButton(page, name));
+    await tabTo(page, page.getByRole('tab', { name: 'Estudiantes' }));
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('tab', { name: 'Casos asignados' })).toHaveAttribute('aria-selected', 'true');
     await pressWithKeyboard(page, page.getByRole('button', { name: 'Asignar un caso' }));
     const dialog = page.getByRole('dialog', { name: 'Asignar un caso al grupo' });
     await expect(dialog).toBeVisible();
@@ -380,18 +385,23 @@ test('[P04] ver reportes y exportar CSV: el grupo se elige con las flechas y «E
 });
 
 // req: SIEP-CU-04, RN-09, RNF-004, WCAG 2.1.1
-test('[P05] revisar la traza y calificar con rúbrica: el intento se elige con Enter, el nivel de cada criterio se elige con las flechas y «Guardar evaluación» guarda', async ({ page, request }) => {
+test('[P05] revisar la traza y calificar con rúbrica: el intento se elige con Enter, el nivel de cada criterio se elige con una tecla de cifra y «Guardar evaluación» guarda', async ({ page, request }) => {
   test.setTimeout(scaled(120_000));
   const { caseTitle } = await seededGroupWithAttempt(request);
   await keyboardLogin(page, PROFESOR);
-  await goTo(page, 'Trazabilidad', /\/portal\/docente\/trazabilidad/);
+  await goTo(page, 'Revisión', /\/portal\/docente\/trazabilidad/);
   const attempt = page.locator('.tr-attempt').filter({ hasText: caseTitle }).first();
   await expect(attempt).toBeVisible({ timeout: scaled(30_000) });
   await pressWithKeyboard(page, attempt);
   const criteria = page.locator('.tr-criterion');
   await expect(criteria.first()).toBeVisible({ timeout: scaled(30_000) });
-  for (let index = 0; index < await criteria.count(); index += 1) {
-    await selectWithKeyboard(page, criteria.nth(index).getByLabel('Nivel logrado'), 'Logrado');
+  // R2: el nivel de cada criterio es un grupo de botones de opción («Nivel logrado: …»), ya no una lista desplegable. Tab
+  // entra al primer criterio y la tecla 3 elige «Logrado» y pasa al siguiente: una pulsación por criterio, sin ratón.
+  const total = await criteria.count();
+  await tabTo(page, criteria.first().getByRole('radiogroup').getByRole('radio').first(), { max: 120 });
+  for (let index = 0; index < total; index += 1) {
+    await page.keyboard.press('3');
+    await expect(criteria.nth(index).getByRole('radio', { name: 'Logrado' })).toBeChecked();
   }
   const saved = page.waitForResponse(response => /\/rubric-evaluation$/.test(new URL(response.url()).pathname) && response.request().method() === 'PUT', { timeout: scaled(30_000) });
   await pressWithKeyboard(page, page.getByRole('button', { name: 'Guardar evaluación' }));
@@ -404,18 +414,20 @@ test('[P06] crear y activar una rúbrica: el nombre y el criterio se escriben, �
   await keyboardLogin(page, PROFESOR);
   await goTo(page, 'Rúbricas', /\/portal\/rubricas/);
   await pressWithKeyboard(page, page.getByRole('button', { name: 'Nueva rúbrica' }));
-  const form = page.locator('app-rubrics form').first();
+  await pressWithKeyboard(page, page.getByRole('button', { name: /^En blanco/ }));
+  const form = page.locator('app-rubrica-editor form');
   const name = `Rúbrica teclado ${stamp()}`;
   await typeInto(page, form.getByLabel('Nombre').first(), name);
-  const criterion = form.locator('fieldset.criterion').first();
+  const criterion = form.locator('li.criterion').first();
   await typeInto(page, criterion.getByLabel('Nombre'), 'Criterio único');
   await typeInto(page, criterion.getByLabel('Peso %'), '100');
   await pressWithKeyboard(page, form.getByRole('button', { name: 'Guardar' }));
-  await expect(page.locator('app-rubrics .rb-row').filter({ hasText: name })).toBeVisible({ timeout: scaled(15_000) });
+  await expect(toast(page, 'Rúbrica guardada.')).toBeVisible({ timeout: scaled(15_000) });
+  await pressWithKeyboard(page, form.getByRole('button', { name: 'Más', exact: true }));
   const activate = page.getByRole('button', { name: 'Activar', exact: true });
   await expect(activate).not.toHaveAttribute('aria-disabled', 'true');
   await pressWithKeyboard(page, activate);
-  await expect(page.locator('app-rubrics .rb-row').filter({ hasText: name }).locator('ui-badge').first()).toContainText(/activa/i, { timeout: scaled(15_000) });
+  await expect(toast(page, 'Rúbrica activada.')).toBeVisible({ timeout: scaled(15_000) });
   await expectNoPointer(page, 'crear y activar una rúbrica');
 });
 
@@ -431,6 +443,9 @@ test('[A01] gestionar usuarios y solicitudes: una solicitud se atiende con «Cre
   }
   await keyboardLogin(page, ADMIN);
   await page.goto('/portal/admin/usuarios');
+  await tabTo(page, page.getByRole('radio', { name: /^Cuentas/ }));
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('radio', { name: /^Solicitudes/ })).toBeChecked();
   const attend = page.locator('.us-request').filter({ hasText: `atender.${id}@` });
   await expect(attend).toBeVisible({ timeout: scaled(30_000) });
   await pressWithKeyboard(page, attend.getByRole('button', { name: 'Crear usuario' }));
@@ -450,38 +465,94 @@ test('[A01] gestionar usuarios y solicitudes: una solicitud se atiende con «Cre
 });
 
 // req: RF-05, CU-04, RNF-004, WCAG 2.1.1
-test('[A02] crear y editar un caso: desde «Mis casos» se elige el lugar y las salas, se crea el caso y se escribe una línea del guion, todo con teclas', async ({ page, request }) => {
-  test.setTimeout(scaled(180_000));
+test('[A02] crear y editar un caso: se elige el lugar y las salas, se crea el caso, se escribe una escena con dos respuestas, se marca un paso, se adopta la rúbrica y se llega a «Enviar a Psicología», todo con teclas', async ({ page, request }) => {
+  test.setTimeout(scaled(300_000));
   let id = 0;
   try {
     await keyboardLogin(page, ADMIN);
     await page.goto('/portal/casos');
-    await pressWithKeyboard(page, page.getByRole('link', { name: 'Crear un caso nuevo' }), { max: 120 });
+    await pressWithKeyboard(page, page.getByRole('link', { name: 'Crear un caso', exact: true }), { max: 120 });
     await expect(page.getByRole('heading', { level: 1, name: '¿Dónde pasa tu caso?' })).toBeVisible({ timeout: scaled(30_000) });
     await pressWithKeyboard(page, page.getByRole('link', { name: 'Elegir este lugar: Universidad' }), { max: 120 });
     await expect(page.getByRole('heading', { level: 1, name: 'Elige las salas de tu caso' })).toBeVisible({ timeout: scaled(30_000) });
     await pressWithKeyboard(page, page.getByRole('button', { name: 'Usar esta idea: Atención en Bienestar' }), { max: 160 });
     const title = `Caso teclado ${stamp()}`;
     await typeInto(page, page.getByLabel('Nombre del caso'), title, { max: 160 });
-    await pressWithKeyboard(page, page.getByRole('button', { name: 'Crear el caso con estas salas' }), { max: 160 });
-    await page.waitForURL(/\/portal\/casos\/\d+\/editor/, { timeout: scaled(60_000) });
-    await expect(page.getByRole('heading', { level: 1, name: /Escenas y caminos/ })).toBeVisible({ timeout: scaled(30_000) });
+    await pressWithKeyboard(page, page.getByRole('button', { name: /^Crear el caso(?: con estas salas)?$/ }), { max: 160 });
+
+    // Un caso nuevo se abre en el guion de su primera escena (E3): ahí empieza a escribirse, sin pasar por el mapa.
+    await page.waitForURL(/\/portal\/casos\/\d+\/editor\/escena\//, { timeout: scaled(60_000) });
+    await expect(page.getByRole('heading', { level: 1, name: /^Guion de la escena/ })).toBeVisible({ timeout: scaled(30_000) });
     id = Number(/\/portal\/casos\/(\d+)\/editor/.exec(page.url())![1]);
 
-    // Enter sobre la primera escena del mapa abre su guion; ahí se escribe una línea.
-    await pressWithKeyboard(page, page.locator('button.escena').first(), { max: 160 });
-    await expect(page.getByRole('heading', { level: 1, name: 'Guion de la escena' })).toBeVisible({ timeout: scaled(30_000) });
+    // La línea: «Agregar una línea» crea el campo y la tecla lo llena; al salir del campo (Tab) el editor guarda.
     await pressWithKeyboard(page, page.getByRole('button', { name: 'Agregar una línea' }), { max: 200 });
     await typeInto(page, page.getByLabel('Lo que dice, línea 1'), 'Hola, ¿esta es la oficina de Bienestar?', { max: 200 });
-    await page.keyboard.press('Tab'); // al salir del campo, el editor guarda
+    await page.keyboard.press('Tab');
+
+    // Dos respuestas. La clase es un grupo de botones de opción: Tab entra por el primero (Recomendada) y las flechas
+    // cambian de uno a otro; elegir uno con la flecha lo marca, sin pulsar nada más.
+    const respuestas = page.locator('li.respuesta');
+    await pressWithKeyboard(page, page.getByRole('button', { name: 'Agregar una respuesta' }), { max: 200 });
+    await expect(respuestas).toHaveCount(1, { timeout: scaled(30_000) });
+    await typeInto(page, respuestas.nth(0).getByLabel('Respuesta 1', { exact: true }), 'Sí, la sala de espera está aquí al lado. ¿Te acompaño?', { max: 200 });
+    await tabTo(page, respuestas.nth(0).getByRole('radio', { name: 'Recomendada', exact: true }), { max: 80 });
+    await page.keyboard.press('Space');
+    await expect(respuestas.nth(0).getByRole('radio', { name: 'Recomendada', exact: true })).toBeChecked();
+    // Sin «Lleva a…» la respuesta queda «Solo en esta pantalla»: el servidor no la guarda hasta que tiene destino.
+    await selectWithKeyboard(page, respuestas.nth(0).getByLabel('Lleva a…'), '2 · Sala de espera', { max: 6 });
+    await typeInto(page, respuestas.nth(0).getByLabel('Lo que lee el estudiante después de elegir'), 'Ofrecer compañía da seguridad.', { max: 80 });
+    await page.keyboard.press('Tab');
+
+    // Marcar un paso profesional: la faceta «Pasos» de la respuesta se abre con Enter y deja el foco en la primera casilla.
+    await pressWithKeyboard(page, respuestas.nth(0).getByRole('button', { name: /^Pasos/ }), { max: 80 });
+    const primerPaso = respuestas.nth(0).locator('fieldset.hitos input[type="checkbox"]').first();
+    await tabTo(page, primerPaso, { max: 20 });
+    await page.keyboard.press('Space');
+    await expect(primerPaso).toBeChecked();
+
+    await pressWithKeyboard(page, page.getByRole('button', { name: 'Agregar una respuesta' }), { max: 200 });
+    await expect(respuestas).toHaveCount(2, { timeout: scaled(30_000) });
+    await typeInto(page, respuestas.nth(1).getByLabel('Respuesta 2', { exact: true }), 'Sigue derecho, al fondo.', { max: 200 });
+    await tabTo(page, respuestas.nth(1).getByRole('radio', { name: 'Recomendada', exact: true }), { max: 80 });
+    await page.keyboard.press('ArrowRight');
+    await expect(respuestas.nth(1).getByRole('radio', { name: 'Aceptable', exact: true })).toBeChecked();
+    await selectWithKeyboard(page, respuestas.nth(1).getByLabel('Lleva a…'), '2 · Sala de espera', { max: 6 });
+    await typeInto(page, respuestas.nth(1).getByLabel('Lo que lee el estudiante después de elegir'), 'Indica el camino sin acompañar.', { max: 80 });
+    await page.keyboard.press('Tab');
+
     const admin = await apiToken(request, ADMIN);
-    const world: Json = (await (await request.get(`/api/authoring/cases/${id}/editor`, { headers: bearer(admin) })).json()).data;
+    const guardado = async (): Promise<Json> => (await (await request.get(`/api/authoring/cases/${id}/editor`, { headers: bearer(admin) })).json()).data;
+    await expect.poll(async () => ((await guardado())['decisions'] as Json[]).map(d => d['responseClass']).sort(), {
+      timeout: scaled(30_000), message: 'el servidor guardó las dos respuestas con su clase',
+    }).toEqual(['ACCEPTABLE', 'RECOMMENDED']);
+    const world: Json = await guardado();
+    expect(world['title']).toBe(title);
     const guionDelServidor = async (): Promise<string[]> => {
       const mundo: Json = (await (await request.get(`/api/authoring/cases/${id}/world-editor?nodeId=${world['nodes'][0]['id']}`, { headers: bearer(admin) })).json()).data;
       return mundo['dialogues'].flatMap((d: Json) => d['lines']).map((l: Json) => l['text']);
     };
     await expect.poll(guionDelServidor, { timeout: scaled(30_000), message: 'el servidor guardó la línea' }).toContain('Hola, ¿esta es la oficina de Bienestar?');
-    expect(world['title']).toBe(title);
+    const hitosMarcados = ((await guardado())['decisions'] as Json[]).flatMap(d => (d['milestones'] ?? d['effects']?.['milestones'] ?? []) as unknown[]);
+    expect(hitosMarcados.length, 'la respuesta recomendada cumple un paso profesional').toBeGreaterThan(0);
+
+    // Evaluación: la etapa se abre desde las secciones del caso y sus tres partes, desde su propia barra.
+    const secciones = page.getByRole('navigation', { name: 'Secciones del caso' });
+    await pressWithKeyboard(page, secciones.getByRole('link', { name: /^Evaluación/ }), { max: 200 });
+    await expect(page.getByRole('heading', { level: 1, name: 'Pasos profesionales' })).toBeVisible({ timeout: scaled(30_000) });
+    await expect(page.getByText(/^1 de \d+ pasos/)).toBeVisible({ timeout: scaled(30_000) });
+
+    // La rúbrica del caso: un caso sin rúbrica ofrece el atajo de las competencias del programa.
+    await pressWithKeyboard(page, page.getByRole('navigation', { name: 'Partes de la evaluación' }).getByRole('link', { name: /^Rúbrica/ }), { max: 200 });
+    await expect(page.getByRole('heading', { level: 1, name: 'Rúbrica del caso' })).toBeVisible({ timeout: scaled(30_000) });
+    await pressWithKeyboard(page, page.getByRole('button', { name: 'Usar las competencias del programa' }), { max: 200 });
+    await expect(page.getByRole('heading', { level: 2, name: 'Este caso todavía no tiene rúbrica' })).toHaveCount(0, { timeout: scaled(30_000) });
+    await expect(page.locator('[data-accion="rubrica-del-caso"][data-tipo]')).toBeVisible({ timeout: scaled(30_000) });
+
+    // Enviar a revisión: el botón se alcanza con Tab (con faltas pendientes no se puede pulsar, pero se llega a él y dice por qué).
+    await pressWithKeyboard(page, secciones.getByRole('link', { name: /^Enviar, Enviar a revisión/ }), { max: 200 });
+    await expect(page.getByRole('heading', { level: 1, name: 'Enviar a revisión' })).toBeVisible({ timeout: scaled(30_000) });
+    await tabTo(page, page.getByRole('button', { name: 'Enviar a Psicología' }), { max: 250 });
     await expectNoPointer(page, 'crear y editar un caso');
   } finally {
     if (id) await retireCase(request, id);
@@ -748,23 +819,23 @@ test('[E04 E10] comenzar, pausar con la salida segura y continuar: «Salida segu
   const fixture = await studentCase(request, 'Pausa teclado', true);
   try {
     await keyboardLogin(page, ESTUDIANTE);
-    await goTo(page, 'Simulador', /\/portal\/simulador$/);
-    await pressWithKeyboard(page, caseCard(page, fixture.title).locator('.case-card__actions button').first());
+    await goTo(page, 'Casos', /\/portal\/simulador$/);
+    await pressWithKeyboard(page, caseCard(page, fixture.title).getByRole('button', { name: 'Ver ficha' }));
     await pressWithKeyboard(page, page.getByRole('button', { name: 'Comenzar', exact: true }));
-    const consent = page.getByRole('dialog').filter({ hasText: 'Antes de entrar al caso' });
-    await expect(consent).toBeVisible({ timeout: scaled(30_000) });
-    await pressWithKeyboard(page, consent.getByRole('button', { name: /^continuar$/i }));
-    // El consentimiento se registra en el servidor (S3-2b): el aviso sigue a la vista, con su botón en «guardando», hasta que
-    // el servidor responde. Sin esperar a que se vaya, el recorrido de abajo tomaría el «Continuar» del propio aviso.
-    await expect(consent).toBeHidden({ timeout: scaled(30_000) });
+    await page.waitForURL(/\/portal\/simulador\/\d+$/, { timeout: scaled(30_000) });
 
     // Comenzar: el video y el contexto del caso se avanzan con Tab y Enter hasta que el mundo está listo.
     const world = page.locator('app-game-world .phaser-host[data-world-ready="true"]');
     const deadline = Date.now() + scaled(90_000);
-    while (Date.now() < deadline && !(await world.isVisible().catch(() => false))) {
+    while (Date.now() < deadline) {
       const step = page.getByRole('dialog').getByRole('button', { name: /saltar video|^continuar$/i }).first();
-      if (await step.isVisible().catch(() => false)) await pressWithKeyboard(page, step);
-      else await page.waitForTimeout(250);
+      if (await step.isVisible().catch(() => false)) {
+        await pressWithKeyboard(page, step);
+      } else if (await world.isVisible().catch(() => false)) {
+        break;
+      } else {
+        await page.waitForTimeout(250);
+      }
     }
     await expect(world).toBeVisible();
 

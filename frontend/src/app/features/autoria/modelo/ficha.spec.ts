@@ -1,4 +1,4 @@
-import { MAX_CONTEXTO, MAX_LARGO_OBJETIVO, MAX_OBJETIVOS, objetivosDeTexto, revisarFicha } from './ficha';
+import { MAX_CONTEXTO, MAX_LARGO_OBJETIVO, MAX_NOMBRE, MAX_OBJETIVOS, objetivosDeTexto, problemaDeNombre, revisarFicha } from './ficha';
 
 describe('datos del caso: contexto y objetivos de aprendizaje', () => {
   it('los objetivos escritos se leen como lista: sin espacios sobrantes ni renglones vacíos', () => {
@@ -40,5 +40,20 @@ describe('datos del caso: contexto y objetivos de aprendizaje', () => {
 
   it('los caracteres de control no se admiten', () => {
     expect(revisarFicha('Hola\u0007', '').contexto).toBe('Hay caracteres que no se admiten.');
+  });
+});
+
+describe('nombre del caso (RK-8)', () => {
+  it('un nombre normal está bien', () => {
+    expect(problemaDeNombre('  Primera atención  ')).toBeNull();
+    expect(problemaDeNombre('a'.repeat(MAX_NOMBRE))).toBeNull();
+  });
+
+  it('vacío, muy largo, con etiquetas o con enlaces no se admite', () => {
+    expect(problemaDeNombre('   ')).toBe('El caso necesita un nombre.');
+    expect(problemaDeNombre('a'.repeat(MAX_NOMBRE + 1))).toBe('El nombre admite hasta 255 caracteres (ahora tiene 256).');
+    expect(problemaDeNombre('Caso <b>1</b>')).toBe('Escribe el nombre como texto plano, sin etiquetas ni formato.');
+    expect(problemaDeNombre('Ver https://ejemplo.org')).toBe('Escribe el nombre como texto plano, sin enlaces.');
+    expect(problemaDeNombre('Hola')).toBe('El nombre tiene caracteres que no se admiten.');
   });
 });

@@ -47,7 +47,7 @@ class CopySpec:
 
 
 CASE_VERSION = CopySpec(CaseVersion, (
-    "narrative_context", "learning_objectives", "world_schema_version", "rules",
+    "narrative_context", "learning_objectives", "world_schema_version", "rules", "content_warnings",
 ))
 
 NODE = CopySpec(SimulationNode, (
@@ -100,4 +100,6 @@ RUBRIC = CopySpec(Rubric, ("name", "description", "active", "version"))
 
 RUBRIC_CRITERION = CopySpec(RubricCriterion, (
     "competency", "title", "description", "weight", "max_score", "active", "display_order",
+    # RK-2: lo que significa cada nivel en el criterio es parte de la rúbrica que se selló; la versión nueva lo hereda.
+    "level_descriptors_json",
 ))

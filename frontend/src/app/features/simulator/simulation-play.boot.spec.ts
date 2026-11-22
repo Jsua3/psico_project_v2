@@ -170,7 +170,7 @@ describe('SimulationPlayComponent: arranque y fallos con reintento (F6-1)', () =
       component.retryFromError();
 
       expect(sim['startAttempt']).toHaveBeenCalledTimes(2);
-      expect(sim['startAttempt']).toHaveBeenLastCalledWith(CASE_VERSION_ID, false);
+      expect(sim['startAttempt']).toHaveBeenLastCalledWith(CASE_VERSION_ID, false, undefined);
       expect(component.error()).toBe('');
       expect(component.attempt()).not.toBeNull();
     });

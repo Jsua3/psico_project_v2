@@ -1,6 +1,7 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router, UrlTree } from '@angular/router';
 import { AuthService } from './auth.service';
+import { NAV_ITEMS } from '../../shared/layout/nav-items';
 import { CHANGE_PASSWORD_PATH } from './password-change';
 
 /** Motivo que el acceso explica en pantalla (plan visual F3-6, H-34). */
@@ -40,5 +41,7 @@ export const roleGuard = (...roles: string[]): CanActivateFn => (_route, state) 
 
   if (auth.hasRole(...roles)) return true;
   // Plan visual F4-3: la negación se ve (página «Sin permiso» con la sección pedida), no es una redirección muda.
-  return router.createUrlTree(['/portal/sin-permiso'], { queryParams: { desde: state.url } });
+  const path = state.url.split(/[?#;]/, 1)[0];
+  const seccion = NAV_ITEMS.find(item => item.route === path)?.id ?? state.url;
+  return router.createUrlTree(['/portal/sin-permiso'], { queryParams: { seccion } });
 };

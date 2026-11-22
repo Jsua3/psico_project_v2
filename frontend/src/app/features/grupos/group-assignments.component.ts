@@ -87,7 +87,7 @@ export class GroupAssignmentsComponent {
       const status = statusOf(assignment);
       return {
         assignment,
-        title: found?.title ?? `Caso ${assignment.caseVersionId}`,
+        title: found?.title ?? assignment.caseTitle ?? `Caso ${assignment.caseVersionId}`,
         detail: found ? `${found.code} · v${found.semanticVersion}` : '',
         label: status.label,
         tone: status.tone,

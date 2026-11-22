@@ -18,16 +18,21 @@ export interface Accion {
   ayuda: string;
 }
 
+// «Casos» y no «Mis casos»: es el nombre que DISENO.md (DP-05) da a ese destino en todo el portal.
 export const PANTALLAS = {
-  inicio: 'Mis casos',
+  inicio: 'Casos',
   lugar: 'Elegir un lugar',
   salas: 'Elegir salas',
   mapa: 'Escenas y caminos',
   datos: 'Datos del caso',
   sala: 'Editar una sala',
   guion: 'Guion de una escena',
+  evaluacion: 'Pasos profesionales',
+  rubrica: 'Rúbrica del caso',
   finales: 'Finales del caso',
   revision: 'Enviar a revisión',
+  plano: 'Plano del caso',
+  pendientes: 'Pendientes del caso',
   cabecera: 'Cualquier pantalla (arriba)',
 } as const;
 
@@ -80,7 +85,23 @@ export const ACCIONES: readonly Accion[] = [
     ayuda: 'En «Lleva a…» de una respuesta, elige «Una escena nueva» y pulsa «Crear la escena nueva».',
   },
   { id: 'revisar-caminos', nombre: 'Revisar los caminos del caso', pantalla: PANTALLAS.mapa, ruta: '/editor', palabras: 'avisos problemas errores sin salida', ayuda: 'Aquí están los avisos de caminos; «Llévame ahí» te lleva a la escena.' },
-  { id: 'hitos-del-caso', nombre: 'Ver los hitos del caso y dónde se cumplen', pantalla: PANTALLAS.mapa, ruta: '/editor', palabras: 'pasos profesionales cumplir decisivo inalcanzable valorar riesgo', ayuda: 'En «Hitos del caso» ves cada paso profesional, dónde se cumple y si nadie podría lograrlo.' },
+  // E5: los pasos profesionales (los hitos) dejan el mapa y pasan a Evaluación. BORRADOR: textos nuevos, pendientes de la
+  // aprobación de Psicología.
+  {
+    id: 'hitos-del-caso', nombre: 'Ver los pasos profesionales del caso y qué respuestas los cumplen', pantalla: PANTALLAS.evaluacion,
+    ruta: '/editor/evaluacion', palabras: 'hitos pasos profesionales cumplir decisivo decide final inalcanzable valorar riesgo marcar',
+    ayuda: 'En «Pasos profesionales» ves cada paso, qué respuestas lo cumplen y cuáles deciden el final. «Agregar una respuesta» lo marca sin abrir el guion.',
+  },
+  {
+    id: 'rubrica-del-caso', nombre: 'Elegir la rúbrica con la que se valora el caso', pantalla: PANTALLAS.rubrica, ruta: '/editor/rubrica',
+    palabras: 'rúbrica criterios competencias valorar evaluar calificar adoptar copiar programa',
+    ayuda: 'El caso guarda su propia copia de la rúbrica: la de las competencias del programa o una de las tuyas.',
+  },
+  {
+    id: 'evidencia-por-respuesta', nombre: 'Ver qué respuestas evidencian cada criterio de la rúbrica', pantalla: PANTALLAS.rubrica, ruta: '/editor/rubrica',
+    palabras: 'evidencia criterios competencias respuestas dónde se evidencia cobertura',
+    ayuda: 'Cada criterio lista las respuestas que lo marcan. Se marcan en la faceta «Criterios» de cada respuesta del guion.',
+  },
   { id: 'intensidad-escena', nombre: 'Cambiar la intensidad de una escena y su aviso', pantalla: PANTALLAS.guion, ruta: '/editor/escena/:escena', palabras: 'baja media alta fuerte sensible advertencia aviso contenido', ayuda: 'Elige qué tan intensa es la escena; si es alta, escribe el aviso que lee el estudiante antes de empezar.' },
   { id: 'datos-del-caso', nombre: 'Escribir el contexto y los objetivos del caso', pantalla: PANTALLAS.datos, ruta: '/editor/datos', palabras: 'ficha contexto objetivos aprendizaje presentación descripción lee antes empezar', ayuda: 'Aquí escribes lo que lee el estudiante antes de empezar y los objetivos de aprendizaje.' },
   { id: 'definir-finales', nombre: 'Definir los finales del caso', pantalla: PANTALLAS.finales, ruta: '/editor/finales', palabras: 'final cierre puntaje resultado', ayuda: 'Elige si los finales se calculan solos o escribes los tuyos.' },
@@ -91,7 +112,25 @@ export const ACCIONES: readonly Accion[] = [
   // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
   { id: 'probar', nombre: 'Probar el caso en el juego', pantalla: PANTALLAS.cabecera, ruta: '', palabras: 'jugar ensayar ver como estudiante', ayuda: 'Abre tu borrador en el juego real, en otra pestaña, para jugarlo como un estudiante y ver por qué una respuesta no aparece.' },
   { id: 'enviar-revision', nombre: 'Enviar el caso a revisión', pantalla: PANTALLAS.cabecera, ruta: '', palabras: 'psicología publicar terminar revisar', ayuda: 'Revisa qué falta y envía el caso a Psicología.' },
-  { id: 'buscar', nombre: 'Buscar una acción por su nombre', pantalla: PANTALLAS.cabecera, ruta: '', palabras: 'buscador encontrar ctrl k', ayuda: 'Escribe con tus palabras qué quieres hacer.' },
+  { id: 'buscar', nombre: 'Buscar una acción por su nombre', pantalla: PANTALLAS.cabecera, ruta: '', palabras: 'buscador encontrar ctrl k ayuda guía', ayuda: 'Escribe con tus palabras qué quieres hacer.' },
+  // E0 (EDITOR.md §7.3): las acciones del marco nuevo. BORRADOR: textos nuevos, pendientes de la aprobación de Psicología.
+  {
+    id: 'ver-pendientes', nombre: 'Ver lo que le falta al caso', pantalla: PANTALLAS.cabecera, ruta: '',
+    palabras: 'pendientes avisos falta corregir errores problemas lista revisar',
+    ayuda: '«Pendientes» abre todo lo que falta, agrupado por etapa. Lo que está por corregir trae «Llévame ahí».',
+  },
+  {
+    id: 'siguiente-paso', nombre: 'Saber qué hacer ahora', pantalla: PANTALLAS.mapa, ruta: '/editor',
+    palabras: 'siguiente paso ahora qué sigue continuar empezar orden',
+    ayuda: '«Siguiente paso», arriba del riel de escenas, dice qué conviene hacer ahora y te lleva ahí.',
+  },
+  // «vista-del-estudiante» llega cuando E2 pinte la vista junto al guion (D-37): la guía exige que cada acción tenga su
+  // elemento en pantalla, y hoy no hay ninguno que señalar.
+  {
+    id: 'leer-todo-el-guion', nombre: 'Leer todo el guion seguido', pantalla: PANTALLAS.guion, ruta: '/editor/escena/:escena',
+    palabras: 'leer completo entero seguido todas las escenas libreto revisar texto',
+    ayuda: 'El riel de escenas las lista en el orden de la historia: ábrelas una tras otra para leer el guion completo.',
+  },
 ];
 
 const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();

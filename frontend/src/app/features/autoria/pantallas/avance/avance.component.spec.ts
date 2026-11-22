@@ -383,8 +383,9 @@ describe('AvanceComponent', () => {
       expect(navegar).not.toHaveBeenCalled();
 
       boton(raiz(), 'Abrir mi caso')!.click();
-      expect(navegar).toHaveBeenCalledTimes(1);
-      expect(navegar.mock.calls[0][0]).toMatch(/^\/portal\/casos\/\d+\/editor$/);
+      // Lee el caso para abrirlo en el guion de su primera escena (si no pudiera leerlo, cae en la pantalla del caso).
+      await hasta(() => navegar.mock.calls.length === 1);
+      expect(navegar.mock.calls[0][0]).toMatch(/^\/portal\/casos\/\d+\/editor\/escena\/[^/]+$/);
     });
 
     it('listo con faltas: cuántas quedan por resolver en el editor y cuáles, en palabras y sin códigos', async () => {

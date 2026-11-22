@@ -33,30 +33,15 @@ async function montar() {
   return { fixture, store, caso, valorar, raiz: fixture.nativeElement as HTMLElement, listo };
 }
 
-describe('EditorComponent · hitos del caso e intensidad de las escenas', () => {
+describe('EditorComponent · intensidad de las escenas (los hitos se mudaron a Evaluación)', () => {
   afterEach(() => document.querySelectorAll('app-root, [ng-version]').forEach((n) => n.remove()));
 
-  it('el panel «Hitos del caso» lista el catálogo con dónde se cumple cada hito', async () => {
-    const { raiz, caso, valorar } = await montar();
-    const panel = raiz.querySelector('section.hitos-del-caso')!;
-    expect(panel.querySelector('h2')!.textContent).toContain('Hitos del caso');
-    const filas = [...panel.querySelectorAll<HTMLElement>('li.hito')];
-    expect(filas.map((f) => f.querySelector('strong')!.textContent)).toEqual(caso.hitos.map((h) => h.nombre));
-    const valorarFila = filas.find((f) => f.id === `hito-${valorar}`)!;
-    expect(valorarFila.textContent).toContain('Se cumple en');
-    expect(valorarFila.textContent).toContain('Cuéntame cómo te sientes en casa.');
-    expect(valorarFila.textContent).toContain('Decide el final'); // el catálogo trae «Valorar el riesgo» como decisivo
-  });
-
-  it('un hito que ninguna respuesta marca avisa que es inalcanzable, con «Llévame ahí», también en «Por resolver»', async () => {
-    const { raiz, caso } = await montar();
-    const informar = caso.hitos.find((h) => h.clave === 'informar_derechos')!;
-    const fila = raiz.querySelector<HTMLElement>(`li.hito[id="hito-${informar.clave}"]`)!;
-    expect(fila.textContent).toContain(`El hito «${informar.nombre}» no se puede cumplir: ninguna respuesta lo marca.`);
-    expect(fila.querySelector('button')!.textContent!.trim()).toBe('Llévame ahí');
-    const avisos = [...raiz.querySelectorAll<HTMLElement>('section.avisos li')].map((li) => li.textContent!.replace(/\s+/g, ' '));
-    expect(avisos.some((t) => t.includes('Por resolver') && t.includes(`El hito «${informar.nombre}» no se puede cumplir`))).toBe(true);
-    expect(raiz.querySelector('li.hito[id="hito-valorar_el_riesgo"] .aviso-hito')).toBeNull(); // el que sí se cumple no avisa
+  // E5: «Hitos del caso» dejó el mapa; sus casos (lista, «Llévame ahí» y avisos) viven en
+  // `pantallas/evaluacion/evaluacion.component.spec.ts`. Aquí queda lo que sigue siendo del mapa.
+  it('E5 · el mapa ya no lleva «Hitos del caso»: los pasos profesionales viven en Evaluación', async () => {
+    const { raiz } = await montar();
+    expect(raiz.querySelector('section.hitos-del-caso')).toBeNull();
+    expect(raiz.querySelector('[id^="hito-"]')).toBeNull();
   });
 
   it('cada escena muestra su intensidad con palabras, no solo con color', async () => {

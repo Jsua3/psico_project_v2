@@ -1,7 +1,7 @@
-<ui-page-header eyebrow="Reportes académicos" [title]="titleText()"
-  description="Los intentos de este estudiante, con su tiempo activo y el de reloj.">
-  <a ui-button uiPageActions variant="secondary" icon="arrow_back" routerLink="/portal/reportes" [queryParams]="backParams()">Volver a los reportes</a>
-</ui-page-header>
+<ui-cabecera-ilustrada [herramienta]="true" escena="cierre" eyebrow="Reportes académicos" [title]="titleText()"
+  description="Los intentos de este estudiante, con su tiempo activo y el de reloj. Sin puntajes: lo que hizo, en palabras.">
+  <a ui-button uiHerramientaAcciones variant="secondary" icon="arrow_back" routerLink="/portal/reportes" [queryParams]="backParams()">Volver a los reportes</a>
+</ui-cabecera-ilustrada>
 
 <p class="ds-sr-only" role="status">{{ statusText() }}</p>
 
@@ -39,32 +39,39 @@
           </p>
         }
         <p #coverageLine class="re-coverage" tabindex="-1">{{ coverage(current) }}</p>
-        <ui-table label="Intentos del estudiante" density="compact">
+        @for (caseGroup of caseGroups(); track caseGroup.id) {
+        <ui-card class="re-case-card">
+          <h3>{{ caseGroup.title }}</h3>
+          <p class="re-status">{{ caseStatus(caseGroup.attempts) }}</p>
+        <ui-table label="Intentos del estudiante" density="compact" apilar>
           <table ui-table>
             <thead>
               <tr>
-                <th scope="col">Caso</th>
                 <th scope="col" class="re-num">Intento</th>
                 <th scope="col">Estado</th>
                 <th scope="col">Inicio</th>
                 <th scope="col" class="re-num">Tiempo activo</th>
-                <th scope="col" class="re-num">Tiempo de reloj</th>
               </tr>
             </thead>
             <tbody>
-              @for (item of current.attempts; track item.attemptId) {
+              @for (item of caseGroup.attempts; track item.attemptId) {
                 <tr uiRow>
-                  <th scope="row" class="re-case">{{ item.caseTitle }}</th>
-                  <td class="re-num">{{ item.ordinal }}</td>
+                  <th scope="row" class="re-num">{{ item.ordinal }}</th>
                   <td class="re-nowrap"><ui-badge [tone]="tone(item.status)">{{ label(item.status) }}</ui-badge></td>
                   <td class="re-nowrap">{{ start(item.startedAt) }}</td>
-                  <td class="re-num">{{ duration(item.activeSeconds) }}</td>
-                  <td class="re-num">{{ duration(item.clockSeconds) }}</td>
+                  <td class="re-num">
+                    {{ item.activeSeconds === 0 ? 'Sin actividad registrada' : duration(item.activeSeconds) }}
+                    <span class="re-clock" tabindex="0" role="note" [attr.aria-label]="clockText(item.clockSeconds)"
+                      [uiTooltip]="clockText(item.clockSeconds)">Reloj</span>
+                  </td>
                 </tr>
               }
             </tbody>
           </table>
         </ui-table>
+        </ui-card>
+        }
+        <p class="re-privacy">Las valoraciones se hacen en <a ui-link routerLink="/portal/docente/trazabilidad">Revisión</a>, sin el nombre del estudiante.</p>
         @if (canLoadMore()) {
           <div class="re-more">
             <button ui-button type="button" variant="secondary" icon="expand_more" [loading]="loadingMore()" (click)="showMore()">Ver más intentos</button>

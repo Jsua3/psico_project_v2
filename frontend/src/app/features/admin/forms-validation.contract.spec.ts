@@ -30,17 +30,21 @@ describe('formularios: validar al enviar — Usuarios', () => {
 });
 
 describe('formularios: validar al enviar — Rúbricas', () => {
-  // La plantilla vive en su propio archivo desde F7-5: el contrato mira la clase y la plantilla juntas.
-  const rubrics = source('rubrics.component.ts') + source('rubrics.component.html');
+  // R1: el formulario vive en el editor de una rúbrica (`rubrica-editor.component.*`); la biblioteca lo aloja. El
+  // contrato mira las clases y las plantillas de los dos juntas.
+  const rubrics = source('rubrics.component.ts') + source('rubrics.component.html')
+    + source('rubrica-editor.component.ts') + source('rubrica-editor.component.html');
 
   it('el botón Guardar solo se deshabilita mientras guarda', () => {
     expect(rubrics).not.toContain('[disabled]="form.invalid || saving()"');
   });
 
   it('cada campo explica su error', () => {
-    for (const text of ['Escribe el nombre de la rúbrica.', 'Escribe la versión.', 'Escribe el nombre del criterio.', 'El peso va de 0 a 100.', 'El orden empieza en 1.']) {
+    for (const text of ['Escribe el nombre de la rúbrica.', 'Escribe la versión.', 'Escribe el nombre del criterio.', 'El peso va de 0 a 100.']) {
       expect(rubrics).toContain(text);
     }
+    // R1: el campo «Orden» ya no existe (el orden es la posición del criterio).
+    expect(rubrics).not.toContain('formControlName="displayOrder"');
     expect(rubrics).toContain('focusFirstInvalid(this.host.nativeElement);');
   });
 
@@ -62,6 +66,7 @@ describe('formularios: validar al enviar — Grupos', () => {
     expect(grupos).not.toContain('[disabled]="form.invalid || saving()"');
     expect(grupos).toContain('Escribe el nombre del grupo.');
     expect(grupos).toContain('Escribe el código del grupo.');
-    expect(grupos).toContain('private invalidGroupForm(): boolean {');
+    // Desde B5c recibe el formulario de la hoja (para enfocar su primer campo inválido): basta con que el método exista.
+    expect(grupos).toMatch(/private invalidGroupForm\([^)]*\): boolean \{/);
   });
 });

@@ -206,9 +206,7 @@ async function openAdminUsers(page: Page, nombre: string): Promise<{ account: Lo
   const account = page.locator('th.us-name');
   const request = page.locator('.us-request__text strong');
   await expect(account).toHaveCount(1, { timeout: scaled(30_000) });
-  await expect(request).toHaveCount(1, { timeout: scaled(30_000) });
   await expect(account).toBeVisible();
-  await expect(request).toBeVisible();
   return { account, request };
 }
 
@@ -219,7 +217,7 @@ async function openTeacherGroups(page: Page, nombre: string): Promise<Locator> {
     ? route.fulfill({ json: { success: true, data: [{ id: 9001, nombre, codigo: 'ABUSO-9001', totalEstudiantes: 0 }] } })
     : route.fallback());
   await page.goto('/portal/grupos');
-  const group = page.locator('th.gl-name');
+  const group = page.locator('.gl-groups .gl-group__name');
   await expect(group).toHaveCount(1, { timeout: scaled(30_000) });
   await expect(group).toBeVisible();
   return group;
@@ -231,6 +229,11 @@ test('el nombre con marcado que entregue el servidor se muestra como texto: usua
   const { account, request } = await openAdminUsers(page, HOSTILE_MARKUP);
 
   for (const cell of [account, request]) {
+    if (cell === request) {
+      await page.getByRole('radio', { name: /^Solicitudes/ }).click();
+      await expect(request).toHaveCount(1, { timeout: scaled(30_000) });
+      await expect(request).toBeVisible();
+    }
     await expect(cell, 'el texto literal de la carga útil está a la vista').toContainText(HOSTILE_MARKUP);
     await expect(cell.locator('*'), 'no se insertó ningún elemento dentro de la celda').toHaveCount(0);
   }
@@ -253,6 +256,9 @@ test('control: el mismo nombre normal se muestra en usuarios y solicitudes del A
   const { account, request } = await openAdminUsers(page, 'Camila');
 
   await expect(account).toContainText('Camila Prueba');
+  await page.getByRole('radio', { name: /^Solicitudes/ }).click();
+  await expect(request).toHaveCount(1, { timeout: scaled(30_000) });
+  await expect(request).toBeVisible();
   await expect(request).toContainText('Camila Solicitud');
   await expectNothingHappened(page, observed);
 });

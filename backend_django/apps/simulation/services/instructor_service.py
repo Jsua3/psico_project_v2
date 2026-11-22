@@ -8,6 +8,7 @@ import logging
 
 from cryptography.exceptions import InvalidTag
 from django.db import transaction
+from django.db.models import Exists, OuterRef, Q
 from rest_framework import status
 from rest_framework.exceptions import NotFound, PermissionDenied
 
@@ -21,10 +22,13 @@ from shared.security_events import log_security_event
 from ..models import (
     REGISTERED_DECISION_EVENT_TYPES,
     AttemptEvent,
+    AttemptStatus,
     EvaluationOrigin,
     ReflectionJournal,
+    Rubric,
     RubricEvaluation,
     SimulationAttempt,
+    SimulationRubricAssignment,
 )
 from . import attempt_lifecycle as lifecycle
 from . import attempt_report, case_state, crypto_service, world_service
@@ -40,8 +44,74 @@ MAX_PAGE_SIZE = 200
 MAX_PAGE = 1_000_000  # más allá, el OFFSET se sale del rango de la base y el listado cae con un 500
 
 
+#: ``?evaluacion=`` de la revisión (BK-3): los terminados que esperan la valoración del docente, o los ya valorados.
+EVALUATION_FILTERS = ("pendiente", "aplicada")
+
+#: El estado de la valoración del docente sobre un intento (BK-3), para la bandeja «Por revisar»:
+#: ``APLICADA`` = ya hay una valoración del DOCENTE concluida (``EVALUATED``); ``PENDIENTE`` = el intento terminó, el caso
+#: se valora con una rúbrica y no hay valoración concluida (una guardada a medias sigue pendiente); ``NO_APLICA`` = el
+#: intento no terminó o el caso no tiene ninguna rúbrica con que valorarlo.
+APLICADA, PENDIENTE, NO_APLICA = "APLICADA", "PENDIENTE", "NO_APLICA"
+EVALUATION_STATUSES = (PENDIENTE, APLICADA, NO_APLICA)
+
+
 def _dt(value):
     return value.isoformat() if value else None
+
+
+def _valoracion_concluida():
+    """``Exists`` de una valoración del DOCENTE concluida sobre el intento de la fila (la que el estudiante ya ve)."""
+    return Exists(
+        RubricEvaluation.objects.filter(
+            attempt_id=OuterRef("pk"), origin=EvaluationOrigin.DOCENTE, status="EVALUATED"
+        )
+    )
+
+
+def _hay_rubrica_predeterminada():
+    return Rubric.objects.filter(is_default=True, active=True).exists()
+
+
+def _con_rubrica_q():
+    """El filtro de los intentos cuya versión se valora con alguna rúbrica: la misma resolución que
+    ``rubric_service.rubric_for_case_version`` (asignada, propia de la versión o la predeterminada)."""
+    if _hay_rubrica_predeterminada():
+        return Q()
+    asignada = SimulationRubricAssignment.objects.filter(case_version_id=OuterRef("case_version_id"), active=True)
+    propia = Rubric.objects.filter(case_version_id=OuterRef("case_version_id"), active=True)
+    return Q(Exists(asignada)) | Q(Exists(propia))
+
+
+def _versiones_con_rubrica(version_ids):
+    """Las versiones de ``version_ids`` que se valoran con alguna rúbrica (dos consultas como mucho)."""
+    ids = set(version_ids)
+    if not ids or _hay_rubrica_predeterminada():
+        return ids
+    asignadas = SimulationRubricAssignment.objects.filter(case_version_id__in=ids, active=True)
+    propias = Rubric.objects.filter(case_version_id__in=ids, active=True)
+    return set(asignadas.values_list("case_version_id", flat=True)) | set(propias.values_list("case_version_id", flat=True))
+
+
+def _estados_de_valoracion(attempts):
+    """``{attempt_id: estado}`` (BK-3) de los intentos de una página, sin una consulta por intento."""
+    ids = [a.id for a in attempts]
+    if not ids:
+        return {}
+    valorados = set(
+        RubricEvaluation.objects.filter(
+            attempt_id__in=ids, origin=EvaluationOrigin.DOCENTE, status="EVALUATED"
+        ).values_list("attempt_id", flat=True)
+    )
+    con_rubrica = _versiones_con_rubrica(a.case_version_id for a in attempts)
+    estados = {}
+    for a in attempts:
+        if a.id in valorados:
+            estados[a.id] = APLICADA
+        elif a.status == AttemptStatus.COMPLETED and a.case_version_id in con_rubrica:
+            estados[a.id] = PENDIENTE
+        else:
+            estados[a.id] = NO_APLICA
+    return estados
 
 
 def _anonymize(attempt, instructor=None):
@@ -71,6 +141,7 @@ def list_attempts(
     estudiante_id=None,
     case_version_id=None,
     estado=None,
+    evaluacion=None,
     page=1,
     page_size=DEFAULT_PAGE_SIZE,
 ):
@@ -78,6 +149,9 @@ def list_attempts(
 
     Sin tope fijo de 20 ni filtro ``PUBLISHED``: incluye intentos de versiones archivadas
     o en borrador dentro del alcance del docente, con ``coverage {shown, total}``.
+
+    ``evaluacion`` (BK-3): ``pendiente`` deja los terminados que esperan la valoración del docente (los mismos que
+    ``evaluationStatus == PENDIENTE``); ``aplicada``, los ya valorados. Cada fila trae ``evaluationStatus``.
     """
     attempts = SimulationAttempt.objects.select_related(
         "case_version__simulation_case", "student"
@@ -109,6 +183,14 @@ def list_attempts(
         attempts = attempts.filter(case_version_id=case_version_id)
     if estado:
         attempts = attempts.filter(status=estado)
+    if evaluacion == "pendiente":
+        attempts = (
+            attempts.filter(status=AttemptStatus.COMPLETED)
+            .exclude(_valoracion_concluida())
+            .filter(_con_rubrica_q())
+        )
+    elif evaluacion == "aplicada":
+        attempts = attempts.filter(_valoracion_concluida())
 
     page = max(1, int(page or 1))
     page_size = max(1, min(int(page_size or DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE))
@@ -116,6 +198,7 @@ def list_attempts(
     total = attempts.count()
     offset = (page - 1) * page_size
     rows = list(attempts.order_by("-started_at", "-id")[offset : offset + page_size])
+    estados = _estados_de_valoracion(rows)
     items = [
         {
             "attemptId": str(a.id),
@@ -127,6 +210,7 @@ def list_attempts(
             "activeSeconds": int(round(a.active_seconds or 0)),
             "startedAt": _dt(a.started_at),
             "endedAt": _dt(a.ended_at),
+            "evaluationStatus": estados[a.id],
         }
         for a in rows
     ]
@@ -150,7 +234,8 @@ def recent_attempts(instructor):
         if not student_ids:
             return []
         attempts = attempts.filter(student_id__in=student_ids)
-    attempts = attempts[:20]
+    attempts = list(attempts[:20])
+    estados = _estados_de_valoracion(attempts)
     return [
         {
             "attemptId": str(a.id),
@@ -158,6 +243,10 @@ def recent_attempts(instructor):
             "caseTitle": a.case_version.simulation_case.title,
             "status": a.status,
             "startedAt": _dt(a.started_at),
+            # BK-3 (aditivos): el Inicio docente lista «Por revisar» y dice «terminó hace…» sin pedir otra lista.
+            "caseVersionId": a.case_version_id,
+            "endedAt": _dt(a.ended_at),
+            "evaluationStatus": estados[a.id],
         }
         for a in attempts
     ]
@@ -228,6 +317,49 @@ def _valoracion_del_sistema(attempt, evaluations):
     return summary, True
 
 
+def _evidencia_por_competencia(attempt, events):
+    """RK-4 · ``[{code, name, items: [{order, nodeTitle, optionText, class, atSeconds}]}]``: por cada competencia de la
+    rúbrica con que se valora el intento, las decisiones registradas que la tocan, en orden.
+
+    Es lo que la docente mira al lado de cada criterio mientras valora. A propósito NO trae ningún nivel: ni el que
+    aporta cada decisión ni el que calculó el sistema para la competencia. Esa valoración automática sigue plegada hasta
+    que la docente guarda la suya (``_valoracion_del_sistema``): verla antes ancla su juicio. Reutiliza la misma regla que
+    el perfil por competencia (``assessment.competencies.contributions``), así que una ficha aparece aquí solo si esa
+    decisión entra en el perfil. Sin rúbrica, o sin criterios con competencia, la lista está vacía.
+    """
+    from apps.simulation.assessment import competencies as perfil  # perezoso: assessment importa rubric_service
+
+    rubric = perfil.rubric_of(attempt.case_version_id)
+    if rubric is None:
+        return []
+    competencias = perfil.rubric_competencies(rubric)
+    codigos = {c.code for c in competencias}
+    fichas = {code: [] for code in codigos}
+    order = 0
+    for ev in events:
+        if not ev.decision_option_id or ev.event_type not in REGISTERED_DECISION_EVENT_TYPES:
+            continue
+        order += 1  # la posición entre las registradas: la misma ``order`` que el perfil y ``decisionReview``
+        option = ev.decision_option
+        tocadas = perfil.contributions(option, codigos)
+        if not tocadas:
+            continue
+        response_class = case_state.response_class_of(option)
+        at_seconds = (
+            int((ev.occurred_at - attempt.started_at).total_seconds())
+            if ev.occurred_at and attempt.started_at else None
+        )
+        for code in tocadas:
+            fichas[code].append({
+                "order": order,
+                "nodeTitle": ev.node.title if ev.node_id else "",
+                "optionText": option.text,
+                "class": response_class.value if response_class else None,
+                "atSeconds": at_seconds,
+            })
+    return [{"code": c.code, "name": c.name, "items": fichas[c.code]} for c in competencias]
+
+
 @transaction.atomic
 def trace(attempt_id, instructor=None):
     attempt = _require_attempt(attempt_id, instructor)
@@ -287,6 +419,8 @@ def trace(attempt_id, instructor=None):
         # V5: sin competencias declaradas en el caso no hay valoración del sistema; la docente ve por qué y el editor.
         "caseVersionId": attempt.case_version_id,
         "competenciesDeclared": _declara_competencias(attempt),
+        # RK-4 (aditivo): la evidencia por competencia para valorar cada criterio a la vista, sin niveles calculados.
+        "evidenceByCompetency": _evidencia_por_competencia(attempt, events),
     }
 
 

@@ -1,12 +1,14 @@
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Router, provideRouter } from '@angular/router';
+import { By } from '@angular/platform-browser';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 
 import { AuthService } from '../../core/auth/auth.service';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { AvatarStore } from './avatar.store';
 import { CharacterEditorComponent } from './character-editor.component';
+import { KitFigureComponent } from './kit/kit-figure.component';
 import { KitService } from './kit/kit.service';
 import { fakeKitService, testKitBundle } from './kit/testing/kit-testing';
 
@@ -41,7 +43,7 @@ describe('CharacterEditorComponent', () => {
   const button = (name: string) => [...host().querySelectorAll('button')].find(item => spoken(item) === name) as HTMLButtonElement;
   const status = () => text(host().querySelector('.ce-footer [role="status"]'));
 
-  async function render(options: { role?: string; kit?: KitService } = {}) {
+  async function render(options: { role?: string; kit?: KitService; volver?: string } = {}) {
     store = new AvatarStore(memoryStorage());
     confirm = vi.fn();
     consequence = vi.fn();
@@ -49,6 +51,7 @@ describe('CharacterEditorComponent', () => {
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(), provideRouter([]),
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap(options.volver ? { volver: options.volver } : {}) } } },
         { provide: AvatarStore, useValue: store },
         { provide: KitService, useValue: options.kit ?? fakeKitService() },
         { provide: AuthService, useValue: { currentUser: signal({ role: options.role ?? 'ESTUDIANTE' }) } },
@@ -72,20 +75,21 @@ describe('CharacterEditorComponent', () => {
 
   it('el elenco es un grupo de radios nativos (flechas del navegador) y elegir cambia el personaje', async () => {
     await render();
-    const radios = [...group('Elenco').querySelectorAll<HTMLInputElement>('input[type="radio"]')];
+    const radios = [...group('Elige tu personaje').querySelectorAll<HTMLInputElement>('input[type="radio"]')];
     expect(radios).toHaveLength(13);
     expect(new Set(radios.map(item => item.name)).size).toBe(1);
     expect(radios.filter(item => item.checked)).toHaveLength(1);
-    expect(host().querySelector('[role="radio"], [role="radiogroup"]')).toBeNull();
+    // El elenco y las opciones son radios nativos; el único radiogroup con ARIA es el segmentado de Movimiento (C5).
+    expect(host().querySelector('.ce-panel')!.querySelector('[role="radio"], [role="radiogroup"]')).toBeNull();
 
-    radio('Elenco', DAVID).click();
+    radio('Elige tu personaje', DAVID).click();
     await fixture.whenStable();
     expect(store.avatar()).toMatchObject({ mode: 'elenco', recipeId: 'david' });
   });
 
   it('«Personalizado» abre sus grupos; los tonos tienen nombre aunque se vean como muestras', async () => {
     await render();
-    radio('Elenco', 'Personalizado').click();
+    radio('Elige tu personaje', 'Personalizado').click();
     await fixture.whenStable();
     for (const legend of ['Complexión', 'Piel', 'Peinado', 'Color de pelo']) {
       expect(group(legend).querySelectorAll('input[type="radio"]').length).toBeGreaterThan(1);
@@ -96,20 +100,20 @@ describe('CharacterEditorComponent', () => {
 
   it('«Cambios sin guardar» se ve tras un cambio y desaparece al guardar', async () => {
     await render();
-    expect(status()).toBe('');
-    radio('Elenco', DAVID).click();
+    expect(status()).toBe('Sin cambios');
+    radio('Elige tu personaje', DAVID).click();
     await fixture.whenStable();
     expect(status()).toBe('Cambios sin guardar');
 
-    button('Guardar personaje').click();
+    button('Guardar').click();
     await fixture.whenStable();
-    expect(status()).toBe('');
+    expect(status()).toBe('Sin cambios');
     expect(success).toHaveBeenCalledWith('Personaje guardado.');
   });
 
   it('«Restablecer» pide confirmación: «Cancelar» no toca nada y confirmar vuelve al personaje por defecto', async () => {
     await render();
-    radio('Elenco', DAVID).click();
+    radio('Elige tu personaje', DAVID).click();
     await fixture.whenStable();
 
     confirm.mockResolvedValueOnce(false);
@@ -124,21 +128,43 @@ describe('CharacterEditorComponent', () => {
     expect(store.avatar()).toMatchObject({ recipeId: 'valentina' });
   });
 
-  it('«Guardar y continuar» guarda y lleva a los casos', async () => {
-    await render();
-    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
-    radio('Elenco', DAVID).click();
+  it('«Guardar y volver» guarda y lleva al destino conocido (casos)', async () => {
+    await render({ volver: '/portal/simulador' });
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    radio('Elige tu personaje', DAVID).click();
     await fixture.whenStable();
-    button('Guardar y continuar').click();
+    button('Guardar y volver a casos').click();
     expect(store.dirty()).toBe(false);
-    expect(navigate).toHaveBeenCalledWith(['/portal/simulador']);
+    expect(navigate).toHaveBeenCalledWith('/portal/simulador');
+  });
+
+  it('sin destino conocido solo ofrece guardar', async () => {
+    await render();
+    expect(text(host().querySelector('.ce-actions'))).not.toContain('Guardar y volver');
+  });
+
+  it('las flechas cambian la dirección de la vista previa', async () => {
+    await render();
+    expect(text(host().querySelector('figcaption'))).toBe('Frente');
+    host().querySelector<HTMLButtonElement>('[aria-label="Girar a la derecha"]')!.click();
+    await fixture.whenStable();
+    expect(text(host().querySelector('figcaption'))).toBe('Derecha');
+  });
+
+  it('las dos vistas previas llevan la animación activa (el kit la detiene solo con movimiento reducido)', async () => {
+    await render();
+    const previews = fixture.debugElement.queryAll(By.css('.ce-view app-kit-figure'));
+    expect(previews).toHaveLength(2);
+    for (const preview of previews) {
+      expect((preview.componentInstance as KitFigureComponent).animated()).toBe(true);
+    }
   });
 
   it('salir con cambios sin guardar pregunta (canLeave); sin cambios, no', async () => {
     await render();
     expect(await fixture.componentInstance.canLeave()).toBe(true);
     expect(consequence).not.toHaveBeenCalled();
-    radio('Elenco', DAVID).click();
+    radio('Elige tu personaje', DAVID).click();
     await fixture.whenStable();
     consequence.mockResolvedValue('continue');
     expect(await fixture.componentInstance.canLeave()).toBe(false);
@@ -147,7 +173,7 @@ describe('CharacterEditorComponent', () => {
 
   it('si la sesión ya se cerró (salir de la cuenta, 401), deja salir sin preguntar y descarta lo no guardado', async () => {
     await render();
-    radio('Elenco', DAVID).click();
+    radio('Elige tu personaje', DAVID).click();
     await fixture.whenStable();
     (TestBed.inject(AuthService).currentUser as ReturnType<typeof signal<{ role: string } | null>>).set(null);
     expect(await fixture.componentInstance.canLeave()).toBe(true);
@@ -163,7 +189,7 @@ describe('CharacterEditorComponent', () => {
       return event.defaultPrevented;
     };
     expect(unload()).toBe(false);
-    radio('Elenco', DAVID).click();
+    radio('Elige tu personaje', DAVID).click();
     await fixture.whenStable();
     expect(unload()).toBe(true);
   });

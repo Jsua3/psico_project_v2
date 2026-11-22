@@ -101,6 +101,32 @@ async function firstStudentReportPath(page: Page): Promise<string> {
   return '/portal/reportes/estudiante/1';
 }
 
+/** Token de sesión de un rol por la API (para averiguar ids como lo haría la pantalla que enlaza). */
+async function tokenOf(page: Page, role: SignedRole): Promise<{ Authorization: string }> {
+  const login = await page.request.post('/api/auth/login', { data: CREDENTIALS[role] });
+  return { Authorization: `Bearer ${(await login.json()).data?.token as string | undefined}` };
+}
+
+/**
+ * Rediseño 2026-11-21 (DP-13): el cierre de un intento terminado del estudiante, como lo enlazan Casos («Ver tu
+ * recorrido») y el resultado del juego. Sin intentos terminados, el recorrido igual pasa por la pantalla con ids que no
+ * existen (muestra su error).
+ */
+async function studentClosingPath(page: Page): Promise<string> {
+  const headers = await tokenOf(page, 'estudiante');
+  const history = ((await (await page.request.get('/api/simulation/attempts/history', { headers })).json()).data ?? []) as
+    Array<{ attemptId: string; caseVersionId: number; status: string }>;
+  const done = history.find(item => item.status === 'COMPLETED') ?? history[0];
+  return done ? `/portal/simulador/${done.caseVersionId}/cierre/${done.attemptId}` : '/portal/simulador/1/cierre/0';
+}
+
+/** Rediseño 2026-11-21 (DP-18): el detalle del primer grupo de la docente, con su ruta propia. */
+async function firstGroupPath(page: Page): Promise<string> {
+  const headers = await tokenOf(page, 'profesor');
+  const groups = ((await (await page.request.get('/api/grupos', { headers })).json()).data ?? []) as Array<{ id: number }>;
+  return `/portal/grupos/${groups[0]?.id ?? 1}`;
+}
+
 export const TOUR_SCREENS: readonly TourScreen[] = [
   { id: 'portada', role: 'publico', routePattern: '', path: '/' },
   { id: 'acceso', role: 'publico', routePattern: 'login', path: '/login' },
@@ -123,6 +149,10 @@ export const TOUR_SCREENS: readonly TourScreen[] = [
   { id: 'invitaciones', role: 'estudiante', routePattern: 'portal/invitaciones', path: '/portal/invitaciones' },
   // Plan visual F7b-2 (E2-9): «Cambia tu contraseña», fuera del portal (con una sesión normal no es obligatoria).
   { id: 'cambiar-contrasena', role: 'estudiante', routePattern: 'cambiar-contrasena', path: '/cambiar-contrasena' },
+  // Rediseño 2026-11-21 (DP-22): el cambio voluntario, dentro del portal y desde el menú de cuenta.
+  { id: 'cuenta-contrasena', role: 'estudiante', routePattern: 'portal/cuenta/contrasena', path: '/portal/cuenta/contrasena' },
+  // Rediseño 2026-11-21 (DP-13): la página de cierre del caso.
+  { id: 'caso-cierre', role: 'estudiante', routePattern: 'portal/simulador/:caseVersionId/cierre/:attemptId', resolvePath: studentClosingPath },
   // Plan visual F3-6: una dirección desconocida muestra la 404 (dentro del portal, con su barra).
   { id: 'no-encontrada', role: 'estudiante', routePattern: 'portal/**', path: '/portal/no-existe' },
   // Plan visual F4-3: lo que ve el estudiante al pedir una sección de otro rol.
@@ -131,7 +161,7 @@ export const TOUR_SCREENS: readonly TourScreen[] = [
   {
     id: 'caso-ficha', role: 'estudiante', routePattern: 'portal/simulador/:caseVersionId/ficha', resolvePath: studentBriefPath,
     ready: async page => {
-      await page.getByRole('button', { name: 'Comenzar', exact: true }).waitFor({ state: 'visible', timeout: 30_000 });
+      await page.getByRole('button', { name: /^(Comenzar|Continuar donde quedaste)$/ }).waitFor({ state: 'visible', timeout: 30_000 });
     },
   },
   {
@@ -146,6 +176,8 @@ export const TOUR_SCREENS: readonly TourScreen[] = [
   { id: 'trazabilidad', role: 'profesor', routePattern: 'portal/docente/trazabilidad', path: '/portal/docente/trazabilidad' },
   { id: 'rubricas', role: 'profesor', routePattern: 'portal/rubricas', path: '/portal/rubricas' },
   { id: 'grupos', role: 'profesor', routePattern: 'portal/grupos', path: '/portal/grupos' },
+  // Rediseño 2026-11-21 (DP-18): el detalle de un grupo con su ruta propia.
+  { id: 'grupo-detalle', role: 'profesor', routePattern: 'portal/grupos/:grupoId', resolvePath: firstGroupPath },
   { id: 'reportes', role: 'profesor', routePattern: 'portal/reportes', path: '/portal/reportes' },
   // Plan visual F10-7† (C3): los intentos de un estudiante, a donde lleva el enlace de la tabla del reporte del grupo.
   {

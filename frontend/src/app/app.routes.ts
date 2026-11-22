@@ -48,7 +48,7 @@ export const routes: Routes = [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
       {
         path: 'dashboard',
-        title: 'Panel',
+        title: 'Inicio',
         loadComponent: () => import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent)
       },
       {
@@ -61,7 +61,7 @@ export const routes: Routes = [
       },
       {
         path: 'simulador',
-        title: 'Catálogo de casos',
+        title: 'Casos',
         loadComponent: () => import('./features/simulator/simulation-catalog.component').then(m => m.SimulationCatalogComponent)
       },
       {
@@ -70,6 +70,14 @@ export const routes: Routes = [
         title: 'Ficha del caso',
         canActivate: [roleGuard('ESTUDIANTE')],
         loadComponent: () => import('./features/simulator/case-brief.component').then(m => m.CaseBriefComponent)
+      },
+      {
+        // DP-13 (rediseño 2026-11-21): el cierre del caso es una página del portal, con URL estable; se vuelve a ella
+        // desde Casos («Ver tu recorrido») y desde el resultado del juego. B1 deja el esqueleto; la página es de B4d.
+        path: 'simulador/:caseVersionId/cierre/:attemptId',
+        title: 'Cierre del caso',
+        canActivate: [roleGuard('ESTUDIANTE')],
+        loadComponent: () => import('./features/simulator/cierre/cierre-caso.component').then(m => m.CierreCasoComponent)
       },
       {
         path: 'simulador/:caseVersionId',
@@ -81,7 +89,7 @@ export const routes: Routes = [
       {
         // E2-10 (C5): el estudiante acepta, rechaza o deja los grupos a los que lo invitan.
         path: 'invitaciones',
-        title: 'Invitaciones',
+        title: 'Tus grupos',
         canActivate: [roleGuard(...rolesFor('invitaciones'))],
         loadComponent: () => import('./features/invitations/invitations.component').then(m => m.InvitationsComponent)
       },
@@ -94,7 +102,7 @@ export const routes: Routes = [
       },
       {
         path: 'casos',
-        title: 'Gestión de casos',
+        title: 'Casos',
         canActivate: [roleGuard(...rolesFor('casos'))],
         loadComponent: () => import('./features/simulator/case-authoring-hub.component').then(m => m.CaseAuthoringHubComponent)
       },
@@ -124,18 +132,31 @@ export const routes: Routes = [
       },
       {
         path: 'docente/trazabilidad',
-        title: 'Trazabilidad docente',
+        title: 'Revisión formativa',
         canActivate: [roleGuard(...rolesFor('trazabilidad'))],
+        canDeactivate: [canLeaveGuard],
         loadComponent: () => import('./features/simulator/instructor-trace.component').then(m => m.InstructorTraceComponent)
       },
       {
         path: 'rubricas',
         title: 'Rúbricas',
         canActivate: [roleGuard(...rolesFor('rubricas'))],
+        canDeactivate: [canLeaveGuard],
+        // R1: biblioteca y editor viven en la misma ruta (`?rubrica=`); la guardia de salida corre también al cambiar
+        // ese parámetro, para preguntar antes de dejar una rúbrica con cambios sin guardar.
+        runGuardsAndResolvers: 'paramsOrQueryParamsChange',
         loadComponent: () => import('./features/admin/rubrics.component').then(m => m.RubricsComponent)
       },
       {
         path: 'grupos',
+        title: 'Grupos',
+        canActivate: [roleGuard(...rolesFor('grupos'))],
+        loadComponent: () => import('./features/grupos/grupo-list.component').then(m => m.GrupoListComponent)
+      },
+      {
+        // DP-18: el detalle de un grupo tiene ruta propia (atrás funciona y el Inicio docente enlaza directo). Carga el
+        // MISMO componente, que lee `grupoId` con withComponentInputBinding.
+        path: 'grupos/:grupoId',
         title: 'Grupos',
         canActivate: [roleGuard(...rolesFor('grupos'))],
         loadComponent: () => import('./features/grupos/grupo-list.component').then(m => m.GrupoListComponent)
@@ -158,6 +179,14 @@ export const routes: Routes = [
         title: 'Usuarios',
         canActivate: [roleGuard(...rolesFor('usuarios'))],
         loadComponent: () => import('./features/admin/users.component').then(m => m.UsersComponent)
+      },
+      {
+        // DP-22: cambiar la contraseña por gusto, dentro del portal y desde el menú de cuenta. El MISMO componente que el
+        // cambio obligatorio (`/cambiar-contrasena`, fuera del portal); `modo` le llega desde `data`.
+        path: 'cuenta/contrasena',
+        title: 'Cambiar contraseña',
+        data: { modo: 'voluntario' },
+        loadComponent: () => import('./features/account/change-password.component').then(m => m.ChangePasswordComponent)
       },
       {
         // Plan visual F4-3: adonde manda roleGuard al negar una sección (antes, al panel en silencio).

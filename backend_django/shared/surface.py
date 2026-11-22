@@ -104,6 +104,8 @@ _AUTORIA = {
     (f"{_CV}/rehearsal/<uuid:attempt_id>", "GET"): _exento(_ENSAYO),
     (f"{_CV}/rehearsal/<uuid:attempt_id>", "PATCH"): _exento(_ENSAYO),
     (f"{_CV}/brief", "PUT"): "ADMIN_UPDATE_BRIEF",
+    # RK-1 (bloque R0): adoptar una rúbrica en el caso deja la fila de la rúbrica (``changed: ["adopted"]``).
+    (f"{_CV}/rubric", "POST"): "RUBRIC_UPDATED",
     (f"{_CV}/characters", "POST"): "ADMIN_CREATE_CHARACTER",
     (f"{_CV}/characters/<int:character_id>", "PUT"): "ADMIN_UPDATE_CHARACTER",
     (f"{_CV}/characters/<int:character_id>", "DELETE"): "ADMIN_DELETE_CHARACTER",

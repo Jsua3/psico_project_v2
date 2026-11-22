@@ -2,9 +2,10 @@ import { DOCUMENT } from '@angular/common';
 import { ChangeDetectionStrategy, Component, InjectionToken, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 
+import { TemaService } from '../../core/tema/tema.service';
 import { safeReturnUrl } from '../../core/auth/return-url';
-import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
-import { UiErrorState } from '../../shared/ui/state/ui-error-state';
+import { PaginaEstadoComponent } from '../../shared/layout/pagina-estado/pagina-estado.component';
+import { UiButton } from '../../shared/ui/button/ui-button';
 
 /**
  * Carga completa de una ruta. «Reintentar» sin conexión NO puede navegar con el Router: el navegador guarda en su
@@ -30,16 +31,21 @@ const ANNOUNCE_GAP_MS = 150;
  */
 @Component({
   selector: 'app-offline',
-  imports: [UiErrorState, UiPageHeader],
+  imports: [PaginaEstadoComponent, UiButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    <div class="portal" [attr.data-skin]="tema.piel()">
     <main id="main-content" tabindex="-1" class="sin-red">
-      <ui-page-header title="Sin conexión" />
-      <ui-error-state kind="network" blocking (retry)="retry()" />
+      <app-pagina-estado tipo="sin-conexion" titulo="Sin conexión"
+        texto="No pudimos cargar esta parte de SIEP porque no hay conexión."
+        detalle="Lo que hiciste hasta el último guardado está a salvo. Cuando vuelva la conexión, sigue donde quedaste.">
+        <button ui-button type="button" (click)="retry()">Reintentar</button>
+      </app-pagina-estado>
       <!-- Región viva SIEMPRE presente (una que nace con su texto no se anuncia): se vacía y se vuelve a llenar en
            cada reintento sin red, para que se oiga cada vez. -->
       <p class="sin-red__aviso" role="status" aria-live="polite">{{ offlineNotice() }}</p>
     </main>
+    </div>
   `,
   styles: [`
     :host { display: block; }
@@ -51,7 +57,7 @@ const ANNOUNCE_GAP_MS = 150;
       margin-inline: auto;
       padding: var(--ds-space-8) var(--ds-space-4);
     }
-    .sin-red ui-error-state { justify-self: stretch; }
+    .sin-red app-pagina-estado { justify-self: stretch; }
     .sin-red__aviso {
       margin: 0;
       color: var(--ds-text-2);
@@ -60,6 +66,7 @@ const ANNOUNCE_GAP_MS = 150;
   `],
 })
 export class OfflineComponent {
+  protected readonly tema = inject(TemaService);
   private readonly from = inject(ActivatedRoute).snapshot.queryParamMap.get('desde');
   private readonly fullNavigation = inject(FULL_NAVIGATION);
   /** Se pulsó «Reintentar» sin red: se dice, en vez de recargar hacia la página de error del navegador. */
