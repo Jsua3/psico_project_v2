@@ -64,7 +64,7 @@ test.describe('editor de salas por piezas', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Elige las salas de tu caso' })).toBeVisible({ timeout: scaled(30_000) });
     await page.getByRole('button', { name: 'Usar esta idea: Urgencias de noche' }).click();
     await page.getByLabel('Nombre del caso').fill(`Sala por piezas ${Date.now()}`);
-    await page.getByRole('button', { name: 'Crear el caso con estas salas' }).click();
+    await page.getByRole('button', { name: /^Crear el caso(?: con estas salas)?$/ }).click();
     await page.waitForURL(/\/portal\/casos\/\d+\/editor/, { timeout: scaled(60_000) });
     const casoId = Number(/\/portal\/casos\/(\d+)\/editor/.exec(page.url())![1]);
 

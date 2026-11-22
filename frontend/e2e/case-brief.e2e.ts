@@ -66,7 +66,7 @@ test('la ficha pinta lo que devuelve el servidor, no crea el intento y «Comenza
   await expect(page.getByRole('heading', { level: 2, name: 'Antes de leer' })).toBeVisible();
   await expect(page.locator('.brief-objective')).toHaveText(brief.learningObjectives);
   await expect(page.locator('.brief-character h3')).toHaveText(brief.characters.map(character => character.displayName));
-  if (brief.hasSensitiveContent) await expect(page.locator('.brief-sensitive')).toContainText('Salida segura');
+  if (brief.hasSensitiveContent) await expect(page.locator('#aviso')).toContainText('Salida segura');
 
   expect(attemptPosts, 'ver la ficha no inicia ningún intento').toEqual([]);
   expect(await student.attempts(), 'ni deja un intento nuevo en el historial').toBe(attemptsBefore);

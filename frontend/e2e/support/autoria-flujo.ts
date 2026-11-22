@@ -51,7 +51,7 @@ export async function crearCasoBienestar(page: Page, titulo: string): Promise<nu
   await expect(page.getByRole('heading', { level: 1, name: 'Elige las salas de tu caso' })).toBeVisible({ timeout: scaled(30_000) });
   await page.getByRole('button', { name: 'Usar esta idea: Atención en Bienestar' }).click();
   await page.getByLabel('Nombre del caso').fill(titulo);
-  await page.getByRole('button', { name: 'Crear el caso con estas salas' }).click();
+  await page.getByRole('button', { name: /^Crear el caso(?: con estas salas)?$/ }).click();
   const id = await irAlMapaDelCaso(page);
   await expect(page.locator('button.escena')).toHaveCount(3, { timeout: scaled(30_000) });
   return id;

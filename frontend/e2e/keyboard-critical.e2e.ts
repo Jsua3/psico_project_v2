@@ -213,7 +213,7 @@ test('[E01] abrir el catálogo: Tab hasta «Simulador» y Enter muestra los caso
 });
 
 // req: RF-16, CU-07, RNF-004, WCAG 2.1.1
-test('[E02 E03] ver la ficha del caso y aceptar el aviso de contenido: el botón del caso, «Comenzar» y «Continuar» se alcanzan con Tab', async ({ page, request }) => {
+test('[E02 E03] ver la ficha y aceptar el aviso: entrar al caso y comenzar con teclado', async ({ page, request }) => {
   test.setTimeout(scaled(120_000));
   const fixture = await studentCase(request, 'Ficha teclado', true);
   try {
@@ -224,14 +224,10 @@ test('[E02 E03] ver la ficha del caso y aceptar el aviso de contenido: el botón
     await expect(page.getByRole('heading', { level: 1, name: fixture.title })).toBeVisible({ timeout: scaled(30_000) });
     await expect(page.getByText('Una mujer llega a urgencias tras una discusión.')).toBeVisible();
 
+    await expect(page.getByRole('heading', { level: 2, name: 'Antes de leer' })).toBeVisible();
     await pressWithKeyboard(page, page.getByRole('button', { name: 'Comenzar', exact: true }));
-    const consent = page.getByRole('dialog').filter({ hasText: 'Antes de entrar al caso' });
-    await expect(consent).toBeVisible({ timeout: scaled(30_000) });
-    await expect.poll(() => consent.evaluate(element => element.contains(document.activeElement)), { message: 'el foco entra al aviso' }).toBe(true);
-    await pressWithKeyboard(page, consent.getByRole('button', { name: /^continuar$/i }));
-    // Registrado el aviso, el caso sigue: la introducción (un diálogo) o, si el caso no la trae, el mundo ya listo.
-    await expect(consent).toBeHidden({ timeout: scaled(30_000) });
-    await expect(page.getByRole('dialog').first().or(page.locator('app-game-world .phaser-host[data-world-ready="true"]'))).toBeVisible({ timeout: scaled(30_000) });
+    await page.waitForURL(/\/portal\/simulador\/\d+$/, { timeout: scaled(30_000) });
+    await expect(page.locator('app-umbral-caso').or(page.getByRole('dialog').first()).or(page.locator('app-game-world .phaser-host[data-world-ready="true"]')).first()).toBeVisible({ timeout: scaled(30_000) });
     await expectNoPointer(page, 'ver la ficha y aceptar el aviso');
   } finally {
     await retireCase(request, fixture.caseVersionId, fixture.records);
@@ -436,6 +432,9 @@ test('[A01] gestionar usuarios y solicitudes: una solicitud se atiende con «Cre
   }
   await keyboardLogin(page, ADMIN);
   await page.goto('/portal/admin/usuarios');
+  await tabTo(page, page.getByRole('radio', { name: /^Cuentas/ }));
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('radio', { name: /^Solicitudes/ })).toBeChecked();
   const attend = page.locator('.us-request').filter({ hasText: `atender.${id}@` });
   await expect(attend).toBeVisible({ timeout: scaled(30_000) });
   await pressWithKeyboard(page, attend.getByRole('button', { name: 'Crear usuario' }));
@@ -468,7 +467,7 @@ test('[A02] crear y editar un caso: se elige el lugar y las salas, se crea el ca
     await pressWithKeyboard(page, page.getByRole('button', { name: 'Usar esta idea: Atención en Bienestar' }), { max: 160 });
     const title = `Caso teclado ${stamp()}`;
     await typeInto(page, page.getByLabel('Nombre del caso'), title, { max: 160 });
-    await pressWithKeyboard(page, page.getByRole('button', { name: 'Crear el caso con estas salas' }), { max: 160 });
+    await pressWithKeyboard(page, page.getByRole('button', { name: /^Crear el caso(?: con estas salas)?$/ }), { max: 160 });
 
     // Un caso nuevo se abre en el guion de su primera escena (E3): ahí empieza a escribirse, sin pasar por el mapa.
     await page.waitForURL(/\/portal\/casos\/\d+\/editor\/escena\//, { timeout: scaled(60_000) });
@@ -812,12 +811,7 @@ test('[E04 E10] comenzar, pausar con la salida segura y continuar: «Salida segu
     await goTo(page, 'Simulador', /\/portal\/simulador$/);
     await pressWithKeyboard(page, caseCard(page, fixture.title).locator('.case-card__actions button').first());
     await pressWithKeyboard(page, page.getByRole('button', { name: 'Comenzar', exact: true }));
-    const consent = page.getByRole('dialog').filter({ hasText: 'Antes de entrar al caso' });
-    await expect(consent).toBeVisible({ timeout: scaled(30_000) });
-    await pressWithKeyboard(page, consent.getByRole('button', { name: /^continuar$/i }));
-    // El consentimiento se registra en el servidor (S3-2b): el aviso sigue a la vista, con su botón en «guardando», hasta que
-    // el servidor responde. Sin esperar a que se vaya, el recorrido de abajo tomaría el «Continuar» del propio aviso.
-    await expect(consent).toBeHidden({ timeout: scaled(30_000) });
+    await page.waitForURL(/\/portal\/simulador\/\d+$/, { timeout: scaled(30_000) });
 
     // Comenzar: el video y el contexto del caso se avanzan con Tab y Enter hasta que el mundo está listo.
     const world = page.locator('app-game-world .phaser-host[data-world-ready="true"]');

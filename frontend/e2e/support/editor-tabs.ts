@@ -1,7 +1,7 @@
 import { expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
-import { irAlMapaDelCaso } from './autoria-flujo';
+import { irAlMapaDelCaso, rutaEditor } from './autoria-flujo';
 import { loginAs } from './screen-tour';
 import { scaled } from './time-scale';
 
@@ -11,7 +11,7 @@ import { scaled } from './time-scale';
  * Cada uno es una pantalla con su propia dirección; los nombres son los que se leen en los informes de las sondas.
  */
 export const EDITOR_TABS = [
-  'El caso', 'Guion de la escena', 'Sala', 'Datos del caso', 'Pasos profesionales', 'Rúbrica', 'Finales', 'Enviar a revisión',
+  'El caso', 'Guion de la escena', 'Sala', 'Datos del caso', 'Pasos profesionales', 'Rúbrica', 'Finales', 'Enviar a revisión', 'Plano del caso',
 ] as const;
 
 /**
@@ -27,7 +27,7 @@ export async function crearCasoDesdeLaUniversidad(page: Page, titulo: string): P
   await expect(page.getByRole('heading', { level: 1, name: 'Elige las salas de tu caso' })).toBeVisible({ timeout: scaled(30_000) });
   await page.getByRole('button', { name: /^Usar esta idea/ }).first().click();
   await page.getByLabel('Nombre del caso').fill(titulo);
-  await page.getByRole('button', { name: 'Crear el caso con estas salas' }).click();
+  await page.getByRole('button', { name: /^Crear el caso(?: con estas salas)?$/ }).click();
   const id = await irAlMapaDelCaso(page);
   await expect(page.locator('button.escena').first()).toBeVisible({ timeout: scaled(30_000) });
   return id;
@@ -39,7 +39,9 @@ export async function crearCasoDesdeLaUniversidad(page: Page, titulo: string): P
  * la daría por limpia sin haber mirado nada.
  */
 export async function recorrerEditor(page: Page, visit: (tab: (typeof EDITOR_TABS)[number]) => Promise<void>): Promise<void> {
-  const secciones = page.getByRole('navigation', { name: 'Secciones del caso' });
+  const base = rutaEditor(page);
+  // Las etapas pasan a un menu en pantallas estrechas; las sondas abren cada ruta del editor.
+  const ir = async (ruta: string) => page.goto(`${base}/${ruta}`);
 
   await page.waitForTimeout(400);
   await visit('El caso');
@@ -54,7 +56,7 @@ export async function recorrerEditor(page: Page, visit: (tab: (typeof EDITOR_TAB
   await page.waitForTimeout(400);
   await visit('Sala');
 
-  await secciones.getByRole('link', { name: 'Datos del caso' }).click();
+  await ir('datos');
   await expect(page.getByRole('heading', { level: 1, name: 'Datos del caso' })).toBeVisible({ timeout: scaled(30_000) });
   await expect(page.getByLabel('Contexto que lee el estudiante')).toBeVisible({ timeout: scaled(30_000) });
   await page.waitForTimeout(400);
@@ -63,7 +65,7 @@ export async function recorrerEditor(page: Page, visit: (tab: (typeof EDITOR_TAB
   // Evaluación es una etapa con tres pestañas (E5). Las pestañas son ENLACES (cada una con su dirección), no `role="tab"`:
   // se entra por la etapa y se pasa de una a otra con la barra «Partes de la evaluación».
   const partes = page.getByRole('navigation', { name: 'Partes de la evaluación' });
-  await secciones.getByRole('link', { name: 'Evaluación' }).click();
+  await ir('evaluacion');
   await expect(page.getByRole('heading', { level: 1, name: 'Pasos profesionales' })).toBeVisible({ timeout: scaled(30_000) });
   await expect(partes).toBeVisible({ timeout: scaled(30_000) });
   await page.waitForTimeout(400);
@@ -79,10 +81,15 @@ export async function recorrerEditor(page: Page, visit: (tab: (typeof EDITOR_TAB
   await page.waitForTimeout(400);
   await visit('Finales');
 
-  await secciones.getByRole('link', { name: 'Enviar a revisión' }).click();
+  await ir('revision');
   await expect(page.getByRole('heading', { level: 1, name: 'Enviar a revisión' })).toBeVisible({ timeout: scaled(30_000) });
   await page.waitForTimeout(400);
   await visit('Enviar a revisión');
+
+  await ir('plano');
+  await expect(page.getByRole('heading', { level: 1, name: 'Plano del caso' })).toBeVisible({ timeout: scaled(30_000) });
+  await page.waitForTimeout(400);
+  await visit('Plano del caso');
 }
 
 /**

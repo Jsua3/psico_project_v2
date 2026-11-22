@@ -579,6 +579,7 @@ test.describe('@docencia usuarios', () => {
 
   test('si las solicitudes de acceso no cargan, se ve el error en su sección', async ({ page }) => {
     await openUsers(page, { requestsStatus: 500 });
+    await page.getByRole('radio', { name: /^Solicitudes/ }).click();
     await expect(page.locator('.us-requests ui-error-state')).toContainText('No pudimos cargar las solicitudes de acceso.');
   });
 

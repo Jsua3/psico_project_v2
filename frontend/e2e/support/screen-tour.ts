@@ -161,7 +161,7 @@ export const TOUR_SCREENS: readonly TourScreen[] = [
   {
     id: 'caso-ficha', role: 'estudiante', routePattern: 'portal/simulador/:caseVersionId/ficha', resolvePath: studentBriefPath,
     ready: async page => {
-      await page.getByRole('button', { name: 'Comenzar', exact: true }).waitFor({ state: 'visible', timeout: 30_000 });
+      await page.getByRole('button', { name: /^(Comenzar|Continuar donde quedaste)$/ }).waitFor({ state: 'visible', timeout: 30_000 });
     },
   },
   {

@@ -74,7 +74,7 @@ test.describe('crear un caso a mano arma las salas por piezas', () => {
       await expect(page.getByRole('button', { name: `Usar esta idea: ${ruta.idea}` })).toBeVisible({ timeout: scaled(15_000) });
       await page.getByRole('button', { name: `Usar esta idea: ${ruta.idea}` }).click();
       await page.getByLabel('Nombre del caso').fill(`A mano por piezas ${prefijo} ${Date.now()}`);
-      await page.getByRole('button', { name: 'Crear el caso con estas salas' }).click();
+      await page.getByRole('button', { name: /^Crear el caso(?: con estas salas)?$/ }).click();
       await page.waitForURL(/\/portal\/casos\/\d+\/editor/, { timeout: scaled(60_000) });
       const casoId = Number(/\/portal\/casos\/(\d+)\/editor/.exec(page.url())![1]);
 

@@ -48,6 +48,10 @@ async function waitForFiniteAnimations(page: Page): Promise<void> {
   // Una animación finita a la que le quedan más de 5 s (los pulsos de ambiente de U1 duran minutos antes de descansar)
   // es ambiente como las infinitas: esperarla agotaba el plazo sin que ninguna transición de entrada siguiera en curso.
   await page.waitForFunction(() => document.getAnimations().every(animation => {
+    // Las animaciones ligadas al desplazamiento (animation-timeline: view() de la portada) no avanzan con el reloj: su
+    // currentTime es un porcentaje y nunca «terminan» mientras no se desplace. No son transiciones de entrada en curso,
+    // así que no se esperan (antes agotaban el plazo en las pantallas públicas; 2026-11-22).
+    if (animation.timeline && animation.timeline !== document.timeline) return true;
     const timing = animation.effect?.getComputedTiming();
     if (animation.playState !== 'running' || timing === undefined || timing.iterations === Infinity) return true;
     const restante = Number(timing.endTime ?? 0) - Number(animation.currentTime ?? 0);

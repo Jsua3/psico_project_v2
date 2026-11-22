@@ -92,7 +92,7 @@ test.describe('@autoria accesibilidad de cada ruta del editor de casos', () => {
       await revisar(page, 'casos/nuevo/salas (con una idea elegida)');
 
       // 3. Crear el caso: el mapa del caso.
-      await page.getByRole('button', { name: 'Crear el caso con estas salas' }).click();
+      await page.getByRole('button', { name: /^Crear el caso(?: con estas salas)?$/ }).click();
       // Un caso nuevo se abre en el guion de su primera escena (E3); se mide ahí y luego se pasa al mapa.
       await page.waitForURL(/\/portal\/casos\/\d+\/editor\/escena\//, { timeout: scaled(60_000) });
       caseVersionId = Number(/\/portal\/casos\/(\d+)\/editor/.exec(page.url())![1]);
@@ -132,7 +132,7 @@ test.describe('@autoria accesibilidad de cada ruta del editor de casos', () => {
       // 6. Finales y revisión, con las secciones del caso, dentro de la barra («Probar» ya no es una pantalla: abre el ensayo en otra pestaña).
       const secciones = page.getByRole('navigation', { name: 'Secciones del caso' });
       // Finales ya no es un enlace de la barra: es una pestaña de la etapa Evaluación (E5), con su propia dirección.
-      await secciones.getByRole('link', { name: 'Evaluación' }).click();
+      await secciones.getByRole('link', { name: /^Evaluación,/ }).click();
       await expect(page.getByRole('heading', { level: 1, name: 'Pasos profesionales' })).toBeVisible();
       await revisar(page, 'casos/:id/editor/evaluacion');
       await page.getByRole('navigation', { name: 'Partes de la evaluación' }).getByRole('link', { name: /^Rúbrica/ }).click();
@@ -142,7 +142,7 @@ test.describe('@autoria accesibilidad de cada ruta del editor de casos', () => {
       await expect(page.getByRole('heading', { level: 1, name: 'Finales del caso' })).toBeVisible();
       await revisar(page, 'casos/:id/editor/finales');
 
-      await secciones.getByRole('link', { name: 'Enviar a revisión' }).click();
+      await secciones.getByRole('link', { name: /^Enviar a revisión,/ }).click();
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
       await revisar(page, 'casos/:id/editor/revision');
     } finally {
