@@ -186,7 +186,7 @@ function hayPunteroFino(): boolean {
             }
             <a [routerLink]="rutas.a('/lugar')" class="boton boton-texto">Volver</a>
             <button type="button" class="boton boton-primario" [attr.aria-disabled]="creando()" (click)="crear()">
-              {{ creando() ? 'Creando el caso…' : 'Crear el caso' }}<span class="pie__resto"> con estas salas</span>
+              <span>{{ creando() ? 'Creando el caso…' : 'Crear el caso' }}<span class="pie__resto"> con estas salas</span></span>
             </button>
           </div>
         }
