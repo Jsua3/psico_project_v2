@@ -1,502 +1,104 @@
-import { Component, provideZonelessChangeDetection } from '@angular/core';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Router, provideRouter } from '@angular/router';
-import { Observable, Subject, of, throwError } from 'rxjs';
+﻿import { Component, provideZonelessChangeDetection, signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { of, throwError } from 'rxjs';
+import { vi } from 'vitest';
+import { AccessRequestAdminService } from '../../core/api/access-request-admin.service';
+import { AssignmentService } from '../../core/api/assignment.service';
+import { AuthoringApi } from '../../core/api/authoring.api';
 import { GrupoService } from '../../core/api/grupo.service';
-import { ReporteService } from '../../core/api/reporte.service';
 import { InstructorApi } from '../../core/api/instructor.api';
-import { SimulationService } from '../../core/api/simulation.service';
-import { AdminUser, UserAdminService } from '../../core/api/user-admin.service';
+import { ReporteService } from '../../core/api/reporte.service';
+import { UserAdminService } from '../../core/api/user-admin.service';
 import { AuthService } from '../../core/auth/auth.service';
-import { Dashboard } from '../../core/models/sesion.model';
-import { SimulationCaseSummary, StudentAttemptSummary } from '../../core/models/simulation.model';
+import { NotificationService } from '../../core/notifications/notification.service';
+import { NavBadgesService } from '../../shared/layout/nav-badges.service';
 import { DashboardComponent } from './dashboard.component';
 import { StudentDashboardComponent } from './student-dashboard.component';
 
-/** El panel del estudiante tiene su propia spec: aquí basta su sitio. */
-@Component({ selector: 'app-student-dashboard', template: '' })
-class StudentDashboardStub {}
+@Component({ selector: 'app-student-dashboard', template: '' }) class StudentStub {}
+const caso = { caseVersionId: 7, title: 'Caso de prueba', status: 'IN_REVIEW' };
+const pagina = { items: [{ attemptId: 'a1', studentAlias: 'Estudiante-123', caseTitle: 'Caso de prueba', endedAt: '2026-11-20T12:00:00Z' }], coverage: { shown: 1, total: 12 } };
 
-type Role = 'ESTUDIANTE' | 'PROFESOR' | 'ADMIN';
-
-interface Services {
-  reporte?: object;
-  simulation?: object;
-  instructor?: object;
-  users?: object;
-  grupos?: object;
-}
-
-/** Instancia sin plantilla: ejercita la lógica de cifras (las pruebas de DOM están más abajo). */
-function createDashboard(role: Role, services: Services = {}): DashboardComponent {
-  TestBed.configureTestingModule({
-    providers: [
-      provideZonelessChangeDetection(), provideRouter([]),
-      { provide: AuthService, useValue: { hasRole: (...roles: string[]) => roles.includes(role) } },
-      { provide: ReporteService, useValue: services.reporte ?? {} },
-      { provide: SimulationService, useValue: services.simulation ?? { attemptHistory: () => of([]) } },
-      { provide: InstructorApi, useValue: services.instructor ?? services.simulation ?? {} },
-      { provide: UserAdminService, useValue: services.users ?? {} },
-      { provide: GrupoService, useValue: services.grupos ?? {} },
-    ],
+describe('Inicio docente y administración', () => {
+  let role: string;
+  let instructor: { listAttempts: ReturnType<typeof vi.fn> };
+  let groups: { listar: ReturnType<typeof vi.fn> };
+  let authoring: { listAuthoringCases: ReturnType<typeof vi.fn> };
+  let users: { list: ReturnType<typeof vi.fn> };
+  let requests: { listPending: ReturnType<typeof vi.fn>; updateStatus: ReturnType<typeof vi.fn> };
+  let notify: { success: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
+  let badges: { fijar: ReturnType<typeof vi.fn> };
+  beforeEach(() => {
+    role = 'PROFESOR';
+    instructor = { listAttempts: vi.fn(() => of(pagina)) };
+    groups = { listar: vi.fn(() => of([{ id: 1, nombre: 'Grupo A', totalEstudiantes: 3 }])) };
+    authoring = { listAuthoringCases: vi.fn(() => of([caso])) };
+    users = { list: vi.fn(() => of([{ role: 'ESTUDIANTE', activo: true, pendingApproval: true }])) };
+    requests = { listPending: vi.fn(() => of([{ id: 1, nombre: 'Ana', apellido: 'Ríos', email: 'ana@example.test', createdAt: '2026-11-20' }])), updateStatus: vi.fn(() => of({})) };
+    notify = { success: vi.fn(), error: vi.fn() };
+    badges = { fijar: vi.fn() };
+    TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection(), provideRouter([]),
+      { provide: AuthService, useValue: { currentUser: signal({ nombre: 'María' }), hasRole: (r: string) => role === r } },
+      { provide: InstructorApi, useValue: instructor }, { provide: GrupoService, useValue: groups },
+      { provide: AuthoringApi, useValue: authoring }, { provide: UserAdminService, useValue: users },
+      { provide: AccessRequestAdminService, useValue: requests }, { provide: NotificationService, useValue: notify }, { provide: NavBadgesService, useValue: badges },
+      { provide: AssignmentService, useValue: { list: () => of([{ id: 2, active: true, caseVersionId: 7 }]) } },
+      { provide: ReporteService, useValue: { getReporteGrupo: () => of({ simulacion: { estudiantes: [{ intentosCompletados: 2 }, { intentosCompletados: 0 }] } }) } },
+    ] }).overrideComponent(DashboardComponent, { remove: { imports: [StudentDashboardComponent] }, add: { imports: [StudentStub] } });
   });
-  return TestBed.runInInjectionContext(() => new DashboardComponent());
-}
-
-const httpFailure = () => throwError(() => new Error('HTTP 500'));
-
-function dashboardData(partial: Partial<Dashboard> = {}): Dashboard {
-  return {
-    estudiantesActivos: 0, simulacionesCompletadasHoy: 0, simulacionesCompletadas: 0, simulacionesEnProgreso: 0,
-    decisiones: { recommended: 0, acceptable: 0, risky: 0, contraindicated: 0 },
-    ultimosIntentos: [], intentosRecientes: [],
-    ...partial,
-  };
-}
-
-function caseSummary(code: string): SimulationCaseSummary {
-  return {
-    caseVersionId: 1, code, title: code, description: '', semanticVersion: '1.0.0',
-    nodeCount: 1, status: 'PUBLISHED',
-  };
-}
-
-function adminUser(activo: boolean): AdminUser {
-  return { id: 1, nombre: 'Ada', apellido: 'Lovelace', email: 'ada@example.test', role: 'ESTUDIANTE', activo };
-}
-
-function ownAttempt(partial: Partial<StudentAttemptSummary> = {}): StudentAttemptSummary {
-  return {
-    attemptId: 'own-1', caseVersionId: 7, caseTitle: 'Caso propio', status: 'IN_PROGRESS',
-    totalDurationSeconds: null, activeDurationSeconds: null, startedAt: '2026-09-01T10:00:00Z', endedAt: null,
-    ...partial,
-  };
-}
-
-function metricValue(component: DashboardComponent, label: string): string | undefined {
-  return component.metrics().find(metric => metric.label === label)?.value;
-}
-
-describe('DashboardComponent', () => {
-  // Las garantías del estudiante (cero como 0, «Sin datos» si falla una carga, interrumpido ≠ completado, un solo
-  // «Continuar», nada ofrecido mientras carga) viven desde el plan visual F5-1 en student-dashboard.component.spec.
-  // req: RNF-04
-  describe('estudiante', () => {
-    it('pinta el panel del estudiante y no carga nada por su cuenta', async () => {
-      const attemptHistory = vi.fn();
-      TestBed.configureTestingModule({
-        providers: [
-          provideZonelessChangeDetection(), provideRouter([]),
-          { provide: AuthService, useValue: { hasRole: (...roles: string[]) => roles.includes('ESTUDIANTE') } },
-          { provide: ReporteService, useValue: {} },
-          { provide: SimulationService, useValue: { attemptHistory, listCases: vi.fn() } },
-          { provide: InstructorApi, useValue: {} },
-          { provide: UserAdminService, useValue: {} },
-          { provide: GrupoService, useValue: {} },
-        ],
-      });
-      TestBed.overrideComponent(DashboardComponent, {
-        remove: { imports: [StudentDashboardComponent] }, add: { imports: [StudentDashboardStub] },
-      });
-      const fixture = TestBed.createComponent(DashboardComponent);
-      await fixture.whenStable();
-      const host = fixture.nativeElement as HTMLElement;
-
-      expect(host.querySelector('app-student-dashboard')).not.toBeNull();
-      expect(host.querySelector('.td-stats, ui-stat')).toBeNull();
-      expect(attemptHistory).not.toHaveBeenCalled();
-    });
+  it('pide la bandeja filtrada y publica el total, no el tamaño de la página', () => {
+    const fixture = TestBed.createComponent(DashboardComponent); fixture.detectChanges();
+    expect(instructor.listAttempts).toHaveBeenCalledWith({ evaluacion: 'pendiente', pageSize: 5 });
+    expect(badges.fijar).toHaveBeenCalledWith('trazabilidad', 12);
+    expect(fixture.componentInstance.grupos()[0].avances[2]).toBe(1);
+    expect(fixture.componentInstance.totalRevision()).toBe(12);
   });
-
-  // Las cifras del profesor y de administración salen de `metrics()`: es la ÚNICA fuente (antes también salían de una
-  // tarjeta de estado que repetía tres de cuatro). El plan visual F7-1 la retira.
-  describe('cifras del profesor', () => {
-    it('muestra los conteos en cero como 0', () => {
-      const component = createDashboard('PROFESOR');
-      component.loading.set(false);
-
-      expect(metricValue(component, 'Grupos activos')).toBe('0');
-      expect(metricValue(component, 'Estudiantes asignados')).toBe('0');
-      expect(metricValue(component, 'Intentos recientes')).toBe('0');
-    });
-
-    it('«Revisar rúbricas» lleva a Rúbricas', () => {
-      const component = createDashboard('PROFESOR');
-
-      const rubricas = component.quickActions().find(action => action.label === 'Revisar rúbricas');
-      expect(rubricas?.route).toBe('/portal/rubricas');
-    });
+  it('conserva errores parciales y los limpia al reintentar', () => {
+    instructor.listAttempts.mockReturnValue(throwError(() => new Error('sin red')));
+    groups.listar.mockReturnValue(throwError(() => new Error('sin red')));
+    const fixture = TestBed.createComponent(DashboardComponent); fixture.detectChanges();
+    expect([...fixture.componentInstance.failedSources()]).toEqual(expect.arrayContaining(['revision', 'grupos']));
+    expect(fixture.componentInstance.casosEdicion()).toHaveLength(1);
+    instructor.listAttempts.mockReturnValue(of(pagina)); groups.listar.mockReturnValue(of([]));
+    fixture.componentInstance.reload();
+    expect(fixture.componentInstance.failedSources().size).toBe(0);
   });
-
-  describe('cifras de administración', () => {
-    it('muestra los conteos en cero como 0', () => {
-      const component = createDashboard('ADMIN');
-      component.loading.set(false);
-
-      expect(metricValue(component, 'Total de usuarios')).toBe('0');
-      expect(metricValue(component, 'Casos publicados')).toBe('0');
-      expect(metricValue(component, 'Simulaciones completadas')).toBe('0');
-      expect(metricValue(component, 'Intentos recientes')).toBe('0');
-    });
+  it('admin cuenta las tres fuentes y escribe solo solicitudes y cuentas en la insignia', () => {
+    role = 'ADMIN'; const fixture = TestBed.createComponent(DashboardComponent); fixture.detectChanges();
+    expect(fixture.componentInstance.totalAdmin()).toBe(3);
+    expect(badges.fijar).toHaveBeenCalledWith('usuarios', 2);
+    expect(fixture.componentInstance.descripcion()).toContain('3 cosas');
   });
-
-  describe('cargas fallidas: «Sin datos» y no un cero falso', () => {
-    it('profesor: si falla el panel, todos los conteos que dependen de él muestran «Sin datos»', () => {
-      const component = createDashboard('PROFESOR', {
-        reporte: { getDashboard: httpFailure },
-        grupos: { listar: () => of([]) },
-      });
-      component.ngOnInit();
-
-      expect(component.error()).toBe(true);
-      expect(metricValue(component, 'Grupos activos')).toBe('Sin datos');
-      expect(metricValue(component, 'Estudiantes asignados')).toBe('Sin datos');
-      expect(metricValue(component, 'Intentos recientes')).toBe('Sin datos');
-      expect(metricValue(component, 'Simulaciones completadas')).toBe('Sin datos');
-      expect(metricValue(component, 'Decisiones críticas')).toBe('Sin datos');
-      expect(metricValue(component, 'Casos asignados')).toBe('Sin datos');
-    });
-
-    it('profesor: si solo fallan los grupos, solo los conteos de grupos pierden el dato', () => {
-      const component = createDashboard('PROFESOR', {
-        reporte: { getDashboard: () => of(dashboardData({ simulacionesCompletadas: 4 })) },
-        grupos: { listar: httpFailure },
-      });
-      component.ngOnInit();
-
-      expect(component.error()).toBe(false);
-      expect(metricValue(component, 'Grupos activos')).toBe('Sin datos');
-      expect(metricValue(component, 'Estudiantes asignados')).toBe('Sin datos');
-      expect(metricValue(component, 'Intentos recientes')).toBe('0');
-      expect(metricValue(component, 'Simulaciones completadas')).toBe('4');
-    });
-
-    it('profesor: con las cargas correctas y datos vacíos, el 0 sigue siendo 0', () => {
-      const component = createDashboard('PROFESOR', {
-        reporte: { getDashboard: () => of(dashboardData()) },
-        grupos: { listar: () => of([]) },
-      });
-      component.ngOnInit();
-
-      expect(metricValue(component, 'Grupos activos')).toBe('0');
-      expect(metricValue(component, 'Estudiantes asignados')).toBe('0');
-      expect(metricValue(component, 'Simulaciones completadas')).toBe('0');
-      expect(metricValue(component, 'Decisiones críticas')).toBe('0');
-    });
-
-    it('administración: si falla todo, ningún conteo se muestra como 0', () => {
-      const component = createDashboard('ADMIN', {
-        reporte: { getDashboard: httpFailure },
-        users: { list: httpFailure },
-        simulation: { listCases: httpFailure, recentAttempts: httpFailure, attemptHistory: () => of([]) },
-      });
-      component.ngOnInit();
-
-      expect(component.error()).toBe(true);
-      expect(metricValue(component, 'Total de usuarios')).toBe('Sin datos');
-      expect(metricValue(component, 'Casos publicados')).toBe('Sin datos');
-      expect(metricValue(component, 'Simulaciones completadas')).toBe('Sin datos');
-      expect(metricValue(component, 'Intentos recientes')).toBe('Sin datos');
-      expect(metricValue(component, 'Simulaciones en curso')).toBe('Sin datos');
-    });
-
-    it('administración: si falla solo la lista de usuarios, solo los conteos de usuarios pierden el dato', () => {
-      const component = createDashboard('ADMIN', {
-        reporte: { getDashboard: () => of(dashboardData({ simulacionesCompletadas: 3 })) },
-        users: { list: httpFailure },
-        simulation: {
-          listCases: () => of([caseSummary('C1'), caseSummary('C2')]), recentAttempts: () => of([]),
-          attemptHistory: () => of([]),
-        },
-      });
-      component.ngOnInit();
-
-      expect(component.error()).toBe(false);
-      expect(metricValue(component, 'Total de usuarios')).toBe('Sin datos');
-      expect(metricValue(component, 'Estudiantes activos')).toBe('Sin datos');
-      expect(metricValue(component, 'Profesores activos')).toBe('Sin datos');
-      expect(metricValue(component, 'Casos publicados')).toBe('2');
-      expect(metricValue(component, 'Simulaciones completadas')).toBe('3');
-    });
-
-    it('administración: si falla solo el catálogo de casos, solo «Casos publicados» pierde el dato', () => {
-      const component = createDashboard('ADMIN', {
-        reporte: { getDashboard: () => of(dashboardData({ simulacionesCompletadas: 3 })) },
-        users: { list: () => of([]) },
-        simulation: { listCases: httpFailure, recentAttempts: () => of([]), attemptHistory: () => of([]) },
-      });
-      component.ngOnInit();
-
-      expect(metricValue(component, 'Casos publicados')).toBe('Sin datos');
-      expect(metricValue(component, 'Simulaciones completadas')).toBe('3');
-      expect(metricValue(component, 'Total de usuarios')).toBe('0');
-    });
-
-    it('administración: si falla solo el panel, solo sus conteos pierden el dato', () => {
-      const component = createDashboard('ADMIN', {
-        reporte: { getDashboard: httpFailure },
-        users: { list: () => of([adminUser(true)]) },
-        simulation: { listCases: () => of([caseSummary('C1')]), recentAttempts: () => of([]), attemptHistory: () => of([]) },
-      });
-      component.ngOnInit();
-
-      expect(component.dashboard()).toBeNull();
-      expect(component.error()).toBe(false);
-      expect(metricValue(component, 'Simulaciones completadas')).toBe('Sin datos');
-      expect(metricValue(component, 'Decisiones críticas')).toBe('Sin datos');
-      expect(metricValue(component, 'Simulaciones en curso')).toBe('Sin datos');
-      expect(metricValue(component, 'Casos publicados')).toBe('1');
-      expect(metricValue(component, 'Total de usuarios')).toBe('1');
-      expect(metricValue(component, 'Intentos recientes')).toBe('0');
-    });
-
-    it('administración: con todas las cargas correctas y datos vacíos, el 0 sigue siendo 0', () => {
-      const component = createDashboard('ADMIN', {
-        reporte: { getDashboard: () => of(dashboardData()) },
-        users: { list: () => of([]) },
-        simulation: { listCases: () => of([]), recentAttempts: () => of([]), attemptHistory: () => of([]) },
-      });
-      component.ngOnInit();
-
-      expect(metricValue(component, 'Total de usuarios')).toBe('0');
-      expect(metricValue(component, 'Casos publicados')).toBe('0');
-      expect(metricValue(component, 'Simulaciones completadas')).toBe('0');
-      expect(metricValue(component, 'Intentos recientes')).toBe('0');
-      expect(metricValue(component, 'Decisiones críticas')).toBe('0');
-    });
+  it('no presenta un total parcial como insignia completa', () => {
+    role = 'ADMIN'; requests.listPending.mockReturnValue(throwError(() => new Error('sin red')));
+    const fixture = TestBed.createComponent(DashboardComponent); fixture.detectChanges();
+    expect(fixture.componentInstance.failedSources().has('solicitudes')).toBe(true);
+    expect(badges.fijar).toHaveBeenCalledWith('usuarios', 0);
+    expect(fixture.componentInstance.descripcion()).toContain('fuentes disponibles');
   });
-
-  // ── En DOM (plan visual F7-1) ──────────────────────────────────────────────────────────────────────────────────
-  // req: RNF-04, BLOQUE-H, RQ-NEG-006
-  describe('plantilla de docencia y administración', () => {
-    let fixture: ComponentFixture<DashboardComponent>;
-    const host = () => fixture.nativeElement as HTMLElement;
-    const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    /** Lo que se lee de un elemento: sin lo decorativo (aria-hidden, p. ej. la ligadura del icono). */
-    const spoken = (el: Element) => {
-      const copy = el.cloneNode(true) as Element;
-      copy.querySelectorAll('[aria-hidden="true"]').forEach(node => node.remove());
-      return text(copy);
-    };
-
-    interface Api {
-      reporte: { getDashboard: () => Observable<Dashboard> };
-      history: () => Observable<StudentAttemptSummary[]>;
-      grupos: { listar: () => Observable<unknown[]> };
-      users: { list: () => Observable<AdminUser[]> };
-      cases: () => Observable<SimulationCaseSummary[]>;
-      recent: () => Observable<unknown[]>;
-    }
-
-    async function render(role: Role, api: Partial<Api> = {}, { stable = true } = {}) {
-      const resolved: Api = {
-        reporte: { getDashboard: () => of(dashboardData()) },
-        history: () => of([]),
-        grupos: { listar: () => of([{ id: 1, nombre: 'Grupo A', codigo: 'GA', totalEstudiantes: 12 }]) },
-        users: { list: () => of([adminUser(true)]) },
-        cases: () => of([caseSummary('C1')]),
-        recent: () => of([]),
-        ...api,
-      };
-      TestBed.configureTestingModule({
-        providers: [
-          provideZonelessChangeDetection(), provideRouter([]),
-          { provide: AuthService, useValue: { hasRole: (...roles: string[]) => roles.includes(role) } },
-          { provide: ReporteService, useValue: resolved.reporte },
-          { provide: SimulationService, useValue: { attemptHistory: resolved.history, listCases: resolved.cases } },
-          { provide: InstructorApi, useValue: { recentAttempts: resolved.recent } },
-          { provide: UserAdminService, useValue: resolved.users },
-          { provide: GrupoService, useValue: resolved.grupos },
-        ],
-      });
-      fixture = TestBed.createComponent(DashboardComponent);
-      if (stable) await fixture.whenStable();
-      else fixture.detectChanges();
-    }
-
-    afterEach(() => vi.useRealTimers());
-
-    it('un solo h1 y cada acceso una sola vez (antes salían tres veces: cabecera, tarjeta de estado y acciones rápidas)', async () => {
-      await render('PROFESOR');
-      expect(host().querySelectorAll('h1')).toHaveLength(1);
-      expect(text(host().querySelector('h1'))).toBe('Seguimiento de tus grupos');
-
-      const hrefs = [...host().querySelectorAll('a[href]')].map(link => link.getAttribute('href'));
-      for (const route of ['/portal/docente/trazabilidad', '/portal/rubricas', '/portal/reportes', '/portal/grupos']) {
-        expect(hrefs.filter(href => href === route), route).toHaveLength(1);
-      }
-    });
-
-    it('cada cifra aparece una vez y el 0 se muestra como 0', async () => {
-      await render('PROFESOR');
-      const labels = [...host().querySelectorAll('.ui-stat__label')].map(text);
-      expect(new Set(labels).size).toBe(labels.length);
-      expect(labels).toEqual([
-        'Grupos activos', 'Estudiantes asignados', 'Intentos recientes', 'Casos asignados',
-        'Simulaciones completadas', 'Decisiones críticas',
-      ]);
-      const stat = (label: string) => [...host().querySelectorAll('ui-stat')]
-        .find(el => text(el.querySelector('.ui-stat__label')) === label);
-      expect(text(stat('Grupos activos')!.querySelector('.ui-stat__value'))).toBe('1');
-      expect(text(stat('Estudiantes asignados')!.querySelector('.ui-stat__value'))).toBe('12');
-      expect(text(stat('Decisiones críticas')!.querySelector('.ui-stat__value'))).toBe('0');
-    });
-
-    // req: modelo de métricas
-    it('el panel del docente no muestra puntaje ni promedios: la tabla de intentos trae caso, estudiante, estado y detalle', async () => {
-      await render('PROFESOR', {
-        reporte: {
-          getDashboard: () => of(dashboardData({
-            simulacionesCompletadas: 1,
-            intentosRecientes: [{ id: 'a-1', casoTitulo: 'Caso 1', estudiante: 'Ana', estado: 'COMPLETED' }],
-          })),
-        },
-      });
-      expect(text(host())).not.toMatch(/Puntaje|Promedio de desempeño|Desempeño por estudiante|Pendiente/);
-      const headers = [...host().querySelectorAll('thead th')].map(text);
-      expect(headers).toEqual(['Caso', 'Estudiante', 'Estado', 'Detalle']);
-      const cells = [...host().querySelectorAll('tbody tr:first-child td')].map(text);
-      expect(cells.slice(0, 3)).toEqual(['Caso 1', 'Ana', 'Completado']);
-    });
-
-    it('la gráfica de decisiones cuenta cada clase con su palabra y no compara estudiantes', async () => {
-      await render('PROFESOR', {
-        reporte: {
-          getDashboard: () => of(dashboardData({ decisiones: { recommended: 7, acceptable: 3, risky: 2, contraindicated: 1 } })),
-        },
-      });
-      const chart = [...host().querySelectorAll('.dc-chart')].find(card => text(card.querySelector('h3')) === 'Decisiones por clase')!;
-      expect(chart).toBeDefined();
-      const bars = [...chart.querySelectorAll('.dc-bar')].map(bar => [text(bar.querySelector('.dc-bar__label')), text(bar.querySelector('.dc-bar__value'))]);
-      expect(bars).toEqual([['Recomendada', '7'], ['Aceptable', '3'], ['Con riesgo', '2'], ['Contraindicada', '1']]);
-      // «Decisiones críticas» cuenta las de clase Con riesgo y Contraindicada (2 + 1).
-      const critical = [...host().querySelectorAll('ui-stat')].find(el => text(el.querySelector('.ui-stat__label')) === 'Decisiones críticas')!;
-      expect(text(critical.querySelector('.ui-stat__value'))).toBe('3');
-    });
-
-    it('«Ver detalle» lleva al intento de esa fila, no a la lista general', async () => {
-      await render('PROFESOR', {
-        reporte: {
-          getDashboard: () => of(dashboardData({
-            intentosRecientes: [
-              { id: 'a-1', casoTitulo: 'Caso 1', estudiante: 'Ana', estado: 'COMPLETED' },
-              { id: 'a-2', casoTitulo: 'Caso 2', estudiante: 'Beto', estado: 'IN_PROGRESS' },
-            ],
-          })),
-        },
-      });
-      const rows = [...host().querySelectorAll('tbody tr')];
-      expect(rows).toHaveLength(2);
-      const links = rows.map(row => row.querySelector('a')?.getAttribute('href'));
-      expect(links).toEqual([
-        '/portal/docente/trazabilidad?intento=a-1',
-        '/portal/docente/trazabilidad?intento=a-2',
-      ]);
-      // El nombre accesible empieza por el texto visible (2.5.3) y dice de quién es el intento.
-      const first = rows[0].querySelector('a')!;
-      expect(spoken(first)).toBe('Ver detalle');
-      expect(first.getAttribute('aria-label')).toMatch(/^Ver detalle/);
-      expect(first.getAttribute('aria-label')).toContain('Ana');
-    });
-
-    // req: ED-5 (E2: el ADMIN no juega; desde entonces nadie del personal tiene intento propio que retomar)
-    it('nunca ofrece continuar un intento: ni el de OTRA persona ni uno propio del administrador (ED-5)', async () => {
-      const others = dashboardData({
-        intentosRecientes: [{ id: 'x', casoTitulo: 'Caso de otra', estudiante: 'Carla', estado: 'IN_PROGRESS' }],
-      });
-      await render('ADMIN', {
-        reporte: { getDashboard: () => of(others) },
-        history: () => of([ownAttempt({ caseTitle: 'Caso propio', caseVersionId: 7 })]),
-      });
-      // La tabla de «Intentos recientes» sí lista el intento de otra persona; lo que no puede salir es la tarjeta
-      // «Retoma tu caso» ni un acceso a continuar nada.
-      expect(host().querySelector('.td-continue')).toBeNull();
-      expect(host().textContent).not.toContain('Retoma tu caso');
-      expect(host().querySelector('a[href^="/portal/simulador/"]')).toBeNull();
-      expect(host().textContent).not.toMatch(/Continuar (entrenamiento|simulación)/);
-    });
-
-    it('ni el docente ni el administrador piden un historial propio (el servidor se lo niega con 403 a los dos desde E2 y saldría un aviso de permiso en cada carga)', async () => {
-      const teacherHistory = vi.fn(() => of([] as StudentAttemptSummary[]));
-      await render('PROFESOR', { history: teacherHistory });
-      expect(teacherHistory).not.toHaveBeenCalled();
-
-      TestBed.resetTestingModule();
-      const adminHistory = vi.fn(() => of([] as StudentAttemptSummary[]));
-      await render('ADMIN', { history: adminHistory });
-      expect(adminHistory).not.toHaveBeenCalled();
-    });
-
-    it('una sola señal de carga: esqueleto con aria-busy y el estado leído; ninguna cifra mientras tanto', async () => {
-      vi.useFakeTimers();
-      const loading = new Subject<Dashboard>();
-      await render('PROFESOR', { reporte: { getDashboard: () => loading } }, { stable: false });
-      await vi.advanceTimersByTimeAsync(200);
-      fixture.detectChanges();
-
-      expect(host().querySelectorAll('[aria-busy="true"]').length).toBeGreaterThan(0);
-      expect(host().querySelectorAll('ui-skeleton').length).toBeGreaterThan(0);
-      expect(host().querySelectorAll('ui-stat')).toHaveLength(0);
-      expect(text(host().querySelector('[role="status"].ds-sr-only'))).toBe('Cargando el panel…');
-      expect(host().querySelector('.dashboard-loading-banner')).toBeNull();
-
-      loading.next(dashboardData());
-      loading.complete();
-      await vi.advanceTimersByTimeAsync(400);
-      fixture.detectChanges();
-      expect(host().querySelectorAll('ui-skeleton')).toHaveLength(0);
-      expect(text(host().querySelector('[role="status"].ds-sr-only'))).toBe('');
-    });
-
-    it('si falla el panel: UN error con «Reintentar» que vuelve a pedirlo, y ninguna cifra en 0', async () => {
-      let calls = 0;
-      await render('PROFESOR', {
-        reporte: { getDashboard: () => (++calls === 1 ? httpFailure() : of(dashboardData())) },
-      });
-      const errors = host().querySelectorAll('ui-error-state');
-      expect(errors).toHaveLength(1);
-      expect(text(errors[0])).toContain('No pudimos cargar el panel.');
-      expect(host().querySelectorAll('ui-stat')).toHaveLength(0);
-      expect(host().querySelector('ui-empty-state')).toBeNull();
-
-      (errors[0].querySelector('button') as HTMLButtonElement).click();
-      await fixture.whenStable();
-      expect(calls).toBe(2);
-      expect(host().querySelector('ui-error-state')).toBeNull();
-      expect(host().querySelectorAll('ui-stat').length).toBeGreaterThan(0);
-    });
-
-    it('primer uso del docente: «Aún no tienes grupos» con «Crear grupo», que lleva a Grupos', async () => {
-      await render('PROFESOR', { grupos: { listar: () => of([]) } });
-      const empty = host().querySelector('ui-empty-state');
-      expect(empty).not.toBeNull();
-      expect(text(empty)).toContain('Aún no tienes grupos');
-      expect(host().querySelectorAll('ui-stat')).toHaveLength(0);
-
-      const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
-      (empty!.querySelector('button') as HTMLButtonElement).click();
-      expect(navigate).toHaveBeenCalledWith('/portal/grupos');
-    });
-
-    it('sin restos del diseño anterior: nada de pixel-*, barras con aria sin rol ni estados sin forma', async () => {
-      await render('PROFESOR', {
-        reporte: {
-          getDashboard: () => of(dashboardData({
-            simulacionesEnProgreso: 2, decisiones: { recommended: 0, acceptable: 0, risky: 1, contraindicated: 0 },
-            intentosRecientes: [{ id: 'a-1', casoTitulo: 'Caso 1', estudiante: 'Ana', estado: 'IN_PROGRESS' }],
-          })),
-        },
-      });
-      expect(host().querySelector('[class*="pixel-"], .psy-skeleton, mat-table, table[mat-table]')).toBeNull();
-      // Los estados de «Lectura docente» son insignias de la biblioteca (texto y tono), no una cápsula de color propia.
-      expect(host().querySelector('.learning-gap-card__status')).toBeNull();
-      expect(host().querySelectorAll('.td-gap ui-badge').length).toBeGreaterThan(0);
-      // Ningún elemento lleva aria-label sin un rol que lo admita (la causa del aria-prohibited-attr de Axe).
-      const unnamed = [...host().querySelectorAll('[aria-label]')].filter(el => {
-        const role = el.getAttribute('role');
-        return !role && !['A', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA', 'NAV', 'SECTION', 'ASIDE', 'FORM', 'TABLE', 'UL', 'OL', 'SVG', 'UI-TABLE'].includes(el.tagName.toUpperCase());
-      });
-      expect(unnamed.map(el => el.tagName + '.' + el.className)).toEqual([]);
-    });
+  it('dice el avance del grupo en palabras y sin plural equivocado', () => {
+    const c = TestBed.createComponent(DashboardComponent).componentInstance;
+    expect(c.avanceTexto(1, 1)).toBe('1 de 1 terminó');
+    expect(c.avanceTexto(4, 12)).toBe('4 de 12 terminaron');
+    expect(c.avanceTexto(0, 0)).toBe('Aún sin estudiantes en el grupo');
+    expect(c.avanceTexto(null, 3)).toBe('Avance no disponible');
+    expect(c.cantidad(1, 'estudiante', 'estudiantes')).toBe('1 estudiante');
+  });
+  it('admin descarta una solicitud desde el inicio y la insignia baja', () => {
+    role = 'ADMIN'; const fixture = TestBed.createComponent(DashboardComponent); fixture.detectChanges();
+    fixture.componentInstance.descartar(fixture.componentInstance.solicitudes()[0]);
+    expect(requests.updateStatus).toHaveBeenCalledWith(1, 'DISMISSED');
+    expect(fixture.componentInstance.solicitudes()).toHaveLength(0);
+    expect(badges.fijar).toHaveBeenLastCalledWith('usuarios', 1);
+    expect(notify.success).toHaveBeenCalled();
+  });
+  it('si descartar falla, la solicitud sigue en la lista y se avisa', () => {
+    role = 'ADMIN'; requests.updateStatus.mockReturnValue(throwError(() => new Error('x')));
+    const fixture = TestBed.createComponent(DashboardComponent); fixture.detectChanges();
+    fixture.componentInstance.descartar(fixture.componentInstance.solicitudes()[0]);
+    expect(fixture.componentInstance.solicitudes()).toHaveLength(1);
+    expect(notify.error).toHaveBeenCalled();
+    expect(fixture.componentInstance.descartando()).toBeNull();
   });
 });

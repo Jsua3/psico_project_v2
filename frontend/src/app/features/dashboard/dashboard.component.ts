@@ -1,431 +1,144 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { Observable, forkJoin, of } from 'rxjs';
+import { forkJoin, of, switchMap } from 'rxjs';
 import { catchError } from 'rxjs/operators';
-import { GrupoService, Grupo } from '../../core/api/grupo.service';
-import { ReporteService } from '../../core/api/reporte.service';
+import { AccessRequest, AccessRequestAdminService } from '../../core/api/access-request-admin.service';
+import { AssignmentService } from '../../core/api/assignment.service';
+import { AuthoringApi } from '../../core/api/authoring.api';
+import { Grupo, GrupoService } from '../../core/api/grupo.service';
 import { InstructorApi } from '../../core/api/instructor.api';
-import { SimulationService } from '../../core/api/simulation.service';
+import { ReporteService } from '../../core/api/reporte.service';
 import { AdminUser, UserAdminService } from '../../core/api/user-admin.service';
 import { AuthService } from '../../core/auth/auth.service';
-import { APP_BRAND } from '../../core/config/brand.config';
-import { Dashboard } from '../../core/models/sesion.model';
-import { RecentAttempt, SimulationCaseSummary } from '../../core/models/simulation.model';
-import { UiBadge, UiBadgeTone } from '../../shared/ui/badge/ui-badge';
+import { Assignment } from '../../core/models/assignment.model';
+import { InstructorAttemptsPage, SimulationCaseSummary } from '../../core/models/simulation.model';
+import { haceCuanto } from '../simulator/trace-labels.util';
+import { NavBadgesService } from '../../shared/layout/nav-badges.service';
+import { NotificationService } from '../../core/notifications/notification.service';
 import { UiButton } from '../../shared/ui/button/ui-button';
-import { UiCard } from '../../shared/ui/card/ui-card';
+import { UiProgress } from '../../shared/ui/progress/ui-progress';
 import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
-import { UiSection } from '../../shared/ui/section/ui-section';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
-import { UiStat } from '../../shared/ui/stat/ui-stat';
 import { uiDataState } from '../../shared/ui/state/ui-data-state';
 import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
-import { UiTable, UiTableEmpty, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
-import { DashboardChartsComponent } from './dashboard-charts.component';
-import { NO_DATA_LABEL, attemptStateLabel, metricDisplay } from './dashboard-metrics.util';
-import { QuickAction, QuickActionsComponent } from './quick-actions.component';
 import { StudentDashboardComponent } from './student-dashboard.component';
 
-/** Cada carga de la que depende algún conteo del tablero (docencia y administración). */
-type DashboardSource = 'dashboard' | 'users' | 'cases' | 'recent' | 'grupos';
+type Source = 'revision' | 'grupos' | 'casos' | 'solicitudes' | 'usuarios';
+interface GrupoVista { grupo: Grupo; asignaciones: Assignment[] | null; avances: Record<number, number | null>; }
 
-interface DashboardMetric {
-  value: string;
-  label: string;
-  /** Aclaración bajo la cifra (qué cuenta o por qué no hay dato). */
-  status: string;
-}
-
-interface LearningGap {
-  titulo: string;
-  texto: string;
-  estado: string;
-  tone: UiBadgeTone;
-}
-
-/** Ruta de la traza docente: «Ver detalle» abre el intento de la fila (F7-1), no la lista general. */
-const TRACE_ROUTE = '/portal/docente/trazabilidad';
-
-/**
- * Panel de inicio. El estudiante tiene el suyo (`app-student-dashboard`, plan visual F5-1); este componente pinta el
- * de docencia y administración (F7-1): una cabecera, UN bloque que resuelve sus cuatro estados de a uno
- * (`uiDataState`: esqueleto, error con «Reintentar», primer uso o el contenido), cada cifra una sola vez y cada
- * destino una sola vez (antes salían tres: cabecera, tarjeta de estado y acciones rápidas). Nunca ofrece continuar un
- * intento: desde E2 (ED-5) ni el docente ni el administrador juegan («Retoma tu caso» del administrador se retiró).
- */
 @Component({
   selector: 'app-dashboard',
-  imports: [
-    RouterLink, UiBadge, UiButton, UiCard, UiEmptyState, UiErrorState, UiPageHeader, UiSection, UiSkeleton, UiStat,
-    UiTable, UiTableEmpty, UiTableRow, UiTableTable, DashboardChartsComponent, QuickActionsComponent,
-    StudentDashboardComponent,
-  ],
-  templateUrl: './dashboard.component.html',
-  changeDetection: ChangeDetectionStrategy.Eager,
-  styleUrl: './dashboard.component.scss'
+  imports: [RouterLink, UiButton, UiProgress, UiPageHeader, UiSkeleton, UiEmptyState, UiErrorState, StudentDashboardComponent],
+  templateUrl: './dashboard.component.html', styleUrl: './dashboard.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DashboardComponent implements OnInit {
-  readonly brand = APP_BRAND;
   readonly auth = inject(AuthService);
-  private readonly reporteService = inject(ReporteService);
-  private readonly simulationService = inject(SimulationService);
-  private readonly instructorApi = inject(InstructorApi);
-  private readonly userAdminService = inject(UserAdminService);
-  private readonly grupoService = inject(GrupoService);
+  private readonly instructor = inject(InstructorApi);
+  private readonly gruposApi = inject(GrupoService);
+  private readonly asignacionesApi = inject(AssignmentService);
+  private readonly reportes = inject(ReporteService);
+  private readonly autoria = inject(AuthoringApi);
+  private readonly usuariosApi = inject(UserAdminService);
+  private readonly solicitudesApi = inject(AccessRequestAdminService);
+  private readonly badges = inject(NavBadgesService);
   private readonly router = inject(Router);
-
-  readonly dashboard = signal<Dashboard | null>(null);
-  readonly adminUsers = signal<AdminUser[]>([]);
-  readonly grupos = signal<Grupo[]>([]);
-  readonly simulationCases = signal<SimulationCaseSummary[]>([]);
-  readonly recentAttempts = signal<RecentAttempt[]>([]);
+  private readonly notify = inject(NotificationService);
+  /** Solicitud que se está descartando, para no mandar dos veces el mismo cambio. */
+  readonly descartando = signal<number | null>(null);
   readonly loading = signal(true);
   readonly error = signal(false);
-  /** Cargas secundarias que fallaron sin tumbar el tablero: sus conteos no se pueden mostrar. */
-  private readonly failedSources = signal<ReadonlySet<DashboardSource>>(new Set());
-
-  readonly traceRoute = TRACE_ROUTE;
-
-  /** Primer uso: sin grupos ni intentos (docencia) o sin usuarios, casos ni intentos (administración). */
-  protected readonly firstUse = computed(() => {
-    if (this.loading() || this.error() || this.failedSources().size > 0) return false;
-    const attempts = (this.dashboard()?.intentosRecientes?.length ?? 0) + this.recentAttempts().length;
-    if (this.isAdmin()) return this.adminUsers().length === 0 && this.simulationCases().length === 0 && attempts === 0;
-    return this.grupos().length === 0 && attempts === 0;
+  readonly failedSources = signal<ReadonlySet<Source>>(new Set());
+  readonly revision = signal<InstructorAttemptsPage | null>(null);
+  readonly grupos = signal<GrupoVista[]>([]);
+  readonly casos = signal<SimulationCaseSummary[]>([]);
+  readonly solicitudes = signal<AccessRequest[]>([]);
+  readonly usuarios = signal<AdminUser[]>([]);
+  readonly state = uiDataState({ loading: this.loading, error: this.error, isEmpty: computed(() => false) });
+  readonly cuentasActivas = computed(() => this.usuarios().filter(u => u.activo));
+  contarRol(rol: string): number { return this.cuentasActivas().filter(u => u.role === rol).length; }
+  readonly pendientesCuentas = computed(() => this.usuarios().filter(u => u.pendingApproval).length);
+  readonly casosRevision = computed(() => this.casos().filter(c => c.status === 'IN_REVIEW'));
+  readonly casosEdicion = computed(() => this.casos().filter(c => c.status === 'DRAFT' || c.status === 'IN_REVIEW').slice(0, 3));
+  readonly totalRevision = computed(() => this.revision()?.coverage.total ?? 0);
+  readonly totalAdmin = computed(() => this.solicitudes().length + this.pendientesCuentas() + this.casosRevision().length);
+  readonly titulo = computed(() => `Hola, ${this.auth.currentUser()?.nombre?.trim().split(/\s+/)[0] || 'bienvenido'}`);
+  readonly descripcion = computed(() => {
+    if (this.loading()) return 'Estamos preparando tu inicio.';
+    if (this.isAdmin()) return this.failedSources().size ? 'Consulta las fuentes disponibles.' : this.totalAdmin() ? `Tienes ${this.totalAdmin()} cosas por atender.` : 'Todo al día.';
+    return this.failedSources().has('revision') ? 'No pudimos consultar los recorridos pendientes.' : this.totalRevision() ? `Tienes ${this.totalRevision()} recorridos por revisar.` : 'No tienes nada pendiente por revisar.';
   });
-
-  /** Estado del bloque (esqueleto, error, primer uso o listo): una sola señal, de a uno. */
-  readonly state = uiDataState({ loading: this.loading, error: this.error, isEmpty: this.firstUse });
-  /** Región de estado SIEMPRE presente (una región viva que nace con su texto no se anuncia). */
-  protected readonly statusText = computed(() => (this.state() === 'loading' ? 'Cargando el panel…' : ''));
-
-  ngOnInit() {
-    if (this.auth.hasRole('ESTUDIANTE')) {
-      // El panel del estudiante carga sus propios datos.
-      this.loading.set(false);
-    } else if (this.auth.hasRole('ADMIN')) {
-      this.loadAdminDashboard();
-    } else if (this.auth.hasRole('PROFESOR')) {
-      this.loadProfessorDashboard();
-    } else {
-      this.loading.set(false);
-      this.error.set(true);
-    }
-  }
-
-  /** «Reintentar» del bloque: vuelve a pedir todo lo del panel. */
-  reload(): void {
-    this.error.set(false);
-    this.failedSources.set(new Set());
-    this.loading.set(true);
-    this.ngOnInit();
-  }
-
-  /** La acción del primer uso: llevar a donde se crea lo primero. */
-  goToFirstUse(): void {
-    void this.router.navigateByUrl(this.isAdmin() ? '/portal/admin/usuarios' : '/portal/grupos');
-  }
-
-  firstUseCopy(): { title: string; description: string; action: string } {
-    if (this.isAdmin()) {
-      return {
-        title: 'Aún no hay usuarios',
-        description: 'Crea las cuentas de docentes y estudiantes para empezar a ver aquí su actividad.',
-        action: 'Crear usuario',
-      };
-    }
-    return {
-      title: 'Aún no tienes grupos',
-      description: 'Crea tu primer grupo, agrega estudiantes y asígnales un caso para ver aquí su avance.',
-      action: 'Crear grupo',
-    };
-  }
-
-  isAdmin(): boolean {
-    return this.auth.hasRole('ADMIN');
-  }
-
-  isProfesor(): boolean {
-    return this.auth.hasRole('PROFESOR');
-  }
-
-  isEstudiante(): boolean {
-    return this.auth.hasRole('ESTUDIANTE');
-  }
-
-  chartsRole(): 'ADMIN' | 'PROFESOR' {
-    return this.isAdmin() ? 'ADMIN' : 'PROFESOR';
-  }
-
-  hasData(): boolean {
-    return !!this.dashboard() && !this.error();
-  }
-
-  metrics(): DashboardMetric[] {
-    if (this.isAdmin()) return this.adminMetrics();
-    if (this.isProfesor()) return this.professorMetrics();
-    return [];
-  }
-
-  quickActions(): QuickAction[] {
-    if (this.isAdmin()) {
-      return [
-        { label: 'Gestión de usuarios', route: '/portal/admin/usuarios', icon: 'manage_accounts', accent: true },
-        { label: 'Gestión de casos', route: '/portal/casos', icon: 'account_tree' },
-        { label: 'Trazabilidad', route: TRACE_ROUTE, icon: 'timeline' }
-      ];
-    }
-    if (this.isProfesor()) {
-      return [
-        { label: 'Ver trazabilidad', route: TRACE_ROUTE, icon: 'timeline', accent: true },
-        { label: 'Revisar rúbricas', route: '/portal/rubricas', icon: 'grading' },
-        { label: 'Ver reportes', route: '/portal/reportes', icon: 'analytics' },
-        { label: 'Gestionar grupos', route: '/portal/grupos', icon: 'groups' }
-      ];
-    }
-    return [];
-  }
-
-  eyebrow(): string {
-    return this.isAdmin() ? `Administración · ${this.brand.shortName}` : `Seguimiento docente · ${this.brand.shortName}`;
-  }
-
-  heroTitle(): string {
-    return this.isAdmin() ? 'Panel de administración académica' : 'Seguimiento de tus grupos';
-  }
-
-  heroLead(): string {
-    if (this.isAdmin()) {
-      return 'Supervisa usuarios, casos publicados, simulaciones y el estado general del sistema formativo.';
-    }
-    return 'Revisa el avance de tus cohortes, detecta brechas formativas y accede a trazabilidad docente.';
-  }
-
-  adminMetrics(): DashboardMetric[] {
-    const users = this.adminUsers();
-    const data = this.dashboard();
-    const published = this.publishedCasesCount();
-    const criticas = this.criticalDecisions(data);
-
-    const totalUsers = users.length;
-    const activeStudents = users.filter(u => u.role === 'ESTUDIANTE' && u.activo).length;
-    const activeTeachers = users.filter(u => u.role === 'PROFESOR' && u.activo).length;
-    const completed = data?.simulacionesCompletadas ?? 0;
-    const recentCount = data?.intentosRecientes?.length ?? this.recentAttempts().length;
-    const inProgress = data?.simulacionesEnProgreso ?? 0;
-
-    const usersDown = this.unavailable('users');
-    const dashboardDown = this.unavailable('dashboard');
-
-    return [
-      this.metric(totalUsers, 'Total de usuarios', totalUsers > 0 ? 'Registro activo' : 'Sin usuarios', usersDown),
-      this.metric(activeStudents, 'Estudiantes activos', activeStudents > 0 ? 'Cohortes activas' : 'Sin datos suficientes', usersDown),
-      this.metric(activeTeachers, 'Profesores activos', activeTeachers > 0 ? 'Docentes habilitados' : 'Sin datos suficientes', usersDown),
-      this.metric(published, 'Casos publicados', published > 0 ? 'Catálogo publicado' : 'Sin casos publicados', this.unavailable('cases')),
-      this.metric(completed, 'Simulaciones completadas', completed > 0 ? 'Histórico registrado' : 'Aún no hay intentos registrados', dashboardDown),
-      this.metric(recentCount, 'Intentos recientes', recentCount > 0 ? 'Actividad reciente' : 'Aún no hay intentos registrados', this.adminRecentUnavailable(data)),
-      this.metric(criticas, 'Decisiones críticas', criticas > 0 ? 'Requiere revisión' : 'Sin alertas registradas', dashboardDown),
-      this.metric(inProgress, 'Simulaciones en curso', inProgress > 0 ? 'En progreso' : 'Sin simulaciones activas', dashboardDown),
-    ];
-  }
-
-  professorMetrics(): DashboardMetric[] {
-    const data = this.dashboard();
-    const grupos = this.grupos();
-    const assignedStudents = grupos.reduce((sum, g) => sum + (g.totalEstudiantes ?? 0), 0);
-    const casosAsignados = this.uniqueCasesCount(data);
-    const criticas = this.criticalDecisions(data);
-    const recentCount = data?.intentosRecientes?.length ?? 0;
-    const completed = data?.simulacionesCompletadas ?? 0;
-
-    const gruposDown = this.unavailable('grupos');
-    const dashboardDown = this.unavailable('dashboard');
-
-    return [
-      this.metric(grupos.length, 'Grupos activos', grupos.length > 0 ? 'Cohortes asignadas' : 'Sin grupos registrados', gruposDown),
-      this.metric(assignedStudents, 'Estudiantes asignados', assignedStudents > 0 ? 'En tus grupos' : 'Sin estudiantes asignados', gruposDown),
-      this.metric(recentCount, 'Intentos recientes', recentCount > 0 ? 'Últimas sesiones' : 'Aún no hay intentos registrados', dashboardDown),
-      this.metric(casosAsignados, 'Casos asignados', casosAsignados > 0 ? 'Catálogo activo' : 'No hay casos asignados', dashboardDown),
-      this.metric(completed, 'Simulaciones completadas', completed > 0 ? 'Avance registrado' : 'Aún no hay intentos registrados', dashboardDown),
-      this.metric(criticas, 'Decisiones críticas', criticas > 0 ? 'Requiere revisión' : 'Sin alertas registradas', dashboardDown),
-    ];
-  }
-
-  actividadDocenteVacia(): boolean {
-    const data = this.dashboard();
-    if (!data) return true;
-    return (
-      (data.simulacionesCompletadas ?? 0) === 0 &&
-      (data.simulacionesEnProgreso ?? 0) === 0 &&
-      this.decisionCount(data.decisiones, 'recommended') === 0
-    );
-  }
-
-  brechasSinDatosSuficientes(): boolean {
-    return !this.loading() && !this.error() && !this.hasData();
-  }
-
-  brechas(): LearningGap[] {
-    const data = this.dashboard();
-    if (!data) return [];
-
-    const gaps: LearningGap[] = [];
-    const criticas = this.criticalDecisions(data);
-
-    if (criticas > 0) {
-      gaps.push({
-        titulo: 'Decisiones críticas',
-        texto: criticas === 1
-          ? '1 decisión requiere revisión docente.'
-          : `${criticas} decisiones requieren revisión docente.`,
-        estado: 'En revisión',
-        tone: 'warning'
-      });
-    }
-
-    if ((data.simulacionesEnProgreso ?? 0) === 0 && (data.simulacionesCompletadas ?? 0) === 0) {
-      gaps.push({
-        titulo: 'Simulaciones',
-        texto: 'Aún no hay simulaciones registradas en el periodo.',
-        estado: 'Pendiente',
-        tone: 'neutral'
-      });
-    } else if ((data.simulacionesEnProgreso ?? 0) > 0) {
-      gaps.push({
-        titulo: 'Seguimiento activo',
-        texto: data.simulacionesEnProgreso === 1
-          ? '1 simulación en progreso.'
-          : `${data.simulacionesEnProgreso} simulaciones en progreso.`,
-        estado: 'En curso',
-        tone: 'info'
-      });
-    }
-
-    if (!gaps.length) {
-      gaps.push({
-        titulo: 'Sin alertas formativas',
-        texto: 'No hay alertas formativas con los datos actuales.',
-        estado: 'Adecuado',
-        tone: 'success'
-      });
-    }
-
-    return gaps;
-  }
-
-  actividadDocente(): { titulo: string; valor: number | string }[] {
-    const data = this.dashboard();
-    if (!data) return [];
-
-    return [
-      { titulo: 'Simulaciones completadas', valor: data.simulacionesCompletadas ?? 0 },
-      { titulo: 'Simulaciones en progreso', valor: data.simulacionesEnProgreso ?? 0 },
-      { titulo: 'Decisiones recomendadas', valor: this.decisionCount(data.decisiones, 'recommended') }
-    ];
-  }
-
-  rows() {
-    const data = this.dashboard();
-    const source = data?.intentosRecientes ?? [];
-
-    return source.map(item => {
-      const estado = attemptStateLabel(item.estado);
-      return {
-        id: item.id,
-        casoTitulo: item.casoTitulo,
-        estudiante: item.estudiante,
-        estado,
-        tone: (estado === 'Completado' ? 'success' : estado === 'En curso' ? 'info' : 'neutral') as UiBadgeTone,
-      };
-    });
-  }
-
-  private loadAdminDashboard() {
-    forkJoin({
-      dashboard: this.reporteService.getDashboard().pipe(catchError(() => this.sourceFailed<Dashboard | null>('dashboard', null))),
-      users: this.userAdminService.list().pipe(catchError(() => this.sourceFailed('users', [] as AdminUser[]))),
-      cases: this.simulationService.listCases().pipe(catchError(() => this.sourceFailed('cases', [] as SimulationCaseSummary[]))),
-      recent: this.instructorApi.recentAttempts().pipe(catchError(() => this.sourceFailed('recent', [] as RecentAttempt[]))),
-    }).subscribe({
-      next: ({ dashboard, users, cases, recent }) => {
-        this.dashboard.set(dashboard);
-        this.adminUsers.set(users);
-        this.simulationCases.set(cases);
-        this.recentAttempts.set(recent);
-        this.error.set(!dashboard && !users.length);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.error.set(true);
-        this.loading.set(false);
-      }
-    });
-  }
-
-  private loadProfessorDashboard() {
-    // Sin historial propio: ni el docente ni el administrador juegan (ED-5) y el servidor se lo niega (403), lo que
-    // avisaría de un permiso que falta en cada carga del panel. Solo el estudiante tiene intento propio.
-    forkJoin({
-      dashboard: this.reporteService.getDashboard(),
-      grupos: this.grupoService.listar().pipe(catchError(() => this.sourceFailed('grupos', [] as Grupo[]))),
-    }).subscribe({
-      next: ({ dashboard, grupos }) => {
-        this.dashboard.set(dashboard);
-        this.grupos.set(grupos);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.error.set(true);
-        this.loading.set(false);
-      }
-    });
-  }
-
-  /** Anota que una carga falló y devuelve su valor de reserva; sus conteos pasan a «Sin datos». */
-  private sourceFailed<T>(source: DashboardSource, fallback: T): Observable<T> {
-    this.failedSources.update(sources => new Set(sources).add(source));
+  ngOnInit(): void { if (this.isEstudiante()) this.loading.set(false); else this.reload(); }
+  isEstudiante(): boolean { return this.auth.hasRole('ESTUDIANTE'); }
+  isAdmin(): boolean { return this.auth.hasRole('ADMIN'); }
+  fallo(source: Source): boolean { return this.failedSources().has(source); }
+  private fallar<T>(source: Source, fallback: T) {
+    this.failedSources.update(s => new Set(s).add(source));
     return of(fallback);
   }
-
-  /** true si el tablero falló entero o alguna de las cargas de las que sale el conteo falló. */
-  private unavailable(...sources: DashboardSource[]): boolean {
-    if (this.error()) return true;
-    const failed = this.failedSources();
-    return sources.some(source => failed.has(source));
+  reload(): void {
+    this.loading.set(true); this.error.set(false); this.failedSources.set(new Set());
+    const casos = this.autoria.listAuthoringCases().pipe(catchError(() => this.fallar('casos', [] as SimulationCaseSummary[])));
+    if (this.isAdmin()) {
+      forkJoin({ casos, solicitudes: this.solicitudesApi.listPending().pipe(catchError(() => this.fallar('solicitudes', [] as AccessRequest[]))), usuarios: this.usuariosApi.list().pipe(catchError(() => this.fallar('usuarios', [] as AdminUser[]))) }).subscribe(({ casos, solicitudes, usuarios }) => {
+        this.casos.set(casos); this.solicitudes.set(solicitudes); this.usuarios.set(usuarios);
+        // Una insignia incompleta parecería un conteo exacto.
+        this.badges.fijar('usuarios', this.fallo('solicitudes') || this.fallo('usuarios') ? 0 : solicitudes.length + usuarios.filter(u => u.pendingApproval).length);
+        this.loading.set(false);
+      });
+    } else {
+      const grupos = this.gruposApi.listar().pipe(switchMap(items => {
+        const primeros = items.slice(0, 4);
+        if (!primeros.length) return of([] as GrupoVista[]);
+        return forkJoin(primeros.map(grupo => this.asignacionesApi.list(grupo.id).pipe(
+          switchMap(asignaciones => {
+            const activas = asignaciones.filter(a => a.active);
+            if (!activas.length) return of({ grupo, asignaciones: activas, avances: {} } as GrupoVista);
+            return forkJoin(activas.map(a => this.reportes.getReporteGrupo(grupo.id, a.caseVersionId).pipe(
+              // Se cuentan estudiantes, no intentos: una persona puede tener varios recorridos.
+              catchError(() => this.fallar('grupos', null)),
+            ))).pipe(switchMap(reportes => of({ grupo, asignaciones: activas, avances: Object.fromEntries(activas.map((a, i) => [a.id, reportes[i]?.simulacion ? reportes[i]!.simulacion!.estudiantes.filter(e => e.intentosCompletados > 0).length : null])) })));
+          }), catchError(() => this.fallar('grupos', { grupo, asignaciones: null, avances: {} } as GrupoVista)),
+        )));
+      }), catchError(() => this.fallar('grupos', [] as GrupoVista[])));
+      forkJoin({ casos, grupos, revision: this.instructor.listAttempts({ evaluacion: 'pendiente', pageSize: 5 }).pipe(catchError(() => this.fallar('revision', null as InstructorAttemptsPage | null))) }).subscribe(({ casos, grupos, revision }) => {
+        this.casos.set(casos); this.grupos.set(grupos); this.revision.set(revision);
+        this.badges.fijar('trazabilidad', revision?.coverage.total ?? 0); this.loading.set(false);
+      });
+    }
   }
-
-  /** Sin el listado del panel, «Intentos recientes» sale de la carga propia de intentos recientes. */
-  private adminRecentUnavailable(data: Dashboard | null): boolean {
-    return data?.intentosRecientes ? this.unavailable() : this.unavailable('recent');
+  nombreCaso(id: number): string { return this.casos().find(c => c.caseVersionId === id)?.title ?? `Caso ${id}`; }
+  /** «terminó hace 2 días»; vacío si la fecha no llegó, para no escribir «fecha no disponible» en cada fila. */
+  hace(valor: string | null | undefined): string { return haceCuanto(valor); }
+  /** El avance del grupo en palabras («4 de 12 terminaron»), sin porcentajes que parezcan una nota. */
+  avanceTexto(terminaron: number | null | undefined, total: number): string {
+    if (terminaron === null || terminaron === undefined) return 'Avance no disponible';
+    if (!total) return 'Aún sin estudiantes en el grupo';
+    return `${terminaron} de ${total} ${terminaron === 1 ? 'terminó' : 'terminaron'}`;
   }
-
-  private metric(value: number | string, label: string, status: string, unavailable = false): DashboardMetric {
-    if (unavailable) return { value: NO_DATA_LABEL, label, status: 'No se pudo cargar' };
-    return { value: metricDisplay(value), label, status };
+  /** La ventana de la asignación en palabras: abierta, ya cerrada o sin fecha. */
+  cierre(valor: string | null | undefined): string {
+    if (!valor) return 'Sin fecha de cierre';
+    const t = new Date(valor).getTime();
+    return !Number.isNaN(t) && t < Date.now() ? `Cerró el ${this.fecha(valor)}` : `Abierto hasta el ${this.fecha(valor)}`;
   }
-
-  /** Decisiones por revisar: las de clase Con riesgo y Contraindicada (un conteo de hechos, no una medida). */
-  private criticalDecisions(data: Dashboard | null): number {
-    if (!data) return 0;
-    return this.decisionCount(data.decisiones, 'risky') + this.decisionCount(data.decisiones, 'contraindicated');
+  /** Plural de la cantidad con su sustantivo: «1 estudiante», «12 estudiantes». */
+  cantidad(n: number, uno: string, varios: string): string { return `${n} ${n === 1 ? uno : varios}`; }
+  /** Descarta una solicitud desde el inicio (mismo cambio de estado que en Usuarios) y actualiza la insignia. */
+  descartar(solicitud: AccessRequest): void {
+    if (this.descartando() !== null) return;
+    this.descartando.set(solicitud.id);
+    this.solicitudesApi.updateStatus(solicitud.id, 'DISMISSED').subscribe({
+      next: () => {
+        this.solicitudes.update(items => items.filter(item => item.id !== solicitud.id));
+        this.badges.fijar('usuarios', this.fallo('usuarios') ? 0 : this.solicitudes().length + this.pendientesCuentas());
+        this.notify.success('Solicitud descartada.');
+        this.descartando.set(null);
+      },
+      error: () => { this.notify.error('No pudimos descartar la solicitud. Inténtalo de nuevo.'); this.descartando.set(null); },
+    });
   }
-
-  private decisionCount(counts: Dashboard['decisiones'] | undefined, responseClass: keyof Dashboard['decisiones']): number {
-    return counts?.[responseClass] ?? 0;
-  }
-
-  private uniqueCasesCount(data: Dashboard | null): number {
-    if (!data) return 0;
-    return new Set([
-      ...(data.intentosRecientes?.map(i => i.casoTitulo) ?? []),
-      ...(data.ultimosIntentos?.map(i => i.casoTitulo) ?? [])
-    ]).size;
-  }
-
-  private publishedCasesCount(): number {
-    const simCases = this.simulationCases().filter(c => c.status?.toUpperCase() === 'PUBLISHED').length;
-    if (simCases > 0) return simCases;
-    return this.simulationCases().length;
-  }
+  fecha(valor: string | null | undefined): string { if (!valor) return 'Fecha no disponible'; const d = new Date(valor); return Number.isNaN(d.getTime()) ? 'Fecha no disponible' : new Intl.DateTimeFormat('es-CO', { day: 'numeric', month: 'short', year: 'numeric' }).format(d); }
+  irGrupos(): void { void this.router.navigateByUrl('/portal/grupos'); }
 }
