@@ -213,6 +213,26 @@ describe('ServerConsentRecorder', () => {
       expect((error as ConsentNoticeStaleError).currentNoticeVersion).toBeNull();
     });
 
+    it('recordForCase (la ficha): un 409 también es «aviso nuevo» y el caso no queda aceptado', async () => {
+      const done = recorder.recordForCase(CASE_ID);
+      http.expectOne(URL).flush(staleBody, { status: 409, statusText: 'Conflict' });
+
+      const error = await done.then(() => null, (cause: unknown) => cause);
+      expect(error).toBeInstanceOf(ConsentNoticeStaleError);
+      expect(recorder.isGivenForCase(CASE_ID)).toBe(false);
+    });
+
+    it('recordForCase registra la versión del caso sin intento: el juego, después, no vuelve a pedir el aviso', async () => {
+      expect(recorder.isGivenForCase(CASE_ID)).toBe(false);
+      const done = recorder.recordForCase(CASE_ID);
+      const request = http.expectOne(URL);
+      expect(request.request.method).toBe('POST');
+      request.flush(recordBody(), { status: 201, statusText: 'Created' });
+      await done;
+      expect(recorder.isGivenForCase(CASE_ID)).toBe(true);
+      expect(recorder.isGiven(KEY)).toBe(true);
+    });
+
     it('un 409 con otro código es un fallo cualquiera, no «aviso nuevo»', async () => {
       const done = recorder.record(KEY);
       http.expectOne(URL).flush({ success: false, code: 'OTRO_CONFLICTO', message: 'x' }, { status: 409, statusText: 'Conflict' });
@@ -464,14 +484,17 @@ describe('ServerConsentRecorder', () => {
         expect(recorder.isGiven(B_ATTEMPT_KEY)).toBe(false);
       });
 
-      it('un registro que termina después de vaciar tampoco deja el caso aceptado en memoria', async () => {
+      // Antes se cumplía («el servidor sí lo registró para quien lo pidió»); desde B4b `record` se apoya en `recordForCase`,
+      // que rechaza si en el camino se olvidó todo: quien lo pidió ve «Reintentar» en vez de entrar con un registro que ya
+      // no es de quien mira. La intención (no dejar el caso aceptado en memoria) se mantiene.
+      it('un registro que termina después de vaciar se rechaza y no deja el caso aceptado en memoria', async () => {
         const inFlight = recorder.record(A_ATTEMPT_KEY);
         const request = http.expectOne(URL);
 
         recorder.reset();
         request.flush(recordBody(), { status: 201, statusText: 'Created' });
 
-        await expect(inFlight).resolves.toBeUndefined(); // el servidor sí lo registró para quien lo pidió
+        await expect(inFlight).rejects.toThrow();
         expect(recorder.isGiven(B_ATTEMPT_KEY)).toBe(false);
       });
     });
@@ -483,6 +506,52 @@ describe('ServerConsentRecorder', () => {
       beforeEach(() => {
         personId = 41;
         tracked = new ServerConsentRecorder(TestBed.inject(SimulationService), () => personId);
+      });
+
+      it('el consentimiento por caso sigue a la persona', async () => {
+        const saved = tracked.recordForCase(CASE_ID);
+        http.expectOne(URL).flush(recordBody(), { status: 201, statusText: 'Created' });
+        await saved;
+        expect(tracked.isGivenForCase(CASE_ID)).toBe(true);
+        personId = 42;
+        expect(tracked.isGivenForCase(CASE_ID)).toBe(false);
+      });
+
+      it('descarta la aceptación si la cuenta cambia durante la petición', async () => {
+        const saved = tracked.recordForCase(CASE_ID);
+        const request = http.expectOne(URL);
+        personId = 42;
+        request.flush(recordBody(), { status: 201, statusText: 'Created' });
+        await expect(saved).rejects.toThrow();
+        expect(tracked.isGivenForCase(CASE_ID)).toBe(false);
+      });
+
+      // Control negativo (mutación: `isGivenForCase` sin `followPerson`): B vería el `true` que el servidor le dio a A.
+      it('cambio de cuenta ANTES de leer: la ficha de B no hereda lo que A aceptó', async () => {
+        const saved = tracked.recordForCase(CASE_ID);
+        http.expectOne(URL).flush(recordBody(), { status: 201, statusText: 'Created' });
+        await saved;
+        personId = 42;
+        expect(tracked.isGivenForCase(CASE_ID)).toBe(false);
+        personId = 41;   // vuelve A: lo olvidado no reaparece sin volver a preguntar
+        expect(tracked.isGivenForCase(CASE_ID)).toBe(false);
+      });
+
+      it('cambio de cuenta DURANTE prime: la respuesta tardía (de A) no se guarda para B', async () => {
+        const primed = tracked.prime(CASE_ID);
+        const request = http.expectOne(URL);
+        personId = 42;
+        request.flush(state(true));
+        await primed;
+        expect(tracked.isGivenForCase(CASE_ID)).toBe(false);
+      });
+
+      it('el rechazo por cambio de cuenta dice que la sesión cambió (la ficha no navega)', async () => {
+        const saved = tracked.recordForCase(CASE_ID);
+        const request = http.expectOne(URL);
+        personId = null;
+        request.flush(recordBody(), { status: 201, statusText: 'Created' });
+        await expect(saved).rejects.toThrow(/sesión cambió/);
       });
 
       async function acceptAsPerson(): Promise<void> {

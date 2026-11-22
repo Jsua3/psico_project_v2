@@ -263,16 +263,6 @@ export const DRAFT_COPY = {
     where: 'Traza docente: diálogo «Reemplazar intento», consecuencia para el intento y su bitácora',
     text: `El intento se cerrará como «${statusLabel('REPLACED')}» y su bitácora quedará bloqueada; la próxima vez que la persona entre al caso empezará uno nuevo.`,
   },
-  /**
-   * Aviso de la ficha del caso cuando el caso trae contenido sensible (F10-1, RF-16): antes del aviso previo de
-   * contenido (ETH-01), que sigue siendo el que pide el consentimiento. Dice lo que viene y recuerda la salida.
-   */
-  briefSensitiveNote: {
-    decision: 'F10-1',
-    owner: 'Psicología',
-    where: 'Ficha del caso: aviso de contenido sensible, antes de «Comenzar»',
-    text: 'Este caso trata situaciones delicadas. Antes de entrar verás un aviso, y en cualquier momento puedes parar con «Salida segura».',
-  },
   /** Ficha del caso sin objetivos ni personajes redactados todavía (F10-1): se puede comenzar igual. */
   briefPending: {
     decision: 'F10-1',
@@ -1089,6 +1079,83 @@ export const DRAFT_COPY = {
     // V4: antes decía «No se avanzó el caso ni se aplicaron cambios acumulados…»: lenguaje del sistema que no se entiende.
     text: 'El caso sigue en el mismo punto. Si quieres, revisa la escena; luego vuelve a hablar con la persona para responder otra vez.',
   },
+  // ── Rediseño 2026-11-21 (B4b): la ficha prepara y el umbral hace entrar (DISENO §4.3 y §4.4) ─────────────────
+  /** El contrato de ficción y el método de evaluación (prebriefing INACSL): qué es esto y qué pasa con lo que decide. */
+  briefFictionContract: {
+    decision: 'F10-1',
+    owner: 'Psicología',
+    where: 'Ficha del caso: «Cómo funciona esta práctica»',
+    text: 'Es una simulación con personas y datos ficticios: algunas cosas no serán del todo realistas. Tus decisiones quedan registradas para tu docente, que es quien ve tu bitácora y tu recorrido.',
+  },
+  /** Solo si el caso se valora con rúbrica (BK-1 `conRubrica`): formativa y sin puntaje. */
+  briefFictionRubric: {
+    decision: 'F10-1',
+    owner: 'Psicología',
+    where: 'Ficha del caso: «Cómo funciona esta práctica», cuando hay rúbrica',
+    text: 'Tu docente puede valorar tu recorrido con una rúbrica de forma formativa: no hay puntaje.',
+  },
+  /** El caso suena (idea de Kimi-b): se dice antes de entrar, porque el umbral ya trae el botón de música. */
+  briefSound: {
+    decision: 'F10-1',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Ficha del caso: «Cómo se juega», el sonido',
+    text: 'El caso tiene música y sonidos. Puedes silenciarlos antes de entrar y en cualquier momento.',
+  },
+  /** El recurso de apoyo que falta (pregunta abierta a Psicología): sin inventar números de contacto. */
+  supportResourcesPending: {
+    decision: 'F10-1',
+    owner: 'Psicología',
+    where: 'Ficha del caso: «Tu seguridad», qué hacer si el caso pesa',
+    text: 'Si algo del caso te pesa, pausa y habla con tu docente. Los recursos de apoyo de la universidad se agregarán aquí.',
+  },
+  /** La frase al lado de «Comenzar»: dice qué significa pulsarlo (ETH-01, activación explícita). */
+  briefConsentLine: {
+    decision: 'ETH-01',
+    owner: 'Psicología',
+    where: 'Ficha del caso: junto a «Comenzar» o «Continuar», mientras no haya consentimiento',
+    text: 'Al pulsar {boton} confirmas que leíste el aviso de contenido.',
+  },
+  /** El registro del consentimiento falló en la ficha: no se entra y se puede reintentar. */
+  briefConsentError: {
+    decision: 'ETH-01',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Ficha del caso: error al registrar el consentimiento',
+    text: 'No pudimos registrar que leíste el aviso. Revisa tu conexión e inténtalo de nuevo.',
+  },
+  /** 409 `NOTICE_VERSION_STALE` en la ficha: el aviso que se leyó ya no es el vigente. */
+  briefConsentStale: {
+    decision: 'ETH-01',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Ficha del caso: el aviso cambió de versión mientras se leía',
+    text: 'El aviso cambió. Recarga la página para leer la versión nueva.',
+  },
+  /** La línea de cuidado fija del umbral: nombra la salida mientras carga (REGLA-004). */
+  umbralCareLine: {
+    decision: 'F6-1',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Umbral del juego: línea fija bajo el título',
+    text: 'Puedes pausar con Salida segura (Esc) en cualquier momento.',
+  },
+  /** El umbral tarda más de 10 s: lo que está en curso sigue y la persona decide (sin «Reintentar» a ciegas). */
+  umbralSlow: {
+    decision: 'F6-1',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Umbral del juego: la carga pasa de 10 s',
+    text: 'Está tardando más de lo normal. Puedes seguir esperando o volver a la ficha.',
+  },
+  /** El umbral está listo: lo que se anuncia una vez a los lectores de pantalla. */
+  umbralReady: {
+    decision: 'F6-1',
+    owner: 'Psicología',
+    review: 'conocimiento',
+    where: 'Umbral del juego: anuncio al terminar de cargar',
+    text: 'Listo. Pulsa Continuar para entrar.',
+  },
 } as const satisfies Record<string, DraftCopyEntry>;
 
 export type DraftCopyKey = keyof typeof DRAFT_COPY;
@@ -1097,3 +1164,13 @@ export type DraftCopyKey = keyof typeof DRAFT_COPY;
 export function draftCopyList(): Array<DraftCopyEntry & { key: DraftCopyKey; review: DraftReview }> {
   return (Object.keys(DRAFT_COPY) as DraftCopyKey[]).map(key => ({ key, review: 'validar' as DraftReview, ...DRAFT_COPY[key] }));
 }
+
+/**
+ * El texto VALIDADO del aviso de contenido de la versión `CONTENT_NOTICE_VERSION` (ETH-01). Vive en una sola constante
+ * porque se lee en dos sitios: la ficha (antes del contexto) y la red de seguridad del juego («Antes de entrar al caso»).
+ * Si cambia, cambia la versión del aviso y todas las personas vuelven a aceptarlo. No es borrador: no va en `DRAFT_COPY`.
+ */
+export const CONTENT_NOTICE_TEXT = {
+  contenido: 'Este caso presenta una situación ficticia de violencia basada en género y crisis familiar. Algunas escenas incluyen relatos y decisiones emocionalmente exigentes.',
+  salida: 'Podrás pausar el caso en cualquier momento con el botón «Salida segura» (con teclado, también Esc). Tu avance se guarda y puedes retomarlo. Si prefieres no continuar ahora, vuelve al catálogo y retoma el caso cuando lo decidas.',
+} as const;

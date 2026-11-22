@@ -41,7 +41,7 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     const list = draftCopyList();
     for (const entry of list) expect(['validar', 'conocimiento'], entry.key).toContain(entry.review);
     expect(list.filter(entry => entry.review === 'conocimiento').map(entry => entry.key).sort()).toEqual(
-      ['briefPending', 'commentBubbleLabel', 'consentSaving', 'hintNoCostNote', 'journalSaveReason', 'placesButtonLabel', 'reactionSkipHint', 'rehearsalActivation', 'rehearsalActivationCalm', 'rehearsalActivationCrisis', 'rehearsalActivationTense', 'rehearsalBackToEditor', 'rehearsalBackToScript', 'rehearsalBanner', 'rehearsalBond', 'rehearsalBondGuarded', 'rehearsalBondOpen', 'rehearsalBondWithdrawn', 'rehearsalBroken', 'rehearsalCommentDue', 'rehearsalComments', 'rehearsalExplored', 'rehearsalGoTo', 'rehearsalGone', 'rehearsalHeldByCondition', 'rehearsalMilestones', 'rehearsalPanelTitle', 'rehearsalPersona', 'rehearsalReload', 'rehearsalRestart', 'rehearsalScene', 'rehearsalTools', 'rehearsalWarnings', 'rehearsalWhyHidden', 'shortcutsSettingLabel', 'unknownPerson', 'unknownThing'],
+      ['briefConsentError', 'briefConsentStale', 'briefPending', 'briefSound', 'commentBubbleLabel', 'consentSaving', 'hintNoCostNote', 'journalSaveReason', 'placesButtonLabel', 'reactionSkipHint', 'rehearsalActivation', 'rehearsalActivationCalm', 'rehearsalActivationCrisis', 'rehearsalActivationTense', 'rehearsalBackToEditor', 'rehearsalBackToScript', 'rehearsalBanner', 'rehearsalBond', 'rehearsalBondGuarded', 'rehearsalBondOpen', 'rehearsalBondWithdrawn', 'rehearsalBroken', 'rehearsalCommentDue', 'rehearsalComments', 'rehearsalExplored', 'rehearsalGoTo', 'rehearsalGone', 'rehearsalHeldByCondition', 'rehearsalMilestones', 'rehearsalPanelTitle', 'rehearsalPersona', 'rehearsalReload', 'rehearsalRestart', 'rehearsalScene', 'rehearsalTools', 'rehearsalWarnings', 'rehearsalWhyHidden', 'shortcutsSettingLabel', 'umbralCareLine', 'umbralReady', 'umbralSlow', 'unknownPerson', 'unknownThing'],
     );
     // Los diez de F6, los ocho de F7-4 (tres de vocabulario VD-24, el rótulo de la valoración formativa y los cuatro
     // nombres de nivel: las claves las fijó ED-2, la redacción visible la elige Psicología) y la consecuencia del
@@ -53,7 +53,10 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     // de la ficha del objetivo (DSL-2: rótulo, respaldo, «En esta sala», las tres marcas y «Pedir una pista») y los cuatro de DSL-3 (los dos avisos
     // de exploración y los dos textos de la ayuda) el chip del aviso sensible (DSL-4) y los cinco de la tarjeta «Antes de comenzar» (DSL-5) y los cuatro de «Respuestas que no llegaste a ver» (DSL-6) y «Por ahora no hay nada que decidir» (DSL-7) y el
     // respaldo de la puerta bloqueada cuando el servidor no dice qué falta (DSL-8); del ensayo y su panel de autora, los que no están en el brief y los cuatro de error y aviso (DSL-10 y DSL-11: 11 + 4 = 15) y los cinco avisos de robustez del cliente (R1) y los cinco de la pausa local y el reenvío al volver la red (V3) y el aviso de la segunda oportunidad (V4). Los del brief (banner, ensayo perdido, reiniciar, volver al editor y el panel) solo se conocen.
-    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(107);
+    // B4b (rediseño 2026-11-21): sale la nota sensible de la ficha (ya no es verdad: el aviso va en la ficha) y entran
+    // cuatro que se validan (el contrato de ficción, la rúbrica formativa, el apoyo pendiente y la frase junto a «Comenzar»):
+    // 107 − 1 + 4. Los avisos de error del registro, el sonido y los tres del umbral solo se conocen.
+    expect(list.filter(entry => entry.review === 'validar')).toHaveLength(110);
   });
 
   // req: ETH-01, SIEP-RF-05 (S3-2b)
@@ -84,15 +87,21 @@ describe('draft-copy: textos en borrador pendientes de Psicología', () => {
     expect(draftCopyList().filter(entry => /clínic/i.test(entry.text))).toEqual([]);
   });
 
-  // req: RF-16, ETH-01 (F10-1)
-  it('registra los dos textos de la ficha del caso, y la ficha los lee del registro', () => {
-    expect(DRAFT_COPY.briefSensitiveNote).toMatchObject({ decision: 'F10-1', owner: 'Psicología' });
-    expect(DRAFT_COPY.briefSensitiveNote.text).toContain('Antes de entrar verás un aviso');
-    expect(DRAFT_COPY.briefSensitiveNote.text).toContain('«Salida segura»');
+  // req: RF-16, ETH-01 (F10-1; rediseño B4b). Antes la ficha decía «Antes de entrar verás un aviso» (briefSensitiveNote):
+  // desde B4b el aviso validado va EN la ficha, antes del contexto, así que esa nota dejó de ser verdad y se retiró. La
+  // intención se mantiene: los textos de la ficha que son borrador viven en el registro y la ficha los lee de allí.
+  it('registra los textos de la ficha del caso, y la ficha los lee del registro (el aviso, de la constante validada)', () => {
+    expect('briefSensitiveNote' in DRAFT_COPY).toBe(false);
     expect(DRAFT_COPY.briefPending).toMatchObject({ decision: 'F10-1', review: 'conocimiento' });
-    const brief = readFileSync(join(__dirname, 'case-brief.component.ts'), 'utf-8');
-    expect(brief).toContain('DRAFT_COPY.briefSensitiveNote.text');
-    expect(brief).toContain('DRAFT_COPY.briefPending.text');
+    for (const clave of ['briefFictionContract', 'briefFictionRubric', 'briefSound', 'supportResourcesPending'] as const) {
+      expect(DRAFT_COPY[clave], clave).toMatchObject({ decision: 'F10-1', owner: 'Psicología' });
+    }
+    const ts = readFileSync(join(__dirname, 'case-brief.component.ts'), 'utf-8');
+    const html = readFileSync(join(__dirname, 'case-brief.component.html'), 'utf-8');
+    expect(ts).toContain('protected readonly copy = DRAFT_COPY;');
+    expect(ts).toContain('CONTENT_NOTICE_TEXT');
+    for (const uso of ['copy.briefPending.text', 'copy.briefFictionContract.text', 'copy.supportResourcesPending.text']) expect(html).toContain(uso);
+    expect(ts).toContain('DRAFT_COPY.briefSound.text');
   });
 
   // req: RF-18, CU-09 (F10-2)

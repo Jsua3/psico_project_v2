@@ -16,6 +16,10 @@ import { AuthService } from '../../core/auth/auth.service';
 export interface ConsentRecorder {
   /** ¿Hay consentimiento registrado para esta clave? Síncrona. Una lectura que falla es «no». */
   isGiven(key: string): boolean;
+  /** Lo mismo, por versión del caso y sin intento (la ficha). Opcional: un registro sin ella hace que la ficha lo pida. */
+  isGivenForCase?(caseVersionId: number): boolean;
+  /** Registra el consentimiento de la versión del caso, sin intento (la ficha). Se cumple y se rechaza como `record`. */
+  recordForCase?(caseVersionId: number): PromiseLike<void>;
   /**
    * Registra el consentimiento. Se cumple cuando QUEDÓ guardado (el servidor respondió; el local, leyéndolo de vuelta) y
    * se rechaza si no se pudo: quien lo pide muestra el error con «Reintentar» y no arranca nada.
@@ -76,6 +80,14 @@ export class ConsentNoticeStaleError extends Error {
 
 /** Implementación local: `sessionStorage`, con cada acceso protegido (modo privado, política, cuota). */
 export class SessionConsentRecorder implements ConsentRecorder {
+  isGivenForCase(caseVersionId: number): boolean {
+    return this.isGiven(consentStorageKey(caseVersionId, 'case'));
+  }
+
+  recordForCase(caseVersionId: number): Promise<void> {
+    return this.record(consentStorageKey(caseVersionId, 'case'));
+  }
+
   isGiven(key: string): boolean {
     try {
       return sessionStorage.getItem(key) === GIVEN;
@@ -139,6 +151,37 @@ export class ServerConsentRecorder implements ConsentRecorder {
     return this.known.get(parsed.caseVersionId) ?? this.hasMark(key);
   }
 
+  /**
+   * ¿La persona de la sesión ya aceptó el aviso vigente de esta versión del caso? Para la ficha, donde todavía no hay
+   * intento (y por eso no mira la marca de la pestaña, que es por intento). Sigue a la persona como `isGiven` (S7-2):
+   * en la misma pestaña, B nunca ve el consentimiento de A.
+   */
+  isGivenForCase(caseVersionId: number): boolean {
+    this.followPerson();
+    return this.known.get(caseVersionId) === true;
+  }
+
+  /**
+   * Registra el consentimiento de la versión del caso, sin intento (la ficha, DISENO §4.3). Se cumple solo con el 200/201
+   * del servidor y si la persona sigue siendo la misma: si cambió mientras la petición viajaba, se rechaza («la sesión
+   * cambió») y nada queda «sabido» para la persona nueva. El 409 de versión vieja se traduce a `ConsentNoticeStaleError`.
+   */
+  async recordForCase(caseVersionId: number): Promise<void> {
+    this.followPerson();
+    const epoch = this.epoch;
+    try {
+      await firstValueFrom(this.api.acceptConsent(caseVersionId, CONTENT_NOTICE_VERSION));
+    } catch (cause) {
+      const stale = staleNoticeVersionOf(cause);
+      if (stale !== undefined) throw new ConsentNoticeStaleError(stale);
+      throw new Error('No se pudo registrar el consentimiento en el servidor.', { cause });
+    }
+    // La cuenta puede cambiar sin que otra operación toque el registro mientras la petición viaja.
+    this.followPerson();
+    if (epoch !== this.epoch) throw new Error('La sesión cambió mientras se registraba el consentimiento.');
+    this.known.set(caseVersionId, true);
+  }
+
   async prime(caseVersionId: number): Promise<void> {
     this.followPerson();
     // S7-2: lo que se sabía de ESTE caso puede ser de otra persona o estar vencido. Se olvida ANTES de preguntar, así una
@@ -149,6 +192,7 @@ export class ServerConsentRecorder implements ConsentRecorder {
       const state = await firstValueFrom(this.api.getConsent(caseVersionId));
       // Solo un `true` estricto es «aceptado»: una respuesta rara es «sin consentimiento». Si en el camino se olvidó todo
       // (cambió la persona), la respuesta no es de quien mira ahora.
+      this.followPerson();
       const accepted = state.accepted === true;
       if (epoch === this.epoch) this.known.set(caseVersionId, accepted);
     } catch {
@@ -156,21 +200,15 @@ export class ServerConsentRecorder implements ConsentRecorder {
     }
   }
 
+  /**
+   * Lo mismo que `recordForCase` (una sola implementación de la regla: persona, época y 409) y, después, la marca de la
+   * pestaña de ESE intento, que es un respaldo de mejor esfuerzo por si una lectura posterior falla.
+   */
   async record(key: string): Promise<void> {
     this.followPerson();
     const parsed = parseConsentStorageKey(key);
     if (!parsed) throw new Error('La clave del consentimiento no es de un intento.');
-    const epoch = this.epoch;
-    try {
-      await firstValueFrom(this.api.acceptConsent(parsed.caseVersionId, CONTENT_NOTICE_VERSION));
-    } catch (cause) {
-      const stale = staleNoticeVersionOf(cause);
-      if (stale !== undefined) throw new ConsentNoticeStaleError(stale);
-      throw new Error('No se pudo registrar el consentimiento en el servidor.', { cause });
-    }
-    // Recién con la respuesta del servidor: la memoria manda; la marca de la pestaña es un respaldo de mejor esfuerzo.
-    // Si en el camino se olvidó todo (cambió la persona), lo aceptado no es de quien mira ahora; la marca es de ese intento.
-    if (epoch === this.epoch) this.known.set(parsed.caseVersionId, true);
+    await this.recordForCase(parsed.caseVersionId);
     this.writeMark(key);
   }
 

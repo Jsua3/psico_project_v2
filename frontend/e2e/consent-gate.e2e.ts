@@ -2,7 +2,7 @@ import { test, expect, Page } from '@playwright/test';
 
 import { captureApiBodies, readJson } from './support/api-bodies';
 import { probeStudentConsent, readConsentState, resetStudentConsent } from './support/consent';
-import { createWorldInputDriver, finishCaseIntroduction, leaveBrief, waitForWorldReady } from './support/siep-flow';
+import { createWorldInputDriver, enterCaseThroughBrief, finishCaseIntroduction, leaveBrief, waitForWorldReady } from './support/siep-flow';
 import { scaled } from './support/time-scale';
 
 /**
@@ -358,4 +358,54 @@ test('con el consentimiento exigido: si se retira en otra pestaña, la siguiente
   await waitForWorldReady(page);
   expect((await readConsentState(page, caseVersionId)).accepted).toBe(true);
   expect((await currentAttempt(page, caseVersionId)).attemptId).toBe(attempt.attemptId);
+});
+
+// ── B4b (rediseño 2026-11-21): el aviso se lee y se acepta en la FICHA; el juego lo conserva como red de seguridad ──
+// req: ETH-01, RF-16, DP-09, DP-26, REGLA-004
+test.describe('@ficha el aviso en la ficha y el umbral', () => {
+  /** Abre la ficha del primer caso del catálogo, partiendo de «sin consentimiento». */
+  async function openBrief(page: Page): Promise<number> {
+    // Devuelve los casos que le ofrece al estudiante: se usa el primero.
+    const [caseVersionId] = await resetStudentConsent(page);
+    await page.goto(`/portal/simulador/${caseVersionId}/ficha`);
+    await expect(page.locator('#aviso')).toBeVisible({ timeout: scaled(30_000) });
+    return caseVersionId;
+  }
+
+  test('el aviso va antes del contexto; «Comenzar» lo registra y el juego entra al umbral sin volver a pedirlo', async ({ page }) => {
+    test.setTimeout(scaled(180_000));
+    await login(page);
+    const caseVersionId = await openBrief(page);
+    const avisoAntes = await page.evaluate(() => {
+      const aviso = document.querySelector('#aviso');
+      const contexto = document.querySelector('.brief-context');
+      return !!aviso && (!contexto || !!(aviso.compareDocumentPosition(contexto) & Node.DOCUMENT_POSITION_FOLLOWING));
+    });
+    expect(avisoAntes, 'el aviso de contenido va antes del contexto').toBe(true);
+    const card = await enterCaseThroughBrief(page);
+    expect((await readConsentState(page, caseVersionId)).accepted, 'la ficha lo registró en el servidor').toBe(true);
+    await expect(consentDialog(page), 'el juego no repite el aviso').toHaveCount(0);
+    // Una sola pantalla entre la ficha y el mundo: el umbral, con la tarjeta y la salida segura dentro.
+    await expect(page.locator('app-umbral-caso')).toHaveCount(1);
+    await expect(card.getByRole('button', { name: /salida segura/i })).toBeVisible();
+    await card.getByRole('button', { name: /^continuar$/i }).click();
+    await waitForWorldReady(page);
+    await expect(page.locator('app-umbral-caso')).toHaveCount(0, { timeout: scaled(5_000) });
+    await expect(page.getByRole('button', { name: /salida segura/i }).first()).toBeVisible();
+  });
+
+  // Control negativo de DP-26: la URL con ?intento=nuevo (la de antes) ya no reemplaza nada.
+  test('?intento=nuevo por URL no reemplaza el intento abierto: se ofrece reanudar', async ({ page }) => {
+    test.setTimeout(scaled(120_000));
+    await login(page);
+    const caseVersionId = await openBrief(page);
+    await enterCaseThroughBrief(page);   // deja un intento abierto
+    const attemptStarts: string[] = [];
+    page.on('request', request => {
+      if (request.method() === 'POST' && /\/api\/simulation\/attempts\/?$/.test(request.url())) attemptStarts.push(request.postData() ?? '');
+    });
+    await page.goto(`/portal/simulador/${caseVersionId}?intento=nuevo`);
+    await expect(page.getByRole('dialog').filter({ hasText: 'Continuar simulación formativa' })).toBeVisible({ timeout: scaled(30_000) });
+    expect(attemptStarts.filter(body => /"forceNew":true/.test(body))).toEqual([]);
+  });
 });

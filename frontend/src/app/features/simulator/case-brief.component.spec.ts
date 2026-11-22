@@ -1,13 +1,18 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 
+import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
+import { CaseAccessCache } from '../../core/api/case-access.cache';
 import { SimulationService } from '../../core/api/simulation.service';
-import { CaseAccess, CaseBrief } from '../../core/models/simulation.model';
+import { CaseAccess, CaseBrief, SimulationAttemptState, StudentAttemptSummary } from '../../core/models/simulation.model';
+import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { KitService } from '../character/kit/kit.service';
 import { fakeKitService } from '../character/kit/testing/kit-testing';
 import { CaseBriefComponent } from './case-brief.component';
+import { CONSENT_RECORDER, ConsentNoticeStaleError, ConsentRecorder } from './consent-recorder';
+import { CONTENT_NOTICE_TEXT, DRAFT_COPY } from './draft-copy';
 
 function brief(partial: Partial<CaseBrief> = {}): CaseBrief {
   return {
@@ -21,8 +26,21 @@ function brief(partial: Partial<CaseBrief> = {}): CaseBrief {
     learningObjectives: ['Reconocer señales de riesgo en el primer contacto.', 'Practicar una escucha que no revictimiza.'],
     hasSensitiveContent: true,
     access: { allowed: true },
+    escenas: 5,
+    inicio: { escena: 'Llegada', lugar: 'la sala de urgencias' },
+    portada: null,
+    temasSensibles: ['Violencia de pareja'],
+    conRubrica: true,
     ...partial,
   };
+}
+
+function abierto(partial: Partial<SimulationAttemptState> = {}): SimulationAttemptState {
+  return {
+    attemptId: 'intento-abierto', attemptToken: 't', caseVersionId: 7, caseTitle: 'Primer contacto en urgencias', status: 'IN_PROGRESS',
+    currentNode: { id: 3, key: 'k', title: 'Sala de espera', narrative: '', terminal: false, options: [] },
+    ...partial,
+  } as unknown as SimulationAttemptState;
 }
 
 const failure = (status: number, code?: string) => throwError(() => ({ status, error: code ? { code } : null }));
@@ -30,17 +48,22 @@ const failure = (status: number, code?: string) => throwError(() => ({ status, e
 interface Api {
   getCaseBrief: (caseVersionId: number) => Observable<CaseBrief>;
   startAttempt?: (caseVersionId: number, forceNew?: boolean) => Observable<unknown>;
+  getActiveAttempt?: (caseVersionId: number) => Observable<SimulationAttemptState | null>;
+  attemptHistory?: () => Observable<StudentAttemptSummary[]>;
 }
 
 /**
- * La ficha del caso antes de empezar (plan visual F10-1; RF-16, CU-07; contrato C8). Es una lectura: nunca crea el
- * intento (RN-07). «Comenzar» pasa al juego, que es donde está el aviso de contenido (ETH-01); el acceso que el
- * servidor decide (ventana, secuencia, asignación) se dice con palabras y deshabilita «Comenzar» con su motivo.
+ * La ficha del caso antes de jugar (DISENO §4.3, DP-08; RF-16, CU-07, C8). Es una lectura: nunca crea el intento
+ * (RN-07). El aviso de contenido va ANTES del contexto, «Comenzar» registra el consentimiento (ETH-01) y SOLO entonces
+ * navega; con un intento abierto, «Continuar donde quedaste» y «Empezar de nuevo» (con su consecuencia y DP-26).
  */
-// req: RF-16, CU-07, RNF-04, BLOQUE-H
+// req: RF-16, CU-07, RNF-04, ETH-01, RN-07, BLOQUE-H
 describe('CaseBriefComponent', () => {
   let fixture: ComponentFixture<CaseBriefComponent>;
   let navigate: ReturnType<typeof vi.fn>;
+  let consent: { isGivenForCase: ReturnType<typeof vi.fn>; recordForCase: ReturnType<typeof vi.fn>; prime: ReturnType<typeof vi.fn>; isGiven: () => boolean; record: () => Promise<void> };
+  let consequence: ReturnType<typeof vi.fn>;
+  let announce: ReturnType<typeof vi.fn>;
   const host = () => fixture.nativeElement as HTMLElement;
   const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
   // Lo que oye un lector de pantalla: sin los iconos ni el motivo oculto del botón deshabilitado.
@@ -50,18 +73,35 @@ describe('CaseBriefComponent', () => {
     return text(copy);
   };
   const button = (name: string) => [...host().querySelectorAll('button, a')].find(el => spoken(el) === name) as HTMLElement | undefined;
+  const h2s = () => [...host().querySelectorAll('h2')].map(text);
 
-  async function render(api: Partial<Api> = {}, access?: CaseAccess) {
+  async function render(api: Partial<Api> = {}, access?: CaseAccess, opciones: { dado?: boolean; respuesta?: 'proceed' | 'continue' } = {}) {
     const service: Api = {
       getCaseBrief: () => of(brief(access ? { access } : {})),
       startAttempt: vi.fn(() => of({})),
+      getActiveAttempt: vi.fn(() => of(null)),
+      attemptHistory: vi.fn(() => of([])),
       ...api,
     };
+    let dado = opciones.dado ?? false;
+    consent = {
+      isGivenForCase: vi.fn(() => dado),
+      recordForCase: vi.fn(async () => { dado = true; }),
+      prime: vi.fn(() => Promise.resolve()),
+      isGiven: () => dado,
+      record: () => Promise.resolve(),
+    };
+    consequence = vi.fn(() => Promise.resolve(opciones.respuesta ?? 'continue'));
+    announce = vi.fn();
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(), provideRouter([]),
         { provide: SimulationService, useValue: service },
         { provide: KitService, useValue: fakeKitService() },
+        { provide: CONSENT_RECORDER, useValue: consent as unknown as ConsentRecorder },
+        { provide: CaseAccessCache, useValue: { intentoAbierto: () => undefined, guardandoIntentoAbierto: () => (fuente: Observable<unknown>) => fuente } },
+        { provide: UiDialog, useValue: { consequence } },
+        { provide: LiveRegionAnnouncer, useValue: { announce } },
         { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({ caseVersionId: '7' }) } } },
       ],
     });
@@ -71,10 +111,21 @@ describe('CaseBriefComponent', () => {
     return service;
   }
 
-  it('muestra la ficha sin crear intento: título, contexto, objetivos y personajes', async () => {
+  beforeEach(() => {
+    // La precarga del juego (DP-11) importaría Phaser en jsdom: aquí no se descarga nada.
+    vi.stubGlobal('requestIdleCallback', vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    TestBed.resetTestingModule();
+  });
+
+  it('muestra la ficha sin crear intento: título, meta, contexto, objetivos y personajes', async () => {
     const service = await render();
     expect(host().querySelectorAll('h1')).toHaveLength(1);
     expect(text(host().querySelector('h1'))).toBe('Primer contacto en urgencias');
+    expect(text(host())).toContain('5 escenas · Empiezas en la sala de urgencias · Puedes pausar cuando quieras');
     expect(text(host())).toContain('Una joven llega a urgencias');
     expect([...host().querySelectorAll('.brief-objective')].map(text)).toEqual([
       'Reconocer señales de riesgo en el primer contacto.', 'Practicar una escucha que no revictimiza.',
@@ -83,12 +134,35 @@ describe('CaseBriefComponent', () => {
     expect(service.startAttempt).not.toHaveBeenCalled();
   });
 
-  it('las secciones tienen nombre propio (h2) para recorrerlas con el lector de pantalla', async () => {
+  // Criterio (1) de B4b: el orden ES la decisión de cuidado.
+  it('el aviso de contenido va ANTES del contexto, y el contexto antes de los personajes', async () => {
     await render();
-    expect([...host().querySelectorAll('h2')].map(text)).toEqual(['Contexto', 'Objetivos de aprendizaje', 'Personajes']);
+    expect(h2s()).toEqual(['Antes de leer', 'Qué vas a practicar', 'Cómo funciona esta práctica', 'Contexto', 'Quiénes aparecen', 'Tu entrada']);
+    const aviso = host().querySelector('#aviso')!;
+    const contexto = host().querySelector('.brief-context')!;
+    expect(aviso.compareDocumentPosition(contexto) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('cada personaje trae su retrato del kit (decorativo: el nombre y el rol ya lo dicen) y su rol en palabras', async () => {
+  it('el aviso es el MISMO texto validado del juego, con los temas que el caso declara y el alcance como nota', async () => {
+    await render();
+    const aviso = host().querySelector('#aviso')!;
+    expect(text(aviso)).toContain(CONTENT_NOTICE_TEXT.contenido);
+    expect(text(aviso)).toContain(CONTENT_NOTICE_TEXT.salida);
+    expect([...aviso.querySelectorAll('.ficha__temas li')].map(text)).toEqual(['Violencia de pareja']);
+    expect(aviso.querySelector('ui-scope-notice')).not.toBeNull();
+  });
+
+  it('«Cómo funciona»: el contrato de ficción, la rúbrica solo si la hay y el sonido antes de entrar', async () => {
+    await render();
+    expect(text(host())).toContain(DRAFT_COPY.briefFictionContract.text);
+    expect(text(host())).toContain(DRAFT_COPY.briefFictionRubric.text);
+    expect(text(host())).toContain(DRAFT_COPY.briefSound.text);
+    TestBed.resetTestingModule();
+    await render({ getCaseBrief: () => of(brief({ conRubrica: false })) });
+    expect(text(host())).not.toContain(DRAFT_COPY.briefFictionRubric.text);
+  });
+
+  it('cada personaje trae su retrato del kit (decorativo) y su rol en palabras', async () => {
     await render();
     const portraits = [...host().querySelectorAll('.brief-character app-kit-figure')];
     expect(portraits).toHaveLength(2);
@@ -96,56 +170,131 @@ describe('CaseBriefComponent', () => {
     expect([...host().querySelectorAll('.brief-character__role')].map(text)).toEqual(['Personal de salud', 'Familiar acompañante']);
   });
 
-  it('un personaje sin receta en el kit no rompe la ficha: se queda con su nombre y su rol', async () => {
-    const service: Api = {
-      getCaseBrief: () => of(brief({
-        characters: [{ id: 9, displayName: 'Vecina', roleLabel: 'Testigo', portraitKey: 'no-existe' }],
-      })),
-    };
-    await render(service);
-    expect(text(host().querySelector('.brief-character h3'))).toBe('Vecina');
-    expect(host().querySelector('.brief-character app-kit-figure')).toBeNull();
+  it('«Tu entrada» lleva la portada que viaja al umbral, el estado y la seguridad', async () => {
+    await render();
+    const entrada = host().querySelector('aside.ficha__lateral')!;
+    expect(entrada.querySelector('ui-portada-caso')?.classList).toContain('vt-portada');
+    expect(text(entrada)).toContain('Sin empezar');
+    expect(text(entrada)).toContain('Salida segura (Esc) pausa el caso');
+    expect(text(entrada)).toContain(DRAFT_COPY.supportResourcesPending.text);
+    expect(entrada.querySelector('a[href="#aviso"]')).not.toBeNull();
+    expect(button('Volver a tus casos')?.getAttribute('href')).toBe('/portal/simulador');
   });
 
-  it('«Comenzar» pasa al juego del caso, donde está el aviso de contenido; no inicia el intento él mismo', async () => {
+  // Criterio (2): registra y luego navega; nunca crea el intento.
+  it('«Comenzar» registra el consentimiento y SOLO después navega al juego, con los datos del umbral', async () => {
     const service = await render();
     button('Comenzar')!.click();
-    expect(navigate).toHaveBeenCalledWith(['/portal/simulador', 7]);
+    await fixture.whenStable();
+    expect(consent.recordForCase).toHaveBeenCalledWith(7);
+    expect(consent.recordForCase.mock.invocationCallOrder[0]).toBeLessThan(navigate.mock.invocationCallOrder[0]);
+    expect(navigate).toHaveBeenCalledWith(['/portal/simulador', 7], { state: { umbral: { titulo: 'Primer contacto en urgencias', portada: null } } });
     expect(service.startAttempt).not.toHaveBeenCalled();
   });
 
-  it('la acción principal vive en una barra pegada al pie para verse sin desplazar la ficha (1366×768)', async () => {
+  it('con el consentimiento ya dado no lo vuelve a registrar ni muestra la línea de consentimiento', async () => {
+    await render({}, undefined, { dado: true });
+    expect(text(host())).not.toContain('confirmas que leíste el aviso');
+    button('Comenzar')!.click();
+    await fixture.whenStable();
+    expect(consent.recordForCase).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalled();
+  });
+
+  it('una doble pulsación no registra ni navega dos veces', async () => {
     await render();
-    const bar = host().querySelector('.brief-actions--pegajosa')!;
-    expect(bar.querySelector('button')?.textContent).toContain('Comenzar');
-    expect(bar.textContent).toContain('Volver al catálogo');
-    // La barra es el último bloque de la ficha, después del contexto y del aviso de contenido.
-    expect(host().querySelector('.brief-sensitive')!.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(getComputedStyle(bar).position).toBe('sticky');
+    let terminar!: () => void;
+    consent.recordForCase.mockImplementation(() => new Promise<void>(resolve => { terminar = resolve; }));
+    button('Comenzar')!.click();
+    button('Comenzar')!.click();
+    await fixture.whenStable();
+    expect(consent.recordForCase).toHaveBeenCalledTimes(1);
+    expect(button('Comenzar')!.getAttribute('aria-busy')).toBe('true');
+    terminar();
+    await fixture.whenStable();
+    expect(navigate).toHaveBeenCalledTimes(1);
   });
 
-  it('«Volver al catálogo» regresa sin dejar nada abierto', async () => {
-    const service = await render();
-    button('Volver al catálogo')!.click();
-    expect(navigate).toHaveBeenCalledWith(['/portal/simulador']);
-    expect(service.startAttempt).not.toHaveBeenCalled();
-  });
-
-  it('con contenido sensible lo avisa antes de entrar y recuerda que se puede salir en cualquier momento', async () => {
+  // Control negativo (mutación: navegar en `finally`): un consentimiento que no se registró NUNCA deja entrar.
+  it('si el registro falla no navega: lo dice (por el anunciador) y ofrece «Reintentar», que lo vuelve a intentar', async () => {
     await render();
-    const note = host().querySelector('.brief-sensitive')!;
-    expect(text(note)).toContain('Antes de entrar verás un aviso');
-    expect(text(note)).toContain('Salida segura');
+    consent.recordForCase.mockRejectedValueOnce(new Error('red'));
+    button('Comenzar')!.click();
+    await fixture.whenStable();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(text(host().querySelector('.ficha__error'))).toContain(DRAFT_COPY.briefConsentError.text);
+    expect(host().querySelector('.ficha__error')!.getAttribute('role')).toBeNull();
+    expect(announce).toHaveBeenCalledWith(DRAFT_COPY.briefConsentError.text, 'assertive');
+    button('Reintentar')!.click();
+    await fixture.whenStable();
+    expect(consent.recordForCase).toHaveBeenCalledTimes(2);
+    expect(navigate).toHaveBeenCalledTimes(1);
   });
 
-  it('sin contenido sensible no pinta ese aviso', async () => {
-    await render({ getCaseBrief: () => of(brief({ hasSensitiveContent: false })) });
-    expect(host().querySelector('.brief-sensitive')).toBeNull();
+  it('un 409 (el aviso cambió) dice que hay que recargar y ofrece «Recargar», sin navegar', async () => {
+    await render();
+    consent.recordForCase.mockRejectedValueOnce(new ConsentNoticeStaleError('otra'));
+    button('Comenzar')!.click();
+    await fixture.whenStable();
+    expect(text(host().querySelector('.ficha__error'))).toContain(DRAFT_COPY.briefConsentStale.text);
+    expect(button('Recargar')).toBeDefined();
+    expect(navigate).not.toHaveBeenCalled();
   });
 
-  it('sin objetivos ni personajes no pinta secciones vacías: queda el contexto y se dice que falta lo demás', async () => {
+  it('con un intento abierto: «Continuar donde quedaste» va directo con ?intento=continuar', async () => {
+    await render({ getActiveAttempt: () => of(abierto({ status: 'PAUSED' })) });
+    expect(text(host().querySelector('.ficha__estado'))).toContain('Intento en pausa');
+    expect(text(host().querySelector('.ficha__estado'))).toContain('Sala de espera');
+    expect(button('Comenzar')).toBeUndefined();
+    button('Continuar donde quedaste')!.click();
+    await fixture.whenStable();
+    expect(navigate).toHaveBeenCalledWith(['/portal/simulador', 7], expect.objectContaining({ queryParams: { intento: 'continuar' } }));
+  });
+
+  // DP-26: el reemplazo viaja como permiso de un solo uso ligado al intento visto, NUNCA en la URL.
+  it('«Empezar de nuevo» confirma la pérdida (RN-07) y entra con el permiso ligado a ESE intento, sin parámetro', async () => {
+    await render({ getActiveAttempt: () => of(abierto()) }, undefined, { respuesta: 'proceed' });
+    button('Empezar de nuevo')!.click();
+    await fixture.whenStable();
+    expect(consequence).toHaveBeenCalledWith(expect.objectContaining({
+      title: DRAFT_COPY.newAttemptConsequence.title, consequence: DRAFT_COPY.newAttemptConsequence.text, proceedLabel: 'Iniciar nuevo intento',
+    }));
+    const [ruta, extras] = navigate.mock.calls[0];
+    expect(ruta).toEqual(['/portal/simulador', 7]);
+    expect(extras.queryParams).toBeUndefined();
+    expect(extras.state.reemplazar).toEqual({ attemptId: 'intento-abierto' });
+  });
+
+  it('«Empezar de nuevo» con «Continuar» en la consecuencia no navega ni registra nada', async () => {
+    await render({ getActiveAttempt: () => of(abierto()) }, undefined, { respuesta: 'continue' });
+    button('Empezar de nuevo')!.click();
+    await fixture.whenStable();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(consent.recordForCase).not.toHaveBeenCalled();
+  });
+
+  it('un caso terminado ofrece «Ver tu recorrido» hacia la página del cierre', async () => {
+    await render({ attemptHistory: () => of([
+      { attemptId: 'viejo', caseVersionId: 7, status: 'COMPLETED', startedAt: '2026-11-01', endedAt: '2026-11-01' },
+      { attemptId: 'nuevo', caseVersionId: 7, status: 'COMPLETED', startedAt: '2026-11-10', endedAt: '2026-11-10' },
+      { attemptId: 'otro-caso', caseVersionId: 8, status: 'COMPLETED', startedAt: '2026-11-12', endedAt: '2026-11-12' },
+    ] as StudentAttemptSummary[]) });
+    expect(text(host().querySelector('.ficha__estado'))).toContain('Ya lo terminaste');
+    expect(button('Ver tu recorrido')?.getAttribute('href')).toBe('/portal/simulador/7/cierre/nuevo');
+  });
+
+  it('mientras el intento abierto no se sabe, ofrece Comenzar (el juego ofrece reanudar si lo había)', async () => {
+    const pendiente = new Subject<SimulationAttemptState | null>();
+    await render({ getActiveAttempt: () => pendiente });
+    expect(button('Comenzar')).toBeDefined();
+    pendiente.next(abierto());
+    await fixture.whenStable();
+    expect(button('Continuar donde quedaste')).toBeDefined();
+  });
+
+  it('sin objetivos ni personajes no pinta secciones vacías y dice que falta lo demás', async () => {
     await render({ getCaseBrief: () => of(brief({ characters: [], learningObjectives: [] })) });
-    expect([...host().querySelectorAll('h2')].map(text)).toEqual(['Contexto']);
+    expect(h2s()).toEqual(['Antes de leer', 'Cómo funciona esta práctica', 'Contexto', 'Tu entrada']);
     expect(text(host().querySelector('.brief-pending'))).toContain('Tu docente aún no ha redactado');
     expect(button('Comenzar')!.getAttribute('aria-disabled')).not.toBe('true');
   });
@@ -156,31 +305,32 @@ describe('CaseBriefComponent', () => {
     expect(start.getAttribute('aria-disabled')).toBe('true');
     const reason = document.getElementById(start.getAttribute('aria-describedby')!.split(' ').find(id => document.getElementById(id))!);
     expect(text(reason)).toMatch(/20 de oct/);
-    expect(text(host().querySelector('.brief-access'))).toContain('Aún no abre');
+    expect(text(host().querySelector('.ficha__acceso'))).toContain('Aún no abre');
     start.click();
+    await fixture.whenStable();
     expect(navigate).not.toHaveBeenCalled();
+    expect(consent.recordForCase).not.toHaveBeenCalled();
   });
 
   it('un caso cerrado o bloqueado por la secuencia también explica por qué no se puede comenzar', async () => {
     await render({}, { allowed: false, reason: 'CLOSED', closesAt: '2026-10-05T23:59:00' });
-    expect(text(host().querySelector('.brief-access'))).toContain('Ya cerró');
+    expect(text(host().querySelector('.ficha__acceso'))).toContain('Ya cerró');
     expect(button('Comenzar')!.getAttribute('aria-disabled')).toBe('true');
   });
 
-  it('403 de «no asignado»: lo dice sin mostrar nada del caso y deja volver al catálogo', async () => {
+  it('403 de «no asignado»: lo dice sin mostrar nada del caso y deja volver a tus casos', async () => {
     await render({ getCaseBrief: () => failure(403, 'ACCESS_NOT_ASSIGNED') });
     expect(text(host())).toContain('Este caso no está asignado a tu cuenta');
     expect(host().querySelector('.brief-character')).toBeNull();
     expect(button('Comenzar')).toBeUndefined();
-    button('Volver al catálogo')!.click();
-    expect(navigate).toHaveBeenCalledWith(['/portal/simulador']);
+    expect(button('Volver a tus casos')?.getAttribute('href')).toBe('/portal/simulador');
   });
 
   it('404: el caso no existe o no está publicado, y no es un error de red', async () => {
     await render({ getCaseBrief: () => failure(404, 'NOT_FOUND') });
     expect(text(host())).toContain('No encontramos este caso');
     expect([...host().querySelectorAll('ui-error-state button')].map(text)).not.toContain('Reintentar');
-    expect(button('Volver al catálogo')).toBeDefined();
+    expect(button('Volver a tus casos')).toBeDefined();
   });
 
   it('error del servidor: «Reintentar» vuelve a pedir la ficha y, si responde, la pinta', async () => {
@@ -188,7 +338,6 @@ describe('CaseBriefComponent', () => {
     await render({ getCaseBrief: () => (++calls === 1 ? failure(500) : of(brief())) });
     const retry = [...host().querySelectorAll('ui-error-state button')].find(el => text(el).includes('Reintentar')) as HTMLElement;
     expect(retry).toBeDefined();
-    expect(host().querySelector('.brief-character')).toBeNull();
     retry.click();
     await fixture.whenStable();
     expect(calls).toBe(2);

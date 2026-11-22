@@ -5,13 +5,14 @@ import { assignCase, createPublishedCase, retireCase } from './support/case-fixt
 import type { AssignmentRecord, AssignmentWindow, CaseFixtureOptions } from './support/case-fixtures';
 import { resetStudentConsent } from './support/consent';
 import { assertQualityState } from './support/quality-gates';
-import { loginStudent } from './support/siep-flow';
+import { enterCaseThroughBrief, loginStudent } from './support/siep-flow';
 import { scaled } from './support/time-scale';
 
 /**
  * Ficha del caso antes de empezar (plan visual F10-1; RF-16, CU-07; contrato C8) contra la pila real: la pantalla pinta
- * lo que el servidor devuelve, **no crea el intento** y «Comenzar» abre el juego, donde sigue el aviso de contenido
- * (ETH-01). Los datos salen de `GET /api/simulation/cases/{id}/brief`, así que la prueba no inventa el contenido.
+ * lo que el servidor devuelve y **no crea el intento**. Desde el rediseño (B4b, DISENO §4.3) el aviso de contenido va EN
+ * la ficha, antes del contexto, y «Comenzar» lo registra (ETH-01) y entra al umbral sin volver a pedirlo. Los datos salen
+ * de `GET /api/simulation/cases/{id}/brief`, así que la prueba no inventa el contenido.
  */
 const STUDENT = {
   email: process.env.E2E_STUDENT_EMAIL ?? 'estudiante@psychosim.edu.co',
@@ -40,11 +41,11 @@ async function api(request: APIRequestContext) {
 }
 
 const consentDialog = (page: Page) => page.getByRole('dialog').filter({ hasText: 'Antes de entrar al caso' });
-const resumeButton = (page: Page) =>
-  page.getByRole('button', { name: /continuar intento en progreso|reanudar intento en pausa/i });
+/** La acción principal de «Tu entrada»: «Comenzar» sin intento abierto, «Continuar donde quedaste» con uno. */
+const primary = (page: Page) => page.getByRole('button', { name: /^(Comenzar|Continuar donde quedaste)$/ });
 
 // req: RF-16, CU-07, RN-07
-test('la ficha pinta lo que devuelve el servidor, no crea el intento y «Comenzar» abre el aviso de contenido', async ({ page, request }) => {
+test('la ficha pinta lo que devuelve el servidor, no crea el intento y «Comenzar» registra el aviso y entra al umbral', async ({ page, request }) => {
   const student = await api(request);
   const caseVersionId = (await student.cases())[0].caseVersionId;
   const brief = await student.brief(caseVersionId);
@@ -57,11 +58,12 @@ test('la ficha pinta lo que devuelve el servidor, no crea el intento y «Comenza
   const attemptsBefore = await student.attempts();
 
   await loginStudent(page);
-  await resetStudentConsent(page); // el consentimiento vive en el servidor (S3-2b): «Comenzar» abre el aviso solo si no lo hay
+  await resetStudentConsent(page); // el consentimiento vive en el servidor (S3-2b): la ficha lo pide solo si no lo hay
   await page.goto(`/portal/simulador/${caseVersionId}/ficha`);
   await expect(page.getByRole('heading', { level: 1, name: brief.title })).toBeVisible({ timeout: scaled(30_000) });
 
   if (brief.context.trim()) await expect(page.getByRole('heading', { level: 2, name: 'Contexto' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'Antes de leer' })).toBeVisible();
   await expect(page.locator('.brief-objective')).toHaveText(brief.learningObjectives);
   await expect(page.locator('.brief-character h3')).toHaveText(brief.characters.map(character => character.displayName));
   if (brief.hasSensitiveContent) await expect(page.locator('.brief-sensitive')).toContainText('Salida segura');
@@ -69,19 +71,20 @@ test('la ficha pinta lo que devuelve el servidor, no crea el intento y «Comenza
   expect(attemptPosts, 'ver la ficha no inicia ningún intento').toEqual([]);
   expect(await student.attempts(), 'ni deja un intento nuevo en el historial').toBe(attemptsBefore);
 
-  await page.getByRole('button', { name: 'Comenzar', exact: true }).click();
-  await page.waitForURL(/\/portal\/simulador\/\d+$/, { timeout: scaled(30_000) });
-  // Con un intento abierto que dejó otra prueba, el juego ofrece reanudar; si no, va directo al aviso de contenido.
-  await expect(consentDialog(page).or(resumeButton(page)).first()).toBeVisible({ timeout: scaled(30_000) });
+  // Entrar registra el consentimiento en la ficha (o, con un intento abierto que dejó otra prueba, confirma «Empezar de
+  // nuevo» y entra con el permiso de un solo uso): el juego llega a la tarjeta del umbral sin repetir el aviso.
+  await enterCaseThroughBrief(page);
+  await expect(consentDialog(page)).toHaveCount(0);
+  await expect(page.locator('app-umbral-caso')).toHaveCount(1);
 });
 
 // req: RF-16, RNF-04, BLOQUE-H
-test('la ficha se maneja solo con teclado: «Comenzar» y «Volver al catálogo» son paradas de tabulación', async ({ page, request }) => {
+test('la ficha se maneja solo con teclado: la acción principal y «Volver a tus casos» son paradas de tabulación', async ({ page, request }) => {
   const caseVersionId = (await (await api(request)).cases())[0].caseVersionId;
   await loginStudent(page);
   await page.goto(`/portal/simulador/${caseVersionId}/ficha`);
-  const start = page.getByRole('button', { name: 'Comenzar', exact: true });
-  const back = page.getByRole('button', { name: 'Volver al catálogo', exact: true });
+  const start = primary(page);
+  const back = page.locator('aside').getByRole('link', { name: 'Volver a tus casos', exact: true });
   await expect(start).toBeVisible({ timeout: scaled(30_000) });
 
   await start.focus();
@@ -98,7 +101,7 @@ test('un caso que no existe dice que no lo encuentra, sin culpar a la red, y dej
   await page.goto('/portal/simulador/999999/ficha');
   await expect(page.getByText('No encontramos este caso')).toBeVisible({ timeout: scaled(30_000) });
   await expect(page.getByRole('button', { name: 'Reintentar' })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Volver al catálogo', exact: true }).click();
+  await page.getByRole('link', { name: 'Volver a tus casos', exact: true }).last().click();
   await page.waitForURL(/\/portal\/simulador$/, { timeout: scaled(30_000) });
 });
 
@@ -136,7 +139,8 @@ test.describe('@ficha con datos controlados (caso creado y asignado por la API)'
     await loginStudent(page);
     await page.goto(`/portal/simulador/${fixture.caseVersionId}/ficha`);
     await expect(page.getByRole('heading', { level: 1, name: fixture.title })).toBeVisible({ timeout: scaled(30_000) });
-    await expect(page.getByRole('heading', { level: 2 })).toHaveText(['Contexto', 'Objetivos de aprendizaje', 'Personajes']);
+    // El orden ES la decisión de cuidado (B4b): el aviso antes que todo y el contexto después de cómo funciona la práctica.
+    await expect(page.getByRole('heading', { level: 2 })).toHaveText(['Antes de leer', 'Qué vas a practicar', 'Cómo funciona esta práctica', 'Contexto', 'Quiénes aparecen', 'Tu entrada']);
     await expect(page.locator('.brief-context')).toContainText('Una joven llega a urgencias');
     await expect(page.locator('.brief-objective')).toHaveText(['Reconocer señales de riesgo en el primer contacto.', 'Practicar una escucha que no revictimiza.']);
     await expect(page.locator('.brief-character h3')).toHaveText(['Enfermera de urgencias', 'Abuela de la niña']);
@@ -149,7 +153,7 @@ test.describe('@ficha con datos controlados (caso creado y asignado por la API)'
       await expect(portrait).toHaveAttribute('aria-hidden', 'true');
       await expect(portrait).toHaveCSS('background-image', /portrait/);
     }
-    await expect(page.locator('.brief-sensitive')).toContainText('Salida segura');
+    await expect(page.locator('#aviso')).toContainText('Salida segura');
     await expect(page.getByRole('button', { name: 'Comenzar', exact: true })).not.toHaveAttribute('aria-disabled', 'true');
     await expect(page.locator('.brief-access')).toHaveCount(0);
     // WCAG 2.1 AA sin hallazgos serios y sin desbordes, con el retrato del kit y el aviso sensible pintados.

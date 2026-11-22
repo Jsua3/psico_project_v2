@@ -72,14 +72,45 @@ export async function startFreshAttempt(page: Page, startFresh: Locator): Promis
 }
 
 /**
- * La ficha del caso (plan visual F10-1, RF-16) va antes del juego y no crea el intento: «Comenzar» pasa a él. Desde la
- * ficha deja la página en el juego (`/portal/simulador/<id>`); si ya está en el juego, no hace nada.
+ * Deja la página en el juego (`/portal/simulador/<id>`) sin pasar por «Comenzar»; si ya está en el juego, no hace nada.
+ *
+ * Desde el rediseño (B4b, DISENO §4.3) «Comenzar» REGISTRA el consentimiento en la ficha, así que el juego ya no muestra
+ * «Antes de entrar al caso». Los recorridos que usan esta ayuda prueban el juego a partir de ese aviso, así que entran
+ * por la URL directa: es el camino de respaldo, donde el aviso sigue siendo la red de seguridad (ETH-01), y lo que
+ * prueban no cambia. La entrada por la ficha (aviso antes del contexto, «Comenzar» que registra y el umbral) la cubre
+ * `enterCaseThroughBrief`, que usan `case-brief.e2e.ts` y `consent-gate.e2e.ts`.
  */
 export async function leaveBrief(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/portal\/simulador\/\d+(\/ficha)?$/, { timeout: scaled(30_000) });
-  if (!/\/ficha$/.test(new URL(page.url()).pathname)) return;
-  await page.getByRole('button', { name: 'Comenzar', exact: true }).click();
+  const path = new URL(page.url()).pathname;
+  if (!/\/ficha$/.test(path)) return;
+  await page.goto(path.replace(/\/ficha$/, ''));
   await page.waitForURL(/\/portal\/simulador\/\d+$/, { timeout: scaled(30_000) });
+}
+
+/**
+ * La entrada de verdad por la ficha (B4b): el aviso de contenido está antes del contexto y la acción principal registra el
+ * consentimiento y entra. Con un intento abierto que dejó otra prueba, «Empezar de nuevo» confirma la pérdida (RN-07) y
+ * entra con el permiso de un solo uso (DP-26). Devuelve la tarjeta «Antes de comenzar» del umbral, sin pulsarla.
+ */
+export async function enterCaseThroughBrief(page: Page): Promise<Locator> {
+  await expect(page).toHaveURL(/\/portal\/simulador\/\d+\/ficha$/, { timeout: scaled(30_000) });
+  await expect(page.locator('#aviso')).toBeVisible({ timeout: scaled(30_000) });
+  const restart = page.getByRole('button', { name: 'Empezar de nuevo', exact: true });
+  const start = page.getByRole('button', { name: 'Comenzar', exact: true });
+  await expect(restart.or(start).first()).toBeVisible({ timeout: scaled(30_000) });
+  if (await restart.isVisible().catch(() => false)) {
+    await restart.click();
+    const consequence = page.getByRole('alertdialog');
+    await expect(consequence).toBeVisible({ timeout: scaled(15_000) });
+    await consequence.getByRole('button', { name: /^iniciar nuevo intento$/i }).click();
+  } else {
+    await start.click();
+  }
+  await page.waitForURL(/\/portal\/simulador\/\d+$/, { timeout: scaled(30_000) });
+  const card = page.getByRole('dialog').filter({ hasText: 'Antes de comenzar' });
+  await expect(card).toBeVisible({ timeout: scaled(30_000) });
+  return card;
 }
 
 export async function enterCaseAtContentWarning(page: Page): Promise<Locator> {
