@@ -29,6 +29,12 @@ async function montar() {
   return { fixture, store, actualizar, raiz: fixture.nativeElement as HTMLElement };
 }
 
+/** E4: la apariencia se elige con muestras (botones de opción) agrupadas por `data-grupo`, no con listas de texto. */
+const grupo = (raiz: HTMLElement, nombre: string) =>
+  [...raiz.querySelectorAll<HTMLButtonElement>(`[role="radiogroup"][data-grupo="${nombre}"] [role="radio"]`)];
+const valores = (raiz: HTMLElement, nombre: string) => grupo(raiz, nombre).map(b => b.dataset['valor']);
+const elegido = (raiz: HTMLElement, nombre: string) => grupo(raiz, nombre).find(b => b.getAttribute('aria-checked') === 'true')?.dataset['valor'];
+
 describe('PanelDeEstructuraComponent', () => {
   it('agregar una ventana la pone en el primer hueco del fondo, elegida y enfocada', async () => {
     const { fixture, store, actualizar, raiz } = await montar();
@@ -47,10 +53,10 @@ describe('PanelDeEstructuraComponent', () => {
     expect(pieza.x).toBeGreaterThan(0); expect(pieza.y).toBeGreaterThanOrEqual(236);
   });
 
-  it('el interruptor cambia momento y se deshace', async () => {
+  it('la muestra de día o de noche cambia el momento y se deshace', async () => {
     const { fixture, store, actualizar, raiz } = await montar();
     const antes = store.caso()!.salas[0].estructura!.momento;
-    raiz.querySelector<HTMLButtonElement>('[role="switch"]')!.click(); actualizar();
+    raiz.querySelector<HTMLButtonElement>('[data-momento][aria-checked="false"]')!.click(); actualizar();
     expect(store.caso()!.salas[0].estructura!.momento).not.toBe(antes);
     store.deshacer(); fixture.detectChanges();
     expect(store.caso()!.salas[0].estructura!.momento).toBe(antes);
@@ -58,30 +64,52 @@ describe('PanelDeEstructuraComponent', () => {
 
   it('solo ofrece variantes y paletas que existen', async () => {
     const { raiz, actualizar } = await montar();
-    const selectores = raiz.querySelectorAll<HTMLSelectElement>('select');
-    const opciones = (i: number) => [...selectores[i].options].map(o => o.value);
-    expect(opciones(1)).toEqual(['a']);
-    expect(opciones(3)).toEqual(['blanco']);
-    selectores[0].value = 'madera'; selectores[0].dispatchEvent(new Event('change')); actualizar();
-    expect(opciones(1)).toEqual(['b']);
-    selectores[2].value = 'ladrillo'; selectores[2].dispatchEvent(new Event('change')); actualizar();
-    expect(opciones(3)).toEqual(['rojo']);
+    expect(valores(raiz, 'variante')).toEqual(['a']);
+    expect(valores(raiz, 'paleta')).toEqual(['blanco']);
+    grupo(raiz, 'piso').find(b => b.dataset['valor'] === 'madera')!.click(); actualizar();
+    expect(valores(raiz, 'variante')).toEqual(['b']);
+    grupo(raiz, 'muro').find(b => b.dataset['valor'] === 'ladrillo')!.click(); actualizar();
+    expect(valores(raiz, 'paleta')).toEqual(['rojo']);
   });
 
-  it('cada lista muestra lo que la sala tiene aunque no sea la primera opción', async () => {
+  it('cada grupo de muestras marca lo que la sala tiene aunque no sea la primera opción', async () => {
     const { store, actualizar, raiz } = await montar();
-    const selectores = () => raiz.querySelectorAll<HTMLSelectElement>('select');
-    const ultimo = [...selectores()[0].options].map(o => o.value).at(-1)!;
-    selectores()[0].value = ultimo; selectores()[0].dispatchEvent(new Event('change')); actualizar();
+    const ultimo = valores(raiz, 'piso').at(-1)!;
+    grupo(raiz, 'piso').at(-1)!.click(); actualizar();
     const acabados = store.caso()!.salas[0].estructura!.acabados;
     expect(acabados.piso).toBe(ultimo);
-    // Al volver a pintar desde el borrador (otra sala, deshacer, recargar), cada lista dice lo guardado.
+    // Al volver a pintar desde el borrador (otra sala, deshacer, recargar), cada grupo marca lo guardado.
     const caso = structuredClone(store.caso()!);
     store.fijar(caso); actualizar();
-    expect(selectores()[0].value).toBe(acabados.piso);
-    expect(selectores()[1].value).toBe(acabados.variante);
-    expect(selectores()[2].value).toBe(acabados.muro);
-    expect(selectores()[3].value).toBe(acabados.paleta);
+    expect(elegido(raiz, 'piso')).toBe(acabados.piso);
+    expect(elegido(raiz, 'variante')).toBe(acabados.variante);
+    expect(elegido(raiz, 'muro')).toBe(acabados.muro);
+    expect(elegido(raiz, 'paleta')).toBe(acabados.paleta);
+    // Una sola muestra por grupo entra con Tab (patrón radio): la elegida.
+    expect(grupo(raiz, 'piso').filter(b => b.tabIndex === 0)).toHaveLength(1);
+  });
+
+  it('E4 · las flechas eligen la muestra vecina y le pasan el foco', async () => {
+    const { store, actualizar, raiz } = await montar();
+    document.body.appendChild(raiz);
+    try {
+      const piso = grupo(raiz, 'piso');
+      const actual = piso.findIndex(b => b.getAttribute('aria-checked') === 'true');
+      piso[actual].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); actualizar();
+      const esperado = piso[(actual + 1) % piso.length].dataset['valor'];
+      expect(store.caso()!.salas[0].estructura!.acabados.piso).toBe(esperado);
+      expect(document.activeElement).toBe(grupo(raiz, 'piso').find(b => b.dataset['valor'] === esperado));
+    } finally { raiz.remove(); }
+  });
+
+  it('E4 · la parte «apariencia» no pinta el catálogo ni la puerta, y «agregar» no pinta las muestras', async () => {
+    const { fixture, raiz } = await montar();
+    fixture.componentRef.setInput('parte', 'apariencia'); fixture.detectChanges();
+    expect(raiz.querySelector('[role="tablist"]')).toBeNull();
+    expect(grupo(raiz, 'piso').length).toBeGreaterThan(0);
+    fixture.componentRef.setInput('parte', 'agregar'); fixture.detectChanges();
+    expect(raiz.querySelector('[role="tablist"]')).not.toBeNull();
+    expect(grupo(raiz, 'piso')).toHaveLength(0);
   });
 
   it('crear la puerta de regreso agrega y enlaza una puerta en la sala destino', async () => {

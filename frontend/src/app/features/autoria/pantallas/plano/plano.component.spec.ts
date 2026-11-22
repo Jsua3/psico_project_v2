@@ -60,6 +60,22 @@ describe('PlanoCasoComponent', () => {
     expect(raiz.querySelector('.plano__rota')!.textContent).toBe(faltas[0].mensaje);
   });
 
+  it('E4 · cada sala del plano se pinta con su miniatura real y con sus puertas', async () => {
+    const caso = structuredClone(CASO_HOSPITAL);
+    caso.salas.forEach(s => { s.fondo = `fondos/${s.id}.png`; });
+    const { raiz } = await montar(LAYOUT_HOSPITAL, caso);
+    const grupos = raiz.querySelectorAll('svg.plano-caso__dibujo g[data-miniatura]');
+    expect(grupos).toHaveLength(LAYOUT_HOSPITAL.rooms.length);
+    const conSala = LAYOUT_HOSPITAL.rooms.filter(r => caso.salas.some(s => s.id === r.key));
+    expect(conSala.length, 'la prueba necesita salas del caso en el plano').toBeGreaterThan(0);
+    for (const r of conSala) {
+      expect(raiz.querySelector(`g[data-miniatura="${r.key}"] image`)!.getAttribute('href')).toContain(`fondos/${r.key}.png`);
+    }
+    expect(raiz.querySelectorAll('svg.plano-caso__dibujo rect.puerta').length).toBeGreaterThan(0);
+    // Los rótulos de lectura y sus botones se conservan (teclado y lector de pantalla).
+    expect(raiz.querySelectorAll('button.plano__sala')).toHaveLength(LAYOUT_HOSPITAL.rooms.length);
+  });
+
   it('sin salas por piezas muestra el aviso', async () => {
     const { raiz } = await montar(null);
     expect(raiz.textContent).toContain('Este caso no tiene salas por piezas: el plano aparece cuando las tiene.');

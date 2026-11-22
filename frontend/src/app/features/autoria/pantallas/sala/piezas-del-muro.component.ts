@@ -24,7 +24,7 @@ interface Pieza {
 @Component({
   selector: 'app-piezas-del-muro',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { tabindex: '-1', '(keydown)': 'teclaGeneral($event)' },
+  host: { tabindex: '-1', '(keydown)': 'teclaGeneral($event)', '[class.solo-mirar]': 'soloMirar()' },
   template: `
     @for (p of piezas(); track p.tipo + ':' + p.id) {
       @let limites = zona(p);
@@ -42,17 +42,24 @@ interface Pieza {
     <span role="status" class="solo-lector">{{ anuncio() }}</span>
   `,
   styles: [`
-    :host { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+    :host { position: absolute; inset: 0; pointer-events: none; z-index: var(--autoria-capa-5); }
     .pieza-muro { position: absolute; box-sizing: border-box; min-width: calc(24px / var(--escala, 1)); min-height: calc(24px / var(--escala, 1)); padding: 0;
-      border: 2px solid transparent; background: transparent; touch-action: none; pointer-events: auto; cursor: grab; }
+      border: 2px solid transparent; border-radius: calc(4px / var(--escala, 1)); background: transparent; touch-action: none; pointer-events: auto; cursor: grab; }
     .pieza-muro::before { content: ""; position: absolute; left: 50%; top: 50%; width: calc(44px / var(--escala, 1)); height: calc(44px / var(--escala, 1));
       transform: translate(-50%, -50%); }
     .pieza-muro:active { cursor: grabbing; }
-    .pieza-muro.elegida, .pieza-muro:focus-visible { outline: 3px solid #175ec6; outline-offset: 2px; }
-    .pieza-muro.incumple { border: 3px dashed #bd2020; }
-    .pieza-muro span { position: absolute; top: 0; right: 0; color: white; background: #a50000;
-      font-weight: bold; padding: 1px 5px; line-height: 1.2; }
+    /* Solo mirar (pantallas angostas): se elige, no se arrastra. */
+    :host(.solo-mirar) .pieza-muro { cursor: pointer; touch-action: auto; }
+    /* Lo elegido se ve sobre cualquier arte: trazo del color de foco con un halo claro (forma, no solo color). */
+    .pieza-muro.elegida, .pieza-muro:focus-visible { outline: 3px solid var(--ds-focus); outline-offset: 2px; box-shadow: 0 0 0 5px var(--ds-focus-halo); }
+    .pieza-muro.incumple { border: 3px dashed var(--ds-danger); }
+    .pieza-muro span { position: absolute; top: 0; right: 0; color: var(--sobre-primario); background: var(--ds-danger);
+      font-weight: bold; padding: 1px 5px; line-height: 1.2; border-radius: 0 0 0 4px; }
     .solo-lector { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    @media (forced-colors: active) {
+      .pieza-muro.elegida, .pieza-muro:focus-visible { outline-color: Highlight; box-shadow: none; }
+      .pieza-muro.incumple { border-color: Mark; }
+    }
   `],
 })
 export class PiezasDelMuroComponent {
@@ -61,6 +68,8 @@ export class PiezasDelMuroComponent {
   readonly faltas = input.required<FaltaDeSala[]>();
   readonly escala = input.required<number>();
   readonly elegida = output<string | null>();
+  /** Por debajo de 1024 px la sala es de solo mirar (EDITOR.md §4.5): se elige una pieza, pero no se mueve ni se quita. */
+  readonly soloMirar = input(false);
   protected readonly seleccion = signal<string | null>(null);
   protected readonly anuncio = signal('');
   private readonly store = inject(CasoStore);
@@ -130,6 +139,8 @@ export class PiezasDelMuroComponent {
     : null);
   /** El botón transparente de la pieza: su caja con ratón; con el dedo, su zona de toque (el dibujo no cambia). */
   protected zona(p: Pieza): Caja { return this.zonas()?.get(this.idHtml(p)) ?? this.caja(p); }
+  /** Suelta lo elegido sin avisar: la sala lo pide cuando se elige otra cosa (un mueble, una persona). */
+  soltar(): void { this.seleccion.set(null); }
   seleccionar(id: string): void {
     this.seleccion.set(id); this.elegida.emit(id);
     setTimeout(() => this.raiz.nativeElement.ownerDocument.getElementById(id)?.focus());
@@ -149,6 +160,7 @@ export class PiezasDelMuroComponent {
     }
   }
   protected teclaGeneral(evento: KeyboardEvent): void {
+    if (this.soloMirar()) return;
     if ((evento.ctrlKey || evento.metaKey) && evento.key.toLowerCase() === 'z' && !evento.shiftKey) {
       evento.preventDefault(); evento.stopPropagation(); this.store.deshacer();
     }
@@ -158,6 +170,7 @@ export class PiezasDelMuroComponent {
     if (evento.key === 'Escape') {
       evento.preventDefault(); evento.stopPropagation(); this.seleccion.set(null); this.elegida.emit(null); return;
     }
+    if (this.soloMirar()) return;
     if (evento.key === 'Delete' || evento.key === 'Backspace') {
       evento.preventDefault(); evento.stopPropagation();
       if (p.tipo === 'puerta') this.store.quitarPuerta(this.sala().id, p.id);
@@ -179,6 +192,7 @@ export class PiezasDelMuroComponent {
   }
   protected iniciar(evento: PointerEvent, p: Pieza): void {
     if (evento.button !== 0) return;
+    if (this.soloMirar()) { evento.stopPropagation(); this.elegir(p, evento); return; }
     evento.stopPropagation(); this.elegir(p, evento);
     (evento.currentTarget as HTMLElement).setPointerCapture?.(evento.pointerId);
     this.arrastre.set({ pieza: p, lugar: p.lugar, puntero: evento.pointerId, x: evento.clientX, y: evento.clientY, movio: false });
