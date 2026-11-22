@@ -641,3 +641,101 @@ def test_no_se_renombra_un_caso_que_otra_version_ya_mostro(prof_a, draft, siblin
     version.refresh_from_db()
     assert version.simulation_case.title == "Caso de R0"
     assert version.narrative_context == "" and version.version == draft["revision"]
+
+
+# ─── Revisión de Codex · RK-5 y el documento del caso ────────────────────────────────────────────
+def test_guardar_sin_entregar_toma_la_fila_del_intento_aunque_no_haya_valoracion(admin, completed):
+    """Con la valoración aún inexistente (o ``PENDING``) no hay fila de valoración que bloquear: el cerrojo tiene que
+    estar en el intento, que siempre existe, para que una entrega simultánea no sea pisada por un borrador."""
+    from django.test.utils import CaptureQueriesContext
+
+    _, attempt_id, _ = completed
+    assert not RubricEvaluation.objects.filter(attempt_id=attempt_id, origin="DOCENTE").exists()
+
+    with CaptureQueriesContext(connection) as queries:
+        response = _save(admin, attempt_id, _all_levels(attempt_id), deliver=False)
+
+    assert response.status_code == 200, response.data
+    locked = [q["sql"] for q in queries if "FOR UPDATE" in q["sql"].upper()]
+    assert any("simulation_attempt" in sql.lower() and "rubric" not in sql.lower() for sql in locked), locked
+
+
+def test_entregar_tambien_toma_la_fila_del_intento(admin, completed):
+    from django.test.utils import CaptureQueriesContext
+
+    _, attempt_id, _ = completed
+    with CaptureQueriesContext(connection) as queries:
+        assert _save(admin, attempt_id, _all_levels(attempt_id)).status_code == 200
+    assert any(
+        "FOR UPDATE" in q["sql"].upper() and "simulation_attempt" in q["sql"].lower() for q in queries
+    )
+
+
+def _seeded_with_r0_data():
+    """El caso sembrado (importable de verdad) con temas sensibles y descriptores propios en su primer criterio."""
+    seeded = CaseVersion.objects.get(simulation_case__code="SIM-VBG-001", status="PUBLISHED")
+    seeded.content_warnings = json.dumps(["Violencia", "Duelo"], ensure_ascii=False)
+    seeded.save(update_fields=["content_warnings"])
+    descriptors = {"EN_INICIO": "No nombra la emoción.", "DESTACADO": "La nombra y la valida."}
+    criterion = RubricCriterion.objects.filter(rubric__case_version=seeded).order_by("rubric_id", "display_order", "id").first()
+    criterion.level_descriptors_json = json.dumps(descriptors, ensure_ascii=False)
+    criterion.save(update_fields=["level_descriptors_json"])
+    return seeded, descriptors
+
+
+def _import(user, document):
+    return cl(user).generic(
+        "POST", f"{AUTHORING}/import", data=json.dumps(document, ensure_ascii=False).encode("utf-8"),
+        content_type="application/json",
+    )
+
+
+def test_los_temas_sensibles_y_los_descriptores_sobreviven_a_exportar_e_importar(admin):
+    from apps.simulation.services.authoring import definition_io
+
+    seeded, descriptors = _seeded_with_r0_data()
+    document = definition_io.export_definition(seeded.id)
+    siep = document["x-siep"]
+    assert siep["temasSensibles"] == ["Violencia", "Duelo"]
+    assert [c["descriptoresNivel"] for r in siep["rubricas"] for c in r["criterios"] if "descriptoresNivel" in c] == [
+        descriptors
+    ]
+
+    document["caso"]["id"] = "R0-IDA-VUELTA"
+    response = _import(admin, document)
+
+    assert response.status_code == 201, response.data
+    new_id = response.data["data"]["caseVersionId"]
+    assert json.loads(CaseVersion.objects.get(pk=new_id).content_warnings) == ["Violencia", "Duelo"]
+    copied = RubricCriterion.objects.filter(rubric__case_version_id=new_id).order_by("rubric_id", "display_order", "id").first()
+    assert json.loads(copied.level_descriptors_json) == descriptors
+    again = definition_io.export_definition(new_id)
+    assert again["x-siep"]["temasSensibles"] == ["Violencia", "Duelo"]
+    assert again["x-siep"]["rubricas"] == siep["rubricas"]
+
+
+def test_un_caso_sin_temas_ni_descriptores_exporta_el_documento_de_siempre(admin):
+    from apps.simulation.services.authoring import definition_io
+
+    seeded = CaseVersion.objects.get(simulation_case__code="SIM-VBG-001", status="PUBLISHED")
+    siep = definition_io.export_definition(seeded.id)["x-siep"]
+    assert "temasSensibles" not in siep
+    assert not any("descriptoresNivel" in c for r in siep["rubricas"] for c in r["criterios"])
+
+
+def test_un_documento_con_temas_o_descriptores_con_marcado_se_rechaza(admin):
+    from apps.simulation.services.authoring import definition_io
+
+    seeded, _ = _seeded_with_r0_data()
+    document = definition_io.export_definition(seeded.id)
+    document["caso"]["id"] = "R0-MARCADO"
+    document["x-siep"]["temasSensibles"] = ["<b>Violencia</b>"]
+    assert _import(admin, document).status_code == 400
+
+    document = definition_io.export_definition(seeded.id)
+    document["caso"]["id"] = "R0-MARCADO-2"
+    for rubric in document["x-siep"]["rubricas"]:
+        for criterion in rubric["criterios"]:
+            if "descriptoresNivel" in criterion:
+                criterion["descriptoresNivel"]["LOGRADO"] = "<script>x</script>"
+    assert _import(admin, document).status_code == 400

@@ -39,6 +39,9 @@ class Criterion:
     active: bool = True
     #: ``Competency.code`` del catálogo al que apunta el criterio, o ``None`` si solo tiene el texto libre.
     competency_code: str | None = None
+    #: RK-2 · Lo que significa cada nivel en este criterio: ``{nivel: texto}`` solo con los niveles que el autor escribió.
+    #: Vacío = el criterio usa los descriptores generales de los niveles.
+    level_descriptors: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -216,3 +219,5 @@ class CaseDefinition:
     tools: tuple[Tool, ...] = ()
     scenes: tuple[Scene, ...] = ()
     rubrics: tuple[Rubric, ...] = ()
+    #: RK-7 · Temas sensibles que la ficha declara al estudiante antes de entrar (vacío = el caso no declara ninguno).
+    content_warnings: tuple[str, ...] = ()

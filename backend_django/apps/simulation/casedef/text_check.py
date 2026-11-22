@@ -39,7 +39,11 @@ GOVERNED = {
     ("x-siep", "escenas", "*", "opciones", "*", "reaccion", "linea"): (400, False),
     ("x-siep", "escenas", "*", "objetivo"): (200, False),
     ("x-siep", "escenas", "*", "comentarios", "*", "linea"): (400, False),
+    ("x-siep", "temasSensibles", "*"): (60, False),
 }
+# RK-2: los descriptores por nivel de cada criterio (texto plano de hasta 600, varias líneas).
+for _level in ("EN_INICIO", "EN_PROCESO", "LOGRADO", "DESTACADO"):
+    GOVERNED[("x-siep", "rubricas", "*", "criterios", "*", "descriptoresNivel", _level)] = (600, True)
 
 #: Campos de la base que van a columnas de tamaño fijo y que el esquema del taller no acota (lo que
 #: ``x-siep`` lleva ya lo acota su esquema): ruta con ``*`` por cada posición de lista → caracteres.
@@ -68,6 +72,8 @@ LABELS = {
     "hablante": "hablante", "retroalimentacionInmediata": "retroalimentación inmediata",
     "retrato": "retrato", "apoyo": "recurso de apoyo",
     # BORRADOR: texto nuevo del servidor, pendiente de la aprobación de Psicología
+    "temasSensibles": "tema sensible", "EN_INICIO": "descriptor del nivel", "EN_PROCESO": "descriptor del nivel",
+    "LOGRADO": "descriptor del nivel", "DESTACADO": "descriptor del nivel",
     "linea": "frase de la reacción", "objetivo": "objetivo de la escena",
 }
 

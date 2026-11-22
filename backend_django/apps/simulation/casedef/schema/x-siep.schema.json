@@ -9,6 +9,7 @@
   "properties": {
     "version": { "enum": ["2.0", "2.1", "2.2"] },
     "contexto": { "type": "string", "maxLength": 4000 },
+    "temasSensibles": { "type": "array", "maxItems": 8, "items": { "type": "string", "minLength": 1, "maxLength": 60 }, "description": "Temas sensibles que la ficha declara al estudiante (RK-7)." },
     "descripcionDerivada": { "const": true, "description": "`caso.descripcion` de la base es el contexto de la versión (el caso no tenía descripción propia): el importador no la guarda como descripción." },
     "mundoVersion": { "type": "integer", "minimum": 1, "maximum": 1000000 },
     "reglas": { "$ref": "#/$defs/reglas" },
@@ -451,7 +452,18 @@
         "puntajeMaximo": { "$ref": "#/$defs/entero" },
         "peso": { "type": "string", "pattern": "^-?[0-9]{1,3}\\.[0-9]{2}(?![\\s\\S])" },
         "activo": { "type": "boolean" },
-        "competenciaCodigo": { "type": "string", "maxLength": 100 }
+        "competenciaCodigo": { "type": "string", "maxLength": 100 },
+        "descriptoresNivel": {
+          "type": "object",
+          "description": "Lo que significa cada nivel en este criterio (RK-2). Solo los cuatro niveles; el que falta se lee con el descriptor general.",
+          "additionalProperties": false,
+          "properties": {
+            "EN_INICIO": { "type": "string", "maxLength": 600 },
+            "EN_PROCESO": { "type": "string", "maxLength": 600 },
+            "LOGRADO": { "type": "string", "maxLength": 600 },
+            "DESTACADO": { "type": "string", "maxLength": 600 }
+          }
+        }
       },
       "if": { "not": { "required": ["id"] } },
       "then": { "required": ["competencia", "titulo", "descripcion"] }

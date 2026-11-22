@@ -13,6 +13,8 @@ EXPORTED = {
     "CaseVersion": {
         "semantic_version", "status", "narrative_context", "learning_objectives", "world_schema_version",
         "rules",
+        # RK-7: viaja como ``x-siep.temasSensibles``.
+        "content_warnings",
     },
     # ``display_order`` viaja como el orden de la escena en el documento (``orden``), no como su valor.
     "SimulationNode": {
@@ -50,6 +52,8 @@ EXPORTED = {
     # ``competency_ref`` viaja como el código de la competencia (``competenciaCodigo``).
     "RubricCriterion": {
         "competency", "competency_ref", "title", "description", "max_score", "weight", "active", "display_order",
+        # RK-2: viaja como ``descriptoresNivel``.
+        "level_descriptors_json",
     },
 }
 
@@ -81,10 +85,6 @@ EXCLUDED = {
         "last_edited_by": "quién editó por última vez; no es contenido",
         "edited_alone_since": "tanda de ediciones del editor; no es contenido",
         "updated_at": _STAMP,
-        # BK-1 agrega la columna y su lectura en la ficha; llevarla al documento (exportar e importar) es parte de
-        # RK-7, que es quien la deja editar. Hasta entonces un caso importado nace sin temas declarados.
-        # RK-7 (bloque R0) los deja editar en «Datos»; llevarlos al documento cambia el formato x-siep y queda pendiente.
-        "content_warnings": "temas sensibles de la ficha: se editan en el editor (RK-7) y aún no viajan en el documento",
     },
     "SimulationNode": {"id": _ID, "case_version": _OWNER_VERSION, "ai_suggested": _AI_MARK},
     "DecisionOption": {"id": _ID, "case_version": _OWNER_VERSION, "ai_suggested": _AI_MARK},
@@ -109,8 +109,5 @@ EXCLUDED = {
     "RubricCriterion": {
         "id": _ID,
         "rubric": "el criterio es de su rúbrica",
-        # RK-2 (bloque R0): llevarlos al documento cambia el formato x-siep (otra versión del esquema y su ida y vuelta);
-        # hasta entonces un caso exportado e importado vuelve con los descriptores generales del nivel.
-        "level_descriptors_json": "descriptores por nivel del criterio (RK-2): aún no viajan en el documento",
     },
 }

@@ -972,20 +972,18 @@ def save_attempt_evaluation(attempt_id, data, instructor):
     Todo va en una transacción: un fallo a mitad (al escribir un nivel) deja la valoración como estaba.
     """
     deliver = _deliver_flag(data)
-    attempt = SimulationAttempt.objects.filter(pk=attempt_id).first()
+    # Se toma la fila del INTENTO, que siempre existe, y no la de la valoración, que puede no existir todavía o estar
+    # ``PENDING``: así dos guardados del mismo intento (una entrega y un «guardar sin entregar» desde otra pestaña) se
+    # ponen en fila, y el segundo relee el estado ya con el primero confirmado. Bloquear solo las valoraciones
+    # ``EVALUATED`` no bastaba: sin esa fila no había nada que bloquear y el borrador podía pisar la entrega.
+    attempt = SimulationAttempt.objects.select_for_update().filter(pk=attempt_id).first()
     if not attempt:
         raise NotFound("Intento no encontrado")
     rubric = rubric_for_case_version(attempt.case_version_id)
     if not deliver:
-        # Bajo cerrojo de la fila: una entrega que llega a la vez desde otra pestaña no se cuela entre la comprobación y
-        # la escritura (la entrega toma la fila al actualizarla; esta lectura espera, relee el estado y responde 409).
-        # Se lee la fila con ``first()`` y no con ``exists()``: así el ``FOR UPDATE`` va seguro en la consulta que corre.
-        delivered = (
-            RubricEvaluation.objects.select_for_update()
-            .filter(attempt_id=attempt.id, rubric_id=rubric.id, instructor_id=instructor.id, status="EVALUATED")
-            .values_list("id", flat=True)
-            .first()
-        ) is not None
+        delivered = RubricEvaluation.objects.filter(
+            attempt_id=attempt.id, rubric_id=rubric.id, instructor_id=instructor.id, status="EVALUATED"
+        ).exists()
         if delivered:
             raise ApiError(
                 "EVALUATION_ALREADY_DELIVERED",

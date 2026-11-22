@@ -70,6 +70,7 @@ def entities(definition):
         for c in rubric.criteria:
             found[("criterio", (rubric.name, c.title))] = (
                 c.competency, c.description, c.max_score, c.weight, c.active, c.competency_code,
+                tuple(sorted(c.level_descriptors.items())),
             )
     return found
 
