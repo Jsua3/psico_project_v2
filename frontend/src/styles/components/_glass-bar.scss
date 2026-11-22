@@ -1117,9 +1117,18 @@ $corte-tope: 82.499rem;
 // queda el isotipo, como hacía el logo doble (D10 de la receta). En el teléfono la banda sí tiene sitio para la marca
 // completa (marca, tema y cuenta caben a 360 px) y la marca se queda: el usuario pidió en la portada que no cediera al
 // isotipo. Solo por debajo de 22,5rem (320 px) cede, por ancho y no por recorte.
-@media (min-width: 64rem) and (max-width: $corte-tope), (max-width: 22.499rem) {
+// Pasada final: el corte de la barra pública (82,5rem) dejaba al portal sin palabra ni nombre a 1280 px con media barra
+// vacía. Con seis destinos cortos, marca completa, tema y ficha caben desde 75rem (medido: unos 1.080 px de 1.168), y el
+// plan §2.8 pide la cuenta como icono solo por debajo de 1.200 px. Entre 64rem y 75rem sigue cediendo.
+@media (min-width: 64rem) and (max-width: 74.999rem), (max-width: 22.499rem) {
   .cromo.barra-portal .barra-marca .marca__palabra {
     display: none;
+  }
+}
+
+@media (min-width: 75rem) and (max-width: $corte-tope) {
+  .cromo.barra-portal .cuenta-chip {
+    display: inline-flex;
   }
 }
 

@@ -78,8 +78,11 @@ html {
 
 // Lo mismo hacen el portal y la portada en claro, que redefinen el primario en violeta (skins/_portal.scss, DISENO
 // DP-03): sin esto Angular Material seguiría pintando con el azul petróleo resuelto en `html`.
+// También la capa clara de diálogos y hojas (`.ui-overlay-materiales`, B2), que vive en el contenedor del CDK, fuera del
+// portal: sin ella un control de Material dentro de un diálogo claro seguiría en petróleo y no en violeta.
 .portal[data-skin='portal'],
-.publico[data-skin='portal'] {
+.publico[data-skin='portal'],
+.ui-overlay-materiales[data-skin='portal'] {
   @include atar-material;
 }
 
