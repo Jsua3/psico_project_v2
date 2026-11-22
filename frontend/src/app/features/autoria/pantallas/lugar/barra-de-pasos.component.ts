@@ -25,15 +25,15 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
   `,
   styles: `
     :host { display: block; position: sticky; inset-block-end: 0.75rem; z-index: var(--autoria-capa-4); margin-block-start: auto; }
-    /* Material de panel, no de vidrio (el vidrio es solo de la barra superior): casi opaco, filo de 1 px y la sombra de menú. */
+    /* Material de panel, no de vidrio (el vidrio es solo de la barra superior): opaco del todo, para que nada de lo que se
+       desplaza por detrás se lea a través (con 96 % se veían los temas del panel como un fantasma), filo de 1 px y sombra. */
     .barra {
       display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 0.75rem;
       block-size: 4rem; padding-inline: 0.75rem;
       border: 1px solid var(--l-filo-fuerte, var(--linea)); border-radius: var(--l-radio-tarjeta, var(--radio-tarjeta));
-      background: color-mix(in oklab, var(--l-superficie, var(--superficie)) 96%, transparent);
+      background: var(--l-superficie, var(--superficie));
       box-shadow: inset 0 1px 0 var(--l-brillo, transparent), var(--sombra-menu);
     }
-    @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) { .barra { background: var(--superficie); } }
     @media (forced-colors: active) { .barra { border-color: CanvasText; } }
     .lado { display: flex; align-items: center; gap: 0.75rem; min-inline-size: 0; }
     .lado--fin { justify-content: flex-end; }

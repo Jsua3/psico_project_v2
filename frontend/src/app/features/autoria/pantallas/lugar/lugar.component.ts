@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { BibliotecaService } from '../../modelo/biblioteca.service';
@@ -33,11 +33,21 @@ import { PintorDeVistas } from './pintor-de-vistas.service';
       </header>
 
       @if (temasPresentes().length > 1) {
-        <div class="filtro" role="group" aria-labelledby="ftema">
-          <span id="ftema" class="etiqueta">Filtrar por tema</span>
-          <button type="button" class="ficha" [attr.aria-pressed]="tema() === null" (click)="tema.set(null)">Todos los temas</button>
-          @for (t of temasPresentes(); track t) {
-            <button type="button" class="ficha" [attr.aria-pressed]="tema() === t" (click)="tema.set(t)">{{ nombreTema(t) }}</button>
+        <!-- La fila se desliza si no cabe: el borde con más fichas se desvanece y lleva una flecha (solo para el ratón; con el
+             teclado, Tab recorre las fichas y cada una se desliza a la vista sola). -->
+        <div class="filtro-marco" [attr.data-mas-inicio]="masInicio() || null" [attr.data-mas-fin]="masFin() || null">
+          <div class="filtro" role="group" aria-labelledby="ftema" #filtro (scroll)="medirFiltro()">
+            <span id="ftema" class="etiqueta">Filtrar por tema</span>
+            <button type="button" class="ficha" [attr.aria-pressed]="tema() === null" (click)="tema.set(null)">Todos los temas</button>
+            @for (t of temasPresentes(); track t) {
+              <button type="button" class="ficha" [attr.aria-pressed]="tema() === t" (click)="tema.set(t)">{{ nombreTema(t) }}</button>
+            }
+          </div>
+          @if (masInicio()) {
+            <button type="button" class="desliza desliza--inicio" tabindex="-1" aria-hidden="true" (click)="deslizar(-1)"><span>‹</span></button>
+          }
+          @if (masFin()) {
+            <button type="button" class="desliza desliza--fin" tabindex="-1" aria-hidden="true" (click)="deslizar(1)"><span>›</span></button>
           }
         </div>
       }
@@ -138,7 +148,7 @@ export class LugarComponent {
   protected readonly elegido = computed(() => this.lugares().find((l) => l.id === this.elegidoId()) ?? null);
   /** El elegido, si ya se puede usar: es el que habilita «Continuar». */
   protected readonly listo = computed(() => (this.elegido()?.completo ? this.elegido() : null));
-  protected readonly hayDisponibles =computed(() => this.filtrados().some((l) => l.completo));
+  protected readonly hayDisponibles = computed(() => this.filtrados().some((l) => l.completo));
   protected readonly estado = computed(() => {
     const total = this.filtrados().length;
     const listos = this.filtrados().filter((l) => l.completo).length;
@@ -147,8 +157,36 @@ export class LugarComponent {
     return `${total} ${total === 1 ? 'lugar' : 'lugares'} · ${listos} ${listos === 1 ? 'disponible' : 'disponibles'} ahora`;
   });
 
+  private readonly filtro = viewChild<ElementRef<HTMLElement>>('filtro');
+  /** Hay fichas escondidas antes o después de lo visible: decide el desvanecido y las flechas de cada borde. */
+  protected readonly masInicio = signal(false);
+  protected readonly masFin = signal(false);
+
   constructor() {
     this.cargar();
+    // La fila aparece cuando llegan los lugares y cambia de ancho con la ventana: se vuelve a medir en ambos casos.
+    effect((limpiar) => {
+      const el = this.filtro()?.nativeElement;
+      if (!el || typeof ResizeObserver === 'undefined') return;
+      const observador = new ResizeObserver(() => this.medirFiltro());
+      observador.observe(el);
+      limpiar(() => observador.disconnect());
+    });
+  }
+
+  protected medirFiltro(): void {
+    const el = this.filtro()?.nativeElement;
+    if (!el) return;
+    this.masInicio.set(el.scrollLeft > 2);
+    this.masFin.set(el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
+  }
+
+  /** Desliza la fila casi un ancho visible (deja ver la última ficha de antes, para no perder el hilo). */
+  protected deslizar(sentido: 1 | -1): void {
+    const el = this.filtro()?.nativeElement;
+    if (!el) return;
+    const quieto = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el.scrollBy({ left: sentido * el.clientWidth * 0.7, behavior: quieto ? 'auto' : 'smooth' });
   }
 
   protected cargar(): void {

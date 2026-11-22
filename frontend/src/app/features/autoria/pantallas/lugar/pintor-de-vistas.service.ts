@@ -8,8 +8,8 @@ import { AutoriaApiService } from '../../api/autoria-api.service';
 import { rutaArte } from '../../modelo/biblioteca.service';
 import type { Sala } from '../../modelo/escenario';
 
-/** Píxeles de techo que se quitan arriba (el muro del fondo empieza en y = 84; quedan 28 de techo como marco). */
-const TECHO_RECORTADO = 56;
+/** Proporción de las miniaturas y portadas (16:9): la vista sale ya encuadrada y `object-fit: cover` no recorta nada. */
+const PROPORCION = 16 / 9;
 
 /** Una sala tal como la trae la biblioteca: con `fondo` dibujado o, si es por piezas, con su `estructura` y sus puertas. */
 export type SalaDeBiblioteca = Sala & { estructura?: SalaPorPiezas['estructura'] };
@@ -58,11 +58,13 @@ export class PintorDeVistas {
     lienzo.height = plan.alto;
     ctx.putImageData(new ImageData(new Uint8ClampedArray(cuarto.rgba), plan.ancho, plan.alto), 0, 0);
     await this.ponerMuebles(ctx, lugarId, sala, manifiesto);
-    // El techo vacío (la franja oscura sobre el muro) pesa en una miniatura: se recorta y queda un filo de él como marco.
+    // El techo vacío (la franja oscura sobre el muro) se leía como una banda negra en la tarjeta y en el panel: se busca
+    // dónde empieza el cuarto de verdad y se encuadra desde ahí, ya en 16:9.
+    const { x, y, ancho, alto } = encuadre(ctx, plan.ancho, plan.alto);
     const salida = document.createElement('canvas');
-    salida.width = plan.ancho;
-    salida.height = plan.alto - TECHO_RECORTADO;
-    salida.getContext('2d')?.drawImage(lienzo, 0, -TECHO_RECORTADO);
+    salida.width = ancho;
+    salida.height = alto;
+    salida.getContext('2d')?.drawImage(lienzo, x, y, ancho, alto, 0, 0, ancho, alto);
     return await new Promise<string | null>((listo) => salida.toBlob((b) => listo(b ? URL.createObjectURL(b) : null), 'image/png'));
   }
 
@@ -108,4 +110,28 @@ function aRgba(img: HTMLImageElement, ctx: CanvasRenderingContext2D): Imagen {
   ctx.clearRect(0, 0, ancho, alto);
   ctx.drawImage(img, 0, 0);
   return { ancho, alto, rgba: ctx.getImageData(0, 0, ancho, alto).data };
+}
+
+/**
+ * El recorte en 16:9 de un cuarto sin su techo. El techo es la franja de arriba del mismo color (o transparente) que el
+ * píxel del centro de la primera fila: la primera fila en la que más de la mitad de los píxeles se aparta de ese color es
+ * el muro. Desde ahí, si sobra alto se recorta abajo; si falta, se recortan los lados por igual.
+ */
+export function encuadre(ctx: CanvasRenderingContext2D, ancho: number, alto: number): { x: number; y: number; ancho: number; alto: number } {
+  const datos = ctx.getImageData(0, 0, ancho, alto).data;
+  const base = (Math.floor(ancho / 2)) * 4;
+  const [r0, g0, b0, a0] = [datos[base], datos[base + 1], datos[base + 2], datos[base + 3]];
+  const distinto = (i: number) =>
+    a0 < 16 ? datos[i + 3] > 16 : Math.abs(datos[i] - r0) + Math.abs(datos[i + 1] - g0) + Math.abs(datos[i + 2] - b0) > 36 || datos[i + 3] < 16;
+  let techo = 0;
+  // Nunca más de la mitad: un cuarto raro (todo de un color) no debe quedarse sin imagen.
+  for (let y = 0; y < alto / 2; y++) {
+    let cuenta = 0;
+    for (let x = 0; x < ancho; x += 2) if (distinto((y * ancho + x) * 4)) cuenta++;
+    if (cuenta > ancho / 8) { techo = y; break; }
+  }
+  const resto = alto - techo;
+  if (resto * PROPORCION >= ancho) return { x: 0, y: techo, ancho, alto: Math.round(ancho / PROPORCION) };
+  const angosto = Math.round(resto * PROPORCION);
+  return { x: Math.round((ancho - angosto) / 2), y: techo, ancho: angosto, alto: resto };
 }
