@@ -8,6 +8,9 @@ import { AutoriaApiService } from '../../api/autoria-api.service';
 import { rutaArte } from '../../modelo/biblioteca.service';
 import type { Sala } from '../../modelo/escenario';
 
+/** Píxeles de techo que se quitan arriba (el muro del fondo empieza en y = 84; quedan 28 de techo como marco). */
+const TECHO_RECORTADO = 56;
+
 /** Una sala tal como la trae la biblioteca: con `fondo` dibujado o, si es por piezas, con su `estructura` y sus puertas. */
 export type SalaDeBiblioteca = Sala & { estructura?: SalaPorPiezas['estructura'] };
 
@@ -55,7 +58,12 @@ export class PintorDeVistas {
     lienzo.height = plan.alto;
     ctx.putImageData(new ImageData(new Uint8ClampedArray(cuarto.rgba), plan.ancho, plan.alto), 0, 0);
     await this.ponerMuebles(ctx, lugarId, sala, manifiesto);
-    return await new Promise<string | null>((listo) => lienzo.toBlob((b) => listo(b ? URL.createObjectURL(b) : null), 'image/png'));
+    // El techo vacío (la franja oscura sobre el muro) pesa en una miniatura: se recorta y queda un filo de él como marco.
+    const salida = document.createElement('canvas');
+    salida.width = plan.ancho;
+    salida.height = plan.alto - TECHO_RECORTADO;
+    salida.getContext('2d')?.drawImage(lienzo, 0, -TECHO_RECORTADO);
+    return await new Promise<string | null>((listo) => salida.toBlob((b) => listo(b ? URL.createObjectURL(b) : null), 'image/png'));
   }
 
   /** Los muebles van encima del cuarto, de atrás hacia adelante; cada uno en su primer cuadro y apoyado en su punto. */

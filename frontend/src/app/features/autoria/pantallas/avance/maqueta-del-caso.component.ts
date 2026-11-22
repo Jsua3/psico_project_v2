@@ -86,7 +86,7 @@ const ESTADO_LEGIBLE: Record<EstadoParte, string> = {
     .numero, .fin {
       position: absolute; inset-block-start: 0.375rem; padding: 0 0.375rem; min-inline-size: 1.5rem; text-align: center;
       font-size: var(--autoria-texto-14); font-weight: 700; line-height: 1.5rem; border-radius: var(--l-pixel, 2px);
-      color: var(--ds-text-inverse, var(--sobre-primario)); background: color-mix(in oklab, var(--ds-bg, var(--tinta)) 78%, transparent);
+      color: var(--sobre-primario); background: var(--primario);
     }
     .numero { inset-inline-start: 0.375rem; }
     .fin { inset-inline-end: 0.375rem; }

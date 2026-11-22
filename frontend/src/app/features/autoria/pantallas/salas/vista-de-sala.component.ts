@@ -69,9 +69,9 @@ export interface FichaDeSala {
     }
     .encuadre {
       position: absolute; inset-block-end: 0.5rem; inset-inline-start: 0.5rem; padding: 0.125rem 0.5rem;
-      font-size: var(--autoria-texto-14); font-weight: 700; color: var(--ds-text-inverse, var(--sobre-primario));
-      background: color-mix(in oklab, var(--ds-bg, var(--tinta)) 78%, transparent);
-      border-block-end: var(--l-pixel, 2px) solid var(--primario); border-radius: var(--l-pixel, 2px);
+      font-size: var(--autoria-texto-14); font-weight: 700; color: var(--sobre-primario);
+      background: var(--primario);
+      box-shadow: inset 0 calc(-1 * var(--l-pixel, 2px)) 0 var(--primario-oscuro); border-radius: var(--l-pixel, 2px);
     }
     .cabeza { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
     .cabeza h3 { margin: 0; font-size: var(--autoria-texto-20); line-height: 1.75rem; }

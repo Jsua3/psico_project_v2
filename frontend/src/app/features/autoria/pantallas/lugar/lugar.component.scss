@@ -67,12 +67,13 @@
   display: block; inline-size: 100%; block-size: 100%;
   background: repeating-conic-gradient(var(--fondo-hundido) 0 25%, color-mix(in oklab, var(--fondo-hundido) 80%, var(--linea)) 0 50%) 0 0 / 1.5rem 1.5rem;
 }
-// Insignia sobre el arte: placa oscura con filo pixel de 2 px abajo, como las etiquetas del simulador.
+// Insignia sobre el arte: placa en el color de acción (par AA en los dos temas; una placa clara en oscuro destellaba,
+// NVIDIA) con un filo pixel de 2 px abajo, como las etiquetas del simulador.
 .insignia {
   position: absolute; inset-block-end: 0.5rem; inset-inline-start: 0.5rem; padding: 0.125rem 0.5rem;
-  font-size: var(--autoria-texto-14); font-weight: 700; color: var(--ds-text-inverse, var(--sobre-primario));
-  background: color-mix(in oklab, var(--ds-bg, var(--tinta)) 78%, transparent);
-  border-block-end: var(--l-pixel, 2px) solid var(--primario); border-radius: var(--l-pixel, 2px);
+  font-size: var(--autoria-texto-14); font-weight: 700; color: var(--sobre-primario);
+  background: var(--primario);
+  box-shadow: inset 0 calc(-1 * var(--l-pixel, 2px)) 0 var(--primario-oscuro); border-radius: var(--l-pixel, 2px);
 }
 // El visto de la elegida: un cuadrito de 24 px con la marca dibujada por dos filos (sin glifo que dependa de la fuente).
 .visto {
