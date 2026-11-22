@@ -20,8 +20,8 @@
       <div class="ce-preview">
         <button class="ce-turn" type="button" aria-label="Girar a la izquierda" (click)="girar(-1)"><span aria-hidden="true">←</span></button>
         <figure class="ce-view">
-          <app-kit-figure class="ce-preview-desktop" [visual]="visual()" [view]="views[viewIndex()].id" [sheet]="motion()" [scale]="4" />
-          <app-kit-figure class="ce-preview-mobile" [visual]="visual()" [view]="views[viewIndex()].id" [sheet]="motion()" [scale]="2" />
+          <app-kit-figure class="ce-preview-desktop" [visual]="visual()" [view]="views[viewIndex()].id" [sheet]="motion()" [scale]="4" [animated]="true" />
+          <app-kit-figure class="ce-preview-mobile" [visual]="visual()" [view]="views[viewIndex()].id" [sheet]="motion()" [scale]="2" [animated]="true" />
           <figcaption>{{ views[viewIndex()].label }}</figcaption>
         </figure>
         <button class="ce-turn" type="button" aria-label="Girar a la derecha" (click)="girar(1)"><span aria-hidden="true">→</span></button>
@@ -74,7 +74,8 @@
             @for (id of skins; track id; let i = $index) {
               <label class="ce-option ce-option--swatch" [uiTooltip]="'Tono ' + (i + 1)">
                 <input type="radio" class="ce-radio" name="ce-skin" [checked]="c.skin === id" (change)="setCustom({ skin: id })" />
-                <span>Tono {{ i + 1 }}</span>
+                <span class="ce-swatch" aria-hidden="true" [style.--ce-swatch]="swatch(id)"></span>
+                <span class="ds-sr-only">Tono {{ i + 1 }}</span>
               </label>
             }
           </div>
@@ -96,7 +97,8 @@
             @for (id of hairColors; track id) {
               <label class="ce-option ce-option--swatch" [uiTooltip]="labels.hairColor[id]">
                 <input type="radio" class="ce-radio" name="ce-hair-color" [checked]="c.hairColor === id" (change)="setCustom({ hairColor: id })" />
-                <span>{{ labels.hairColor[id] }}</span>
+                <span class="ce-swatch" aria-hidden="true" [style.--ce-swatch]="swatch(id)"></span>
+                <span class="ds-sr-only">{{ labels.hairColor[id] }}</span>
               </label>
             }
           </div>

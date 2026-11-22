@@ -1,5 +1,6 @@
 import { provideZonelessChangeDetection, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 
 import { AuthService } from '../../core/auth/auth.service';
@@ -7,6 +8,7 @@ import { NotificationService } from '../../core/notifications/notification.servi
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { AvatarStore } from './avatar.store';
 import { CharacterEditorComponent } from './character-editor.component';
+import { KitFigureComponent } from './kit/kit-figure.component';
 import { KitService } from './kit/kit.service';
 import { fakeKitService, testKitBundle } from './kit/testing/kit-testing';
 
@@ -146,6 +148,15 @@ describe('CharacterEditorComponent', () => {
     host().querySelector<HTMLButtonElement>('[aria-label="Girar a la derecha"]')!.click();
     await fixture.whenStable();
     expect(text(host().querySelector('figcaption'))).toBe('Derecha');
+  });
+
+  it('las dos vistas previas llevan la animación activa (el kit la detiene solo con movimiento reducido)', async () => {
+    await render();
+    const previews = fixture.debugElement.queryAll(By.css('.ce-view app-kit-figure'));
+    expect(previews).toHaveLength(2);
+    for (const preview of previews) {
+      expect((preview.componentInstance as KitFigureComponent).animated()).toBe(true);
+    }
   });
 
   it('salir con cambios sin guardar pregunta (canLeave); sin cambios, no', async () => {

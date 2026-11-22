@@ -186,7 +186,7 @@ async function openEditor(page: Page): Promise<void> {
   await loginAs(page, 'estudiante');
   await page.evaluate(() => localStorage.removeItem('psychosim_avatar'));
   await page.goto('/portal/personaje');
-  await expect(page.locator('fieldset').filter({ hasText: 'Elenco' }).locator('input[type="radio"]').first()).toBeAttached({ timeout: scaled(15_000) });
+  await expect(page.locator('fieldset').filter({ hasText: 'Elige tu personaje' }).locator('input[type="radio"]').first()).toBeAttached({ timeout: scaled(15_000) });
 }
 
 // req: BLOQUE-H, RNF-04 (plan visual F5-4)
@@ -195,7 +195,7 @@ test.describe('@estudiante personaje', () => {
     test(`piel portal con escenario oscuro: sin desborde, opciones ≥ 44 px y Axe sin hallazgos serios (${viewport.width})`, async ({ page }) => {
       await page.setViewportSize(viewport);
       await openEditor(page);
-      await page.locator('fieldset').filter({ hasText: 'Elenco' }).getByText('Personalizado').click();
+      await page.locator('fieldset').filter({ hasText: 'Elige tu personaje' }).getByText('Personalizado').click();
       await expect(page.locator('fieldset').filter({ hasText: 'Peinado' })).toBeVisible();
       expect(await overflowX(page)).toBeLessThanOrEqual(0);
       const small = await page.locator('.ce-option').evaluateAll(options => options
@@ -208,7 +208,7 @@ test.describe('@estudiante personaje', () => {
 
   test('los grupos son radios nativos: las flechas cambian la elección', async ({ page }) => {
     await openEditor(page);
-    const radios = page.locator('fieldset').filter({ hasText: 'Elenco' }).locator('input[type="radio"]');
+    const radios = page.locator('fieldset').filter({ hasText: 'Elige tu personaje' }).locator('input[type="radio"]');
     await radios.first().focus();
     await page.keyboard.press('ArrowRight');
     await expect(radios.nth(1)).toBeChecked();
@@ -218,7 +218,7 @@ test.describe('@estudiante personaje', () => {
 
   test('salir con cambios sin guardar pregunta: «Seguir editando» se queda y «Salir sin guardar» sale', async ({ page }) => {
     await openEditor(page);
-    await page.locator('fieldset').filter({ hasText: 'Elenco' }).locator('input[type="radio"]').nth(2).check({ force: true });
+    await page.locator('fieldset').filter({ hasText: 'Elige tu personaje' }).locator('input[type="radio"]').nth(2).check({ force: true });
     await page.locator('header.cromo').getByRole('link', { name: 'Inicio', exact: true }).click();
     const dialog = page.getByRole('alertdialog', { name: 'Tienes cambios sin guardar' });
     await expect(dialog).toBeVisible();

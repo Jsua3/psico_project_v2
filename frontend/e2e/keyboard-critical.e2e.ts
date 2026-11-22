@@ -263,18 +263,18 @@ test('[E11 E12] ver el historial y el resultado con su retroalimentación: «Ver
 });
 
 // req: RNF-004, WCAG 2.1.1
-test('[E13] editar el avatar: las flechas eligen, «Guardar personaje» guarda y «Restablecer» deshace', async ({ page }) => {
+test('[E13] editar el avatar: las flechas eligen, «Guardar» guarda y «Restablecer» deshace', async ({ page }) => {
   await keyboardLogin(page, ESTUDIANTE);
   await goTo(page, 'Mi personaje', /\/portal\/personaje$/);
-  const elenco = page.locator('fieldset').filter({ hasText: 'Elenco' }).locator('input[type="radio"]');
-  await tabTo(page, elenco.first().or(page.locator('fieldset').filter({ hasText: 'Elenco' }).locator('input[type="radio"]:checked')));
+  const elenco = page.locator('fieldset').filter({ hasText: 'Elige tu personaje' }).locator('input[type="radio"]');
+  await tabTo(page, elenco.first().or(page.locator('fieldset').filter({ hasText: 'Elige tu personaje' }).locator('input[type="radio"]:checked')));
   const before = await elenco.evaluateAll(items => items.findIndex(item => (item as HTMLInputElement).checked));
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('status').filter({ hasText: 'Cambios sin guardar' })).toBeVisible();
   const chosen = await elenco.evaluateAll(items => items.findIndex(item => (item as HTMLInputElement).checked));
   expect(chosen, 'la flecha cambió la elección').not.toBe(before);
 
-  await pressWithKeyboard(page, page.getByRole('button', { name: 'Guardar personaje' }));
+  await pressWithKeyboard(page, page.getByRole('button', { name: 'Guardar', exact: true }));
   await expect(page.getByRole('status').filter({ hasText: 'Cambios sin guardar' })).toHaveCount(0, { timeout: scaled(15_000) });
 
   await tabTo(page, elenco.nth(chosen), { backwards: true });

@@ -250,11 +250,15 @@
   .ce-grid { grid-template-columns: minmax(0, 1fr); }
   .ce-stage { position: static; }
 }
+// La navegación inferior vive hasta 63.999rem (glass-bar): el pie se sube sobre ella en todo ese intervalo.
+@media (max-width: 63.999rem) {
+  .ce-footer { bottom: calc(var(--asb-alto-modulo-inferior, 4.5rem) + env(safe-area-inset-bottom)); }
+  :host { padding-bottom: 6rem; }
+}
 @media (max-width: 40rem) {
   .ce-stage { padding: var(--ds-space-3); gap: var(--ds-space-2); }
   .ce-preview-desktop { display: none; }
   .ce-preview-mobile { display: inline-block; }
-  .ce-footer { bottom: calc(var(--asb-alto-modulo-inferior, 4.5rem) + env(safe-area-inset-bottom)); }
   // Tira horizontal con encaje: 13 personajes en columna alargaban la página a más de 1700 px; así se ven
   // todos con un gesto y la tarjeta siguiente asoma para avisar que hay más.
   .ce-cast {
@@ -266,7 +270,6 @@
   .ce-summary { display: none; }
   .ce-actions { gap: var(--ds-space-1); }
   .ce-dirty:empty { display: none; }
-  :host { padding-bottom: 6rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   .ce-option { transition: none; }
