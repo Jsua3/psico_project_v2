@@ -167,6 +167,8 @@
   align-items: center;
   gap: var(--ds-space-2);
   min-block-size: var(--ds-target-min);
+  // 44 px también a lo ancho: con el texto oculto, el área pulsable no puede quedar en el ancho de la casilla.
+  min-inline-size: var(--ds-target-min);
   min-width: 0;
 
   input {

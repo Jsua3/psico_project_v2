@@ -40,16 +40,22 @@
 
 @if (vista() === 'por-aprobar') {
   <ui-section class="us-pending" title="Cuentas por aprobar">
-    <ui-card class="us-pending__card">
-      <p class="us-hint">{{ pendingText() }}</p>
-      <label class="us-check"><input type="checkbox" [checked]="pendingUsers().length > 0 && seleccionPendientes().length === pendingUsers().length"
-        (change)="seleccionarVisibles($any($event.target).checked, true)"> Seleccionar cuentas pendientes</label>
-      @for (user of pendingUsers(); track user.id) {
-        <label class="us-check"><input type="checkbox" [checked]="seleccionPendientes().includes(user.id)"
-          (change)="seleccionar(user.id, $any($event.target).checked, true)"> {{ user.nombre }} {{ user.apellido }} <span class="us-email" [title]="user.email">{{ user.email }}</span></label>
-      }
-      <button ui-button type="button" icon="task_alt" [disabled]="!seleccionPendientes().length" [loading]="saving()" (click)="aprobarSeleccion()">Aprobar {{ seleccionPendientes().length }} cuentas</button>
-    </ui-card>
+    @if (state() === 'loading') {
+      <p class="us-hint">Cargando cuentas…</p>
+    } @else if (state() === 'error') {
+      <ui-error-state kind="server" [message]="error()" (retry)="load()" />
+    } @else {
+      <ui-card class="us-pending__card">
+        <p class="us-hint">{{ pendingText() }}</p>
+        <label class="us-check"><input type="checkbox" [checked]="pendingUsers().length > 0 && seleccionPendientes().length === pendingUsers().length"
+          (change)="seleccionarVisibles($any($event.target).checked, true)"> Seleccionar cuentas pendientes</label>
+        @for (user of pendingUsers(); track user.id) {
+          <label class="us-check"><input type="checkbox" [checked]="seleccionPendientes().includes(user.id)"
+            (change)="seleccionar(user.id, $any($event.target).checked, true)"> {{ user.nombre }} {{ user.apellido }} <span class="us-email" [title]="user.email">{{ user.email }}</span></label>
+        }
+        <button ui-button type="button" icon="task_alt" [disabled]="!seleccionPendientes().length" [loading]="saving()" (click)="aprobarSeleccion()">Aprobar {{ seleccionPendientes().length }} cuentas</button>
+      </ui-card>
+    }
   </ui-section>
 }
 
@@ -73,11 +79,17 @@
       <button ui-button type="button" variant="ghost" (click)="seleccion.set([])">Quitar selección</button>
     </div>
   }
+  @if (filtrados().length) {
+    <!-- La casilla maestra vive fuera de la tabla: en la vista apilada la cabecera queda solo para lectores de pantalla y
+         una casilla enfocable ahí dentro no tendría foco visible. -->
+    <label class="us-check us-master"><input type="checkbox" [checked]="todosVisibles()" [indeterminate]="algunosVisibles()"
+      (change)="seleccionarVisibles($any($event.target).checked)"> Seleccionar las {{ filtrados().length }} visibles</label>
+  }
   <ui-table label="Tabla de usuarios" density="compact" apilar [state]="state()">
     <table ui-table>
       <thead>
         <tr>
-          <th scope="col"><label class="us-check"><input type="checkbox" [attr.aria-label]="'Seleccionar las ' + filtrados().length + ' visibles'" [checked]="todosVisibles()" [indeterminate]="algunosVisibles()" (change)="seleccionarVisibles($any($event.target).checked)"></label></th>
+          <th scope="col"><span class="ds-sr-only">Selección</span></th>
           <th scope="col">Nombre</th>
           <th scope="col">Email</th>
           <th scope="col">Rol</th>

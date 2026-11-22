@@ -407,6 +407,45 @@ describe('pantalla Usuarios (F7-6)', () => {
     });
   });
 
+  it('muestra en línea el 400 LAST_ADMIN real del servidor en el resumen parcial', async () => {
+    // El servidor decide en el momento (otro administrador pudo cambiar antes): el cliente no lo anticipó.
+    const admin = { ...ana, id: 7 } as AdminUser;
+    const otro = { ...ana, id: 8 } as AdminUser;
+    await render({ users: () => of([admin, otro]) });
+    service['updateStatus'].mockImplementation((id: number) => id === 8
+      ? throwError(() => new HttpErrorResponse({ status: 400, error: { code: 'LAST_ADMIN', message: 'No puedes desactivar ni quitar el rol al último administrador activo.' } }))
+      : of({ ...admin, activo: false }));
+    component().seleccion.set([7, 8]);
+    await component().cambiarLote(false);
+    fixture.detectChanges();
+    expect(text(host().querySelector('.us-result'))).toContain('1 desactivadas. 1 no se pudieron actualizar.');
+    expect(text(host().querySelector('.us-result'))).toContain('No puedes desactivar ni quitar el rol al último administrador activo.');
+  });
+
+  it('en Por aprobar muestra el error de carga con reintento, no «Hay 0 cuentas»', async () => {
+    await render({ users: () => throwError(() => new HttpErrorResponse({ status: 500 })) }, { vista: 'por-aprobar' });
+    expect(host().querySelector('.us-pending ui-error-state')).not.toBeNull();
+    expect(text(host().querySelector('.us-pending'))).not.toContain('Hay 0 cuentas');
+  });
+
+  it('el resumen solo muestra el resultado de la acción en curso al encadenar aprobar y un lote', async () => {
+    const pendiente = { ...ana, id: 30, pendingApproval: true } as AdminUser;
+    const activo = { ...beto, id: 31, activo: true } as AdminUser;
+    await render({ users: () => of([pendiente, activo]) });
+    service['approve'].mockReturnValue(of({ approved: 1, approvedIds: [30], skipped: [], emailed: 1, failed: [] }));
+    service['updateStatus'].mockReturnValue(of({ ...activo, activo: false }));
+    await component().approveUser(pendiente);
+    fixture.detectChanges();
+    expect(component().actionStatus()).not.toBe('');
+    component().seleccion.set([31]);
+    await component().cambiarLote(false);
+    fixture.detectChanges();
+    expect(component().actionStatus()).toBe('');
+    expect(component().resumen()).toContain('1 desactivadas');
+    await component().approveUser(pendiente);
+    expect(component().resultadoLote()).toBe('');
+  });
+
   // req: RNF-04, BLOQUE-H
   describe('estructura', () => {
     it('ninguna región repite el nombre de otra y no quedan restos de Material', async () => {

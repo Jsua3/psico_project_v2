@@ -171,6 +171,8 @@ export class UsersComponent implements OnInit {
       confirmLabel: `${activo ? 'Activar' : 'Desactivar'} ${accounts(ejecutar.length)}` });
     if (!confirmado || !ejecutar.length) return;
     this.saving.set(true);
+    // Un solo resultado a la vista: el de la acción en curso, no el de otra anterior.
+    this.actionStatus.set('');
     this.resultadoLote.set('');
     from(ejecutar).pipe(concatMap(usuario => this.service.updateStatus(usuario.id, activo).pipe(
       map(saved => ({ usuario, saved, error: '' })),
@@ -521,6 +523,7 @@ export class UsersComponent implements OnInit {
     if (this.saving() || !ids.length) return;
     this.saving.set(true);
     this.actionStatus.set('');
+    this.resultadoLote.set('');
     const batches: number[][] = [];
     for (let start = 0; start < ids.length; start += APPROVE_BATCH_SIZE) batches.push(ids.slice(start, start + APPROVE_BATCH_SIZE));
     from(batches).pipe(
