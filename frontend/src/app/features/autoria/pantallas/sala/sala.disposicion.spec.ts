@@ -126,7 +126,9 @@ describe('E4 · la sala: el lienzo manda', () => {
       expect(raiz.querySelector('[data-accion="deshacer"]')).toBeNull();
       expect(raiz.querySelector('.panel__pestanas')).toBeNull();
       expect(raiz.querySelector('button[aria-label^="Agregar a la sala: "]')).toBeNull();
-      raiz.querySelector<HTMLButtonElement>('[data-elemento="personaje-0"]')!.click();
+      // El lienzo es solo una vista (inert): lo que hay se elige en «En esta sala», que muestra sus detalles.
+      expect(raiz.querySelector('.escenario')!.hasAttribute('inert')).toBe(true);
+      raiz.querySelector<HTMLElement>('ul[aria-label="Cosas en la sala"] li[role="option"]')!.click();
       fixture.detectChanges();
       expect(raiz.querySelector('#detalles')!.textContent).not.toContain('Nada elegido');
       expect(raiz.querySelector('.quitar')).toBeNull();

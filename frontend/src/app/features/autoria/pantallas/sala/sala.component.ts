@@ -111,7 +111,9 @@ const CONSULTA_ESTRECHA = '(max-width: 63.999rem)';
         </header>
         @if (estrecha()) {
           <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-          <p class="sala__solo-mirar" role="note">Aquí solo se mira. Para mover, agregar o quitar, abre el caso en una pantalla más ancha.</p>
+          <!-- En el teléfono el lienzo es solo una vista (inert): reducido, sus piezas se tapan unas a otras y ninguna llegaba
+               a 24 px tocables. Cada cosa se elige en «En esta sala» (el equivalente de WCAG 2.5.8), que muestra sus detalles. -->
+          <p class="sala__solo-mirar" role="note">Aquí solo se mira: elige algo en «En esta sala» para ver sus detalles. Para mover, agregar o quitar, abre el caso en una pantalla más ancha.</p>
         }
         <p role="status" class="solo-lector">{{ anuncio() }}</p>
 
@@ -174,6 +176,7 @@ const CONSULTA_ESTRECHA = '(max-width: 63.999rem)';
             }
             <div class="escenario" #escenario [id]="'sala-' + s.id" [class.por-piezas]="s.estructura"
                  [class.encajada]="s.estructura && escalaLienzo() < 1" [class.solo-mirar]="estrecha()"
+                 [attr.inert]="estrecha() ? '' : null"
                  [style.width.px]="s.estructura ? s.estructura.ancho * escalaLienzo() : null"
                  [style.height.px]="s.estructura ? alto * escalaLienzo() : null" tabindex="-1"
                  data-accion="mover-mueble" (keydown)="teclaGeneral($event)" (click)="clicEnSala($event)"

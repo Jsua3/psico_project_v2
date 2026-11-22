@@ -134,8 +134,11 @@
 @media (max-width: 63.999rem) {
   // Sin espacio para un visor al lado: vacío no se muestra y, con una sala, es una hoja sobre la barra (Cerrar o Esc).
   .previa:not(.con-sala) { display: none; }
+  // La barra de pasos queda SIEMPRE encima de la hoja de la sala: con «3 salas» la barra crece y la hoja tapaba
+  // «Crear el caso» (en un teléfono no se podía pulsar; lo encontró la prueba táctil del 2026-11-22).
+  app-barra-de-pasos { z-index: var(--autoria-capa-10); }
   .previa.con-sala {
-    position: fixed; inset-inline: 0.75rem; inset-block-end: 5.25rem; z-index: var(--autoria-capa-5);
+    position: fixed; inset-inline: 0.75rem; inset-block-end: 6.5rem; z-index: var(--autoria-capa-5);
     max-block-size: min(60dvh, 30rem); overflow-y: auto; padding: 0.75rem;
     border: 1px solid var(--l-filo-fuerte, var(--linea)); border-radius: var(--l-radio-tarjeta, var(--radio-tarjeta));
     background: var(--superficie); box-shadow: var(--sombra-menu);

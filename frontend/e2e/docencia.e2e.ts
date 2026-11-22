@@ -260,7 +260,8 @@ test.describe('@docencia reportes', () => {
     await page.goto('/portal/dashboard');
     await page.getByRole('navigation', { name: 'Navegación principal' }).getByRole('link', { name: 'Reportes', exact: true }).click();
     await expect(page).toHaveURL(/\/portal\/reportes$/);
-    await page.getByLabel('Grupo', { exact: true }).selectOption({ index: 1 });
+    // El campo es obligatorio: su rótulo visible es «Grupo *»; se busca por su nombre accesible.
+    await page.getByRole('combobox', { name: 'Grupo', exact: true }).selectOption({ index: 1 });
     await expect(page.getByLabel('Caso de simulación').locator('option:checked')).toHaveText(`${CASE_TITLE} · v1.0.0`);
     await expect(page.getByRole('rowheader', { name: 'Marta Ríos' })).toBeVisible();
   });

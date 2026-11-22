@@ -137,7 +137,9 @@ export async function escribirRespuesta(page: Page, r: RespuestaEscrita): Promis
   await campo.fill(r.texto);
   await campo.blur();
   const clase = tarjeta.getByRole('radio', { name: r.clase, exact: true });
-  await tarjeta.locator('label.opcion').filter({ has: clase }).click();
+  // El filtro `has` busca DENTRO de cada rótulo: el localizador tiene que ser relativo (con `clase`, que parte de la
+  // tarjeta, no encontraba nada y el paso se colgaba).
+  await tarjeta.locator('label.opcion').filter({ has: page.getByRole('radio', { name: r.clase, exact: true }) }).click();
   await expect(clase).toBeChecked();
   if (r.clase === 'Contraindicada') {
     const razon = tarjeta.getByLabel('Por qué es contraindicada');
