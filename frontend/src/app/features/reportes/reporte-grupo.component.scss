@@ -148,11 +148,18 @@
   list-style: none;
 }
 
+// Desde 1024 px los hitos van en dos columnas: once hitos no ocupan una pantalla entera de tarjetas anchas.
+@media (min-width: 64rem) {
+  .rg-hitos {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .rg-hito {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--ds-space-1);
-  padding: var(--ds-space-3);
+  padding: var(--ds-space-2) var(--ds-space-3);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-md);
   background: var(--ds-surface-1);

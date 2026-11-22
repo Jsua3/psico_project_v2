@@ -98,11 +98,14 @@
           </div>
 
           <div class="rg-quality">
+            <!-- La cifra grande arriba (como las otras tarjetas de la banda) y la barra la acompaña. -->
             <ui-card>
+              <ui-stat label="Finalización" [value]="completionRate(sim) + ' %'" />
               <ui-progress label="Finalización de intentos" [value]="completionRate(sim)" />
               <p class="rg-hint">{{ sim.intentosCompletados }} de {{ sim.totalIntentos }} intentos completados.</p>
             </ui-card>
             <ui-card>
+              <ui-stat label="Salida segura" [value]="safeExitRate(sim) + ' %'" />
               <ui-progress label="Salida segura" [value]="safeExitRate(sim)" />
               <p class="rg-hint">{{ sim.intentosSalidaSegura }} de {{ sim.totalIntentos }} intentos usaron salida segura. Usarla es parte del cuidado.</p>
             </ui-card>
