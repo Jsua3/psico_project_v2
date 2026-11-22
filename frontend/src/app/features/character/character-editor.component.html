@@ -16,25 +16,46 @@
   }
 } @else {
   <div class="ce-grid">
+    <section class="ce-stage" data-skin="game" aria-label="Vista previa del personaje">
+      <div class="ce-preview">
+        <button class="ce-turn" type="button" aria-label="Girar a la izquierda" (click)="girar(-1)"><span aria-hidden="true">←</span></button>
+        <figure class="ce-view">
+          <app-kit-figure class="ce-preview-desktop" [visual]="visual()" [view]="views[viewIndex()].id" [sheet]="motion()" [scale]="4" />
+          <app-kit-figure class="ce-preview-mobile" [visual]="visual()" [view]="views[viewIndex()].id" [sheet]="motion()" [scale]="2" />
+          <figcaption>{{ views[viewIndex()].label }}</figcaption>
+        </figure>
+        <button class="ce-turn" type="button" aria-label="Girar a la derecha" (click)="girar(1)"><span aria-hidden="true">→</span></button>
+      </div>
+      <fieldset class="ce-group ce-group--inline">
+        <legend>Movimiento</legend>
+        <div class="ce-opts">
+          <label class="ce-option"><input type="radio" class="ce-radio" name="ce-motion" [checked]="motion() === 'idle'" (change)="motion.set('idle')" /><span>Reposo</span></label>
+          <label class="ce-option"><input type="radio" class="ce-radio" name="ce-motion" [checked]="motion() === 'walk'" (change)="motion.set('walk')" /><span>Caminata</span></label>
+        </div>
+      </fieldset>
+      <p class="ce-help">Así te verán en el simulador. No afecta tu evaluación.</p>
+      <p class="ds-sr-only">{{ summary() }}</p>
+    </section>
     <ui-card class="ce-panel">
       <fieldset class="ce-group">
-        <legend>Elenco</legend>
+        <legend>Elige tu personaje</legend>
         <div class="ce-cast">
           @for (member of cast(); track member.id) {
             <label class="ce-option ce-option--figure">
               <input type="radio" class="ce-radio" name="ce-elenco" [checked]="isElenco(member.id)" (change)="selectElenco(member.id)" />
-              <app-kit-figure [visual]="member.visual" [scale]="2" />
+              <app-kit-figure [visual]="member.visual" [scale]="1" />
               <span>{{ member.label }}</span>
             </label>
           }
           <label class="ce-option ce-option--figure">
             <input type="radio" class="ce-radio" name="ce-elenco" [checked]="!!custom()" (change)="selectPersonalizado()" />
-            <app-kit-figure [visual]="customVisual()" [scale]="2" />
+            <app-kit-figure [visual]="customVisual()" [scale]="1" />
             <span>Personalizado</span>
           </label>
         </div>
       </fieldset>
 
+      <p class="ce-help">Personalizado te permite elegir complexión, piel, peinado y accesorios.</p>
       @if (custom(); as c) {
         <fieldset class="ce-group">
           <legend>Complexión</legend>
@@ -53,8 +74,7 @@
             @for (id of skins; track id; let i = $index) {
               <label class="ce-option ce-option--swatch" [uiTooltip]="'Tono ' + (i + 1)">
                 <input type="radio" class="ce-radio" name="ce-skin" [checked]="c.skin === id" (change)="setCustom({ skin: id })" />
-                <span class="ce-swatch" aria-hidden="true" [style.--ce-swatch]="swatch(id)"></span>
-                <span class="ds-sr-only">Tono {{ i + 1 }}</span>
+                <span>Tono {{ i + 1 }}</span>
               </label>
             }
           </div>
@@ -76,8 +96,7 @@
             @for (id of hairColors; track id) {
               <label class="ce-option ce-option--swatch" [uiTooltip]="labels.hairColor[id]">
                 <input type="radio" class="ce-radio" name="ce-hair-color" [checked]="c.hairColor === id" (change)="setCustom({ hairColor: id })" />
-                <span class="ce-swatch" aria-hidden="true" [style.--ce-swatch]="swatch(id)"></span>
-                <span class="ds-sr-only">{{ labels.hairColor[id] }}</span>
+                <span>{{ labels.hairColor[id] }}</span>
               </label>
             }
           </div>
@@ -94,48 +113,15 @@
           </div>
         </fieldset>
       }
-    </ui-card>
 
-    <!-- VD-13: solo la vista previa en la piel juego (escenario oscuro). -->
-    <section class="ce-stage" data-skin="game" aria-label="Vista previa del avatar">
-      <div class="ce-views">
-        @for (view of views; track view.id) {
-          <figure class="ce-view">
-            <app-kit-figure [visual]="visual()" [view]="view.id" [sheet]="motion()" [scale]="4" [animated]="true" />
-            <figcaption>{{ view.label }}</figcaption>
-          </figure>
-        }
-      </div>
-      <fieldset class="ce-group ce-group--inline">
-        <legend>Animación</legend>
-        <div class="ce-opts">
-          <label class="ce-option">
-            <input type="radio" class="ce-radio" name="ce-motion" [checked]="motion() === 'idle'" (change)="motion.set('idle')" />
-            <span>Reposo</span>
-          </label>
-          <label class="ce-option">
-            <input type="radio" class="ce-radio" name="ce-motion" [checked]="motion() === 'walk'" (change)="motion.set('walk')" />
-            <span>Caminata</span>
-          </label>
-        </div>
-      </fieldset>
-      <p class="ds-sr-only">{{ summary() }}</p>
-    </section>
-
-    <ui-card class="ce-panel">
       <fieldset class="ce-group">
         <legend>Uniforme de Psicología</legend>
-        <div class="ce-uniforms">
+        <div class="ce-opts">
           @for (option of bataOptions(); track option.bata) {
-            <label class="ce-option ce-option--figure">
-              <input type="radio" class="ce-radio" name="ce-bata" [checked]="avatar().bata === option.bata" (change)="setBata(option.bata)" />
-              <app-kit-figure [visual]="option.visual" [scale]="2" />
-              <span>{{ option.label }}</span>
-            </label>
+            <label class="ce-option"><input type="radio" class="ce-radio" name="ce-bata" [checked]="avatar().bata === option.bata" (change)="setBata(option.bata)" /><span>{{ option.label }}</span></label>
           }
         </div>
       </fieldset>
-      <h2 class="ce-subtitle">Resumen</h2>
       <dl class="ce-summary">
         <div><dt>Rol</dt><dd>{{ roleLabel() }}</dd></div>
         <div><dt>Personaje</dt><dd>{{ characterLabel() }}</dd></div>
@@ -146,12 +132,12 @@
 }
 
 <footer class="ce-footer">
-  <p class="ce-dirty" role="status">
-    @if (dirty()) {<ui-badge tone="warning">Cambios sin guardar</ui-badge>}
-  </p>
+  <p class="ce-dirty" role="status">@if (dirty()) {<ui-badge tone="warning">Cambios sin guardar</ui-badge>}</p>
   <div class="ce-actions">
-    <button ui-button type="button" variant="ghost" icon="restart_alt" (click)="restablecer()">Restablecer</button>
-    <button ui-button type="button" variant="secondary" icon="save" (click)="guardar()">Guardar personaje</button>
-    <button ui-button type="button" variant="primary" iconEnd="arrow_forward" (click)="continuar()">Guardar y continuar</button>
+    <button ui-button type="button" variant="ghost" (click)="restablecer()">Restablecer</button>
+    @if (destino()) {
+      <button ui-button type="button" variant="secondary" (click)="continuar()">Guardar y volver a {{ destinoEtiqueta() }}</button>
+    }
+    <button ui-button type="button" variant="primary" (click)="guardar()">Guardar</button>
   </div>
 </footer>

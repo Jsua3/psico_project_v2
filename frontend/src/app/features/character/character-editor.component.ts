@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 
 import { AuthService } from '../../core/auth/auth.service';
 import { NotificationService } from '../../core/notifications/notification.service';
@@ -52,6 +52,7 @@ export class CharacterEditorComponent implements CanLeave {
   private readonly kit = inject(KitService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly notify = inject(NotificationService);
   private readonly dialog = inject(UiDialog);
 
@@ -60,6 +61,17 @@ export class CharacterEditorComponent implements CanLeave {
   readonly bundle = this.kit.bundle;
   readonly loadError = signal(false);
   readonly motion = signal<'idle' | 'walk'>('idle');
+  readonly viewIndex = signal(0);
+  // Solo se admiten destinos conocidos del portal, para no navegar a una URL arbitraria.
+  readonly destino = computed(() => {
+    const volver = this.route.snapshot.queryParamMap.get('volver');
+    return volver === '/portal/simulador' || volver === '/portal/dashboard' ? volver : null;
+  });
+  readonly destinoEtiqueta = computed(() => this.destino() === '/portal/dashboard' ? 'inicio' : 'casos');
+
+  girar(paso: number): void {
+    this.viewIndex.update(indice => (indice + paso + this.views.length) % this.views.length);
+  }
   /** Último personalizado visto, para volver a él después de probar el elenco. */
   private readonly lastCustom = signal<AvatarPersonalizado | null>(null);
   /** Esqueleto del kit pasados 150 ms (sin parpadeo si ya estaba cargado). */
@@ -73,8 +85,8 @@ export class CharacterEditorComponent implements CanLeave {
   readonly accessories = ACCESSORIES;
   readonly labels = AVATAR_LABELS;
   readonly views = [
-    { id: 'down', label: 'Frente' }, { id: 'left', label: 'Izquierda' },
-    { id: 'right', label: 'Derecha' }, { id: 'up', label: 'Espalda' },
+    { id: 'down', label: 'Frente' }, { id: 'right', label: 'Derecha' },
+    { id: 'up', label: 'Espalda' }, { id: 'left', label: 'Izquierda' },
   ] as const;
 
   readonly custom = computed(() => {
@@ -188,7 +200,8 @@ export class CharacterEditorComponent implements CanLeave {
 
   continuar(): void {
     this.store.save();
-    void this.router.navigate(['/portal/simulador']);
+    const destino = this.destino();
+    if (destino) void this.router.navigateByUrl(destino);
   }
 
   /** Salir por la navegación con cambios sin guardar: pregunta (la ruta lleva `canLeaveGuard`). */
