@@ -1,4 +1,4 @@
-<ui-page-header
+<app-cabecera-herramienta escena="revision" [escala]="1"
   eyebrow="Panel docente"
   title="Revisión formativa del intento"
   description="Lo que hizo el estudiante y tu valoración, en la misma pantalla." />
@@ -48,12 +48,14 @@
             <li>
               <button type="button" class="tr-attempt"
                 [attr.aria-current]="selectedAttemptId() === attempt.attemptId ? 'true' : null" (click)="elegir(attempt)">
-                <span class="tr-attempt__top">
-                  <strong>{{ clean(attempt.studentAlias, 'Estudiante') }}</strong>
+                <!-- Como en un cliente de correo: quién arriba, el caso (recortado, con su número de intento siempre a la
+                     vista) en medio, y abajo cuándo y el estado. El estado va abajo para que no le quite ancho al nombre. -->
+                <strong class="tr-attempt__quien">{{ clean(attempt.studentAlias, 'Estudiante') }}</strong>
+                <span class="tr-attempt__case"><span class="tr-attempt__titulo">{{ clean(attempt.caseTitle, 'Caso sin título') }}</span>@if (numeroIntento()[attempt.attemptId]; as numero) {<span class="tr-attempt__numero"> · {{ numero }}</span>}</span>
+                <span class="tr-attempt__pie">
+                  <span class="tr-attempt__meta">{{ cuando(attempt) }}</span>
                   <ui-badge [tone]="statusTone(attempt.status)">{{ statusLabel(attempt.status) }}</ui-badge>
                 </span>
-                <span class="tr-attempt__case">{{ clean(attempt.caseTitle, 'Caso sin título') }}@if (numeroIntento()[attempt.attemptId]; as numero) { · {{ numero }}}</span>
-                <span class="tr-attempt__meta">{{ cuando(attempt) }}</span>
               </button>
             </li>
           }

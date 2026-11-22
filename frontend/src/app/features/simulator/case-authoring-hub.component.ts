@@ -8,14 +8,14 @@ import { UiBadge, UiBadgeTone } from '../../shared/ui/badge/ui-badge';
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiCard } from '../../shared/ui/card/ui-card';
 import { statusLabel } from '../../shared/ui/labels';
-import { UiPageActions, UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { CabeceraHerramientaComponent } from '../herramientas/cabecera-herramienta.component';
 import { UiFiltros } from '../../shared/ui/filtros/ui-filtros';
 import { UiSegmentado } from '../../shared/ui/segmentado/ui-segmentado';
 import { UiPortadaCaso } from '../../shared/ui/portada-caso/ui-portada-caso';
 import { UiSection } from '../../shared/ui/section/ui-section';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { uiDataState } from '../../shared/ui/state/ui-data-state';
-import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
+import { UiVacioIlustrado } from '../../shared/ui/vacio-ilustrado/ui-vacio-ilustrado';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 
 /**
@@ -28,8 +28,8 @@ import { UiErrorState } from '../../shared/ui/state/ui-error-state';
   standalone: true,
   imports: [
     RouterLink, NgTemplateOutlet, UiFiltros, UiSegmentado, UiPortadaCaso,
-    UiBadge, UiButton, UiCard, UiPageActions, UiPageHeader, UiSection, UiSkeleton,
-    UiEmptyState, UiErrorState,
+    UiBadge, UiButton, UiCard, CabeceraHerramientaComponent, UiSection, UiSkeleton,
+    UiVacioIlustrado, UiErrorState,
   ],
   templateUrl: './case-authoring-hub.component.html',
   styleUrl: './case-authoring-hub.component.scss',

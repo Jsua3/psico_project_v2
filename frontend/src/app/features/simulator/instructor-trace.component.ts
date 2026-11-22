@@ -22,7 +22,7 @@ import { UiCheck, UiSwitch } from '../../shared/ui/field/ui-check';
 import { UiControl, UiField } from '../../shared/ui/field/ui-field';
 import { statusLabel } from '../../shared/ui/labels';
 import { UiMenu, UiMenuItem } from '../../shared/ui/menu/ui-menu';
-import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { CabeceraHerramientaComponent } from '../herramientas/cabecera-herramienta.component';
 import { UiSection } from '../../shared/ui/section/ui-section';
 import { UiSegmentado, UiSegmento } from '../../shared/ui/segmentado/ui-segmentado';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
@@ -113,7 +113,7 @@ const ACCION_REEMPLAZAR = 'reemplazar';
   selector: 'app-instructor-trace',
   standalone: true,
   imports: [
-    UiBadge, UiButton, UiCard, UiCheck, UiControl, UiField, UiMenu, UiPageHeader, UiSection, UiSegmentado, UiSkeleton,
+    UiBadge, UiButton, UiCard, UiCheck, UiControl, UiField, UiMenu, CabeceraHerramientaComponent, UiSection, UiSegmentado, UiSkeleton,
     UiStat, UiSwitch, UiTab, UiTabs, UiEmptyState, UiErrorState, UiTable, UiTableRow, UiTableTable,
     RubricaIntentoComponent,
   ],

@@ -117,9 +117,11 @@
 // marcar «el primero» (que se abre por omisión) sería decir que hay uno abierto.
 @media (min-width: 64rem) {
   // Doble clase: gana al color de pasar el puntero sin escribir otro :hover.
+  // La marca de 3 px del acento a la izquierda: la misma firma que la bandeja de Revisión y las listas del portal.
   .gl-group.gl-group--active {
     border-color: var(--l-tinte-filo, var(--ds-primary));
     background: var(--l-fila-elegida, var(--ds-surface-2));
+    box-shadow: inset 3px 0 0 var(--l-acento, var(--ds-primary));
   }
 }
 

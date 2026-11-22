@@ -146,10 +146,10 @@ describe('pantalla Grupos en maestro-detalle (B5c)', () => {
 
     it('sin grupos: el primer uso dice qué es un grupo y «Crear mi primer grupo» abre la hoja', async () => {
       await render({ listar: () => of([]) });
-      expect(text(host().querySelector('ui-empty-state'))).toContain('Aún no tienes grupos');
+      expect(text(host().querySelector('ui-vacio-ilustrado'))).toContain('Aún no tienes grupos');
       expect(host().querySelector('.gl-layout')).toBeNull();
 
-      (host().querySelector('ui-empty-state button') as HTMLButtonElement).click();
+      (host().querySelector('ui-vacio-ilustrado button') as HTMLButtonElement).click();
       fixture.detectChanges();
       expect(dialog.sheet).toHaveBeenCalledTimes(1);
       expect(dialog.sheet.mock.results[0].value.title).toBe('Nuevo grupo');

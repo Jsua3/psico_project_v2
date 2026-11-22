@@ -33,7 +33,7 @@ describe('Lista de casos de autoría', () => {
     api.listAuthoringCases.mockReturnValue(of([])); await render();
     expect(host().querySelectorAll('a[href="/portal/casos/nuevo"]')).toHaveLength(1);
     expect(host().textContent).toContain('Aún no tienes casos');
-    expect(host().querySelector('ui-empty-state button')).toBeNull();
+    expect(host().querySelector('ui-vacio-ilustrado button')).toBeNull();
   });
   it('ofrece la acción correspondiente a cada estado y el ensayo en otra pestaña', async () => {
     api.listAuthoringCases.mockReturnValue(of([caso(1, 'DRAFT'), caso(2, 'IN_REVIEW'), caso(3, 'PUBLISHED'), caso(4, 'ARCHIVED')])); await render();

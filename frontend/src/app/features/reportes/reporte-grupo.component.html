@@ -1,13 +1,16 @@
-<ui-page-header
+<!-- Sin viñeta en la cabecera: los vacíos de esta pantalla (sin grupo, sin caso, sin intentos) ya llevan la suya, y con
+     el reporte a la vista mandan los datos. -->
+<app-cabecera-herramienta
   eyebrow="Reportes académicos"
   title="Reportes por grupo"
-  description="Consulta el seguimiento y la trazabilidad de decisiones por cohorte y caso." />
+  description="Cómo le fue al grupo en un caso: intentos, hitos y decisiones. Sin puntajes por persona." />
 
 <p class="ds-sr-only" role="status">{{ statusText() }}</p>
 
-<ui-section title="Corte de consulta">
+<!-- El corte es la barra de filtros del panel (como en un tablero de datos): una fila con grupo, caso y acciones. -->
+<section class="rg-corte" aria-labelledby="rg-corte-titulo">
+  <h2 class="rg-corte__titulo" id="rg-corte-titulo">Corte de consulta</h2>
   <ui-card class="rg-filter">
-    <p class="rg-hint">El seguimiento se lee caso por caso: elige el grupo y uno de sus casos.</p>
 
     @if (loadFiltersError()) {
       <ui-error-state kind="server" [message]="loadFiltersError()" (retry)="cargarFiltros()" />
@@ -42,13 +45,14 @@
         }
       </div>
     </form>
+    <p class="rg-hint">El seguimiento se lee caso por caso: elige el grupo y uno de sus casos.</p>
   </ui-card>
-</ui-section>
+</section>
 
 @switch (view()) {
   @case ('idle') {
-    <ui-empty-state kind="first-use" title="Selecciona un grupo"
-      description="Elige un grupo arriba para ver su seguimiento: intentos, hitos y decisiones." />
+    <ui-vacio-ilustrado escena="grupos" titulo="Selecciona un grupo" disposicion="lado" marco="placa"
+      frase="Elige un grupo arriba para ver su seguimiento: intentos, hitos y decisiones." />
   }
   @case ('loading') {
     <div class="rg-loading" aria-busy="true">
@@ -67,11 +71,11 @@
   }
   @case ('empty') {
     @if (faltaCaso()) {
-      <ui-empty-state title="Elige un caso"
-        description="El seguimiento del grupo se lee caso por caso. Elige uno en «Caso de simulación» para ver sus intentos, hitos y decisiones." />
+      <ui-vacio-ilustrado escena="casos-docente" titulo="Elige un caso" disposicion="lado" marco="placa"
+        frase="El seguimiento del grupo se lee caso por caso. Elige uno en «Caso de simulación» para ver sus intentos, hitos y decisiones." />
     } @else {
-      <ui-empty-state kind="no-results" title="Sin intentos en este corte"
-        [description]="'Ningún estudiante de este grupo tiene intentos de «' + (selectedCase()?.title || 'este caso') + '» todavía. Prueba con otro caso.'" />
+      <ui-vacio-ilustrado escena="escucha" titulo="Sin intentos en este corte" disposicion="lado" marco="placa" [anunciar]="true"
+        [frase]="'Ningún estudiante de este grupo tiene intentos de «' + (selectedCase()?.title || 'este caso') + '» todavía. Prueba con otro caso.'" />
     }
   }
   @case ('ready') {
@@ -82,6 +86,7 @@
             De {{ sim.totalIntentos }} intentos, {{ sim.intentosCompletados }} terminaron, {{ sim.intentosEnProgreso }} están en curso y {{ sim.intentosSalidaSegura }} usaron la salida segura. Hay datos de {{ sim.estudiantes.length }} estudiantes.
           </p>
 
+          <div class="rg-panel">
           <div class="rg-stats">
             <ui-card>
               <ui-stat label="Intentos" [value]="sim.totalIntentos"
@@ -101,6 +106,7 @@
               <ui-progress label="Salida segura" [value]="safeExitRate(sim)" />
               <p class="rg-hint">{{ sim.intentosSalidaSegura }} de {{ sim.totalIntentos }} intentos usaron salida segura. Usarla es parte del cuidado.</p>
             </ui-card>
+          </div>
           </div>
 
           <ui-section title="Cobertura por hito" [level]="3">

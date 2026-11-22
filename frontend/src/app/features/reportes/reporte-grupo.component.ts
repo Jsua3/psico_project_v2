@@ -19,13 +19,13 @@ import { UiBadge, UiBadgeTone } from '../../shared/ui/badge/ui-badge';
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiCard } from '../../shared/ui/card/ui-card';
 import { UiControl, UiField } from '../../shared/ui/field/ui-field';
-import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { UiVacioIlustrado } from '../../shared/ui/vacio-ilustrado/ui-vacio-ilustrado';
+import { CabeceraHerramientaComponent } from '../herramientas/cabecera-herramienta.component';
 import { UiProgress } from '../../shared/ui/progress/ui-progress';
 import { UiSection } from '../../shared/ui/section/ui-section';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { UiStat } from '../../shared/ui/stat/ui-stat';
 import { uiDataState } from '../../shared/ui/state/ui-data-state';
-import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { UiLink } from '../../shared/ui/link/ui-link';
 import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
@@ -54,8 +54,8 @@ const COBERTURA_SIN_DATOS = 'Aún no hay datos suficientes para mostrarlo';
   standalone: true,
   imports: [
     ReactiveFormsModule, RouterLink,
-    UiBarras, UiBadge, UiButton, UiCard, UiControl, UiField, UiLink, UiPageHeader, UiProgress, UiSection, UiSkeleton, UiStat,
-    UiEmptyState, UiErrorState, UiTable, UiTableRow, UiTableTable,
+    UiBarras, UiBadge, UiButton, UiCard, UiControl, UiField, UiLink, CabeceraHerramientaComponent, UiVacioIlustrado, UiProgress, UiSection, UiSkeleton, UiStat,
+    UiErrorState, UiTable, UiTableRow, UiTableTable,
   ],
   templateUrl: './reporte-grupo.component.html',
   styleUrl: './reporte-grupo.component.scss',

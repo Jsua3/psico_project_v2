@@ -21,7 +21,9 @@ import { UiCard } from '../../shared/ui/card/ui-card';
 import { UiConfirmOptions, UiDialog, UiDialogFrame } from '../../shared/ui/dialog/ui-dialog';
 import { UiControl, UiField } from '../../shared/ui/field/ui-field';
 import { UiMenu, UiMenuItem } from '../../shared/ui/menu/ui-menu';
-import { UiPageActions, UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { UiVacioIlustrado } from '../../shared/ui/vacio-ilustrado/ui-vacio-ilustrado';
+import { CabeceraHerramientaComponent } from '../herramientas/cabecera-herramienta.component';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
 import { UiCelda, UiCeldaAcciones, UiCeldaPrincipal } from '../../shared/ui/table/ui-table-celda';
@@ -75,7 +77,7 @@ function removeLabel(student: GrupoEstudiante): string {
   standalone: true,
   imports: [
     ReactiveFormsModule, RouterLink,
-    UiBadge, UiButton, UiIconButton, UiCard, UiControl, UiField, UiMenu, UiPageHeader, UiPageActions, UiArchivo, UiTab, UiTabs,
+    UiBadge, UiButton, UiIconButton, UiCard, UiControl, UiField, UiMenu, UiPageHeader, CabeceraHerramientaComponent, UiVacioIlustrado, UiArchivo, UiTab, UiTabs,
     UiSkeleton, UiTable, UiTableTable, UiTableRow, UiCelda, UiCeldaPrincipal, UiCeldaAcciones,
     UiEmptyState, UiErrorState, GroupAssignmentsComponent,
   ],

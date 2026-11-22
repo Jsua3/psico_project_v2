@@ -250,7 +250,11 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       expect(host().querySelectorAll('h1')).toHaveLength(1);
       expect(text(host().querySelector('h1'))).toBe('Revisión formativa del intento');
       expect(host().querySelector('[role="status"].ds-sr-only')).not.toBeNull();
-      expect(host().querySelector('[class*="pixel-"], mat-progress-bar, mat-icon[aria-label], .feedback-modal')).toBeNull();
+      // El arte nuevo de la cabecera (la viñeta del simulador, decorativa) usa piezas `ui-pieza-pixel`: no es un resto.
+      const restos = [...host().querySelectorAll('[class*="pixel-"], mat-progress-bar, mat-icon[aria-label], .feedback-modal')]
+        .filter(el => !el.closest('ui-vineta'));
+      expect(restos).toHaveLength(0);
+      expect(host().querySelector('ui-vineta')?.getAttribute('aria-hidden')).toBe('true');
     });
 
     it('sin intentos: el vacío de la lista dice qué pasa y NO aparece «Selecciona un intento»', async () => {

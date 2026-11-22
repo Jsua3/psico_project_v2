@@ -4,10 +4,10 @@
     volverA="/portal/rubricas" volverEtiqueta="Biblioteca de rúbricas" />
   <app-rubrica-editor [rubricId]="idEditor()" [comienzo]="desde()" (guardada)="alGuardar($event)" (perdida)="alPerderse()" />
 } @else {
-  <ui-page-header class="rb-cabecera" eyebrow="Evaluación" title="Rúbricas"
+  <app-cabecera-herramienta class="rb-cabecera" [escena]="listState() === 'empty' ? null : 'rubricas'" eyebrow="Evaluación" title="Rúbricas"
     description="Los criterios con los que se valora cada intento, y qué significa cada nivel en cada uno.">
-    <button ui-button uiPageActions type="button" icon="add" (click)="nueva()">Nueva rúbrica</button>
-  </ui-page-header>
+    <button ui-button uiHerramientaAcciones type="button" icon="add" (click)="nueva()">Nueva rúbrica</button>
+  </app-cabecera-herramienta>
 
   <p class="ds-sr-only" role="status">{{ statusText() }}</p>
 

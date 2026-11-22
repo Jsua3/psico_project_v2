@@ -116,7 +116,7 @@ describe('pantalla Reportes (F7-3)', () => {
 
     it('al abrir: «Selecciona un grupo», sin cifras y sin decir «Sin intentos» (aún no se consultó nada)', async () => {
       await render();
-      const empty = host().querySelector('ui-empty-state')!;
+      const empty = host().querySelector('ui-vacio-ilustrado')!;
       expect(text(empty)).toContain('Selecciona un grupo');
       expect(text(host())).not.toContain('Sin intentos en este corte');
       expect(host().querySelectorAll('ui-stat')).toHaveLength(0);
@@ -130,7 +130,7 @@ describe('pantalla Reportes (F7-3)', () => {
       await fixture.whenStable();
       fixture.detectChanges();
 
-      const empty = host().querySelector('ui-empty-state')!;
+      const empty = host().querySelector('ui-vacio-ilustrado')!;
       expect(text(empty)).toContain('Elige un caso');
       expect(text(empty)).not.toContain('Sin intentos en este corte');
       expect(text(empty)).not.toContain('Selecciona un grupo');
@@ -148,7 +148,7 @@ describe('pantalla Reportes (F7-3)', () => {
       await fixture.whenStable();
       fixture.detectChanges();
 
-      const empty = host().querySelector('ui-empty-state')!;
+      const empty = host().querySelector('ui-vacio-ilustrado')!;
       expect(text(empty)).toContain('Sin intentos en este corte');
       expect(text(empty)).toContain('«Caso doce»');
       expect(text(empty)).toContain('Prueba con otro caso');
@@ -160,7 +160,7 @@ describe('pantalla Reportes (F7-3)', () => {
       choose(select('Grupo'), 'Cohorte A · COH-A');
       await fixture.whenStable();
       fixture.detectChanges();
-      expect(host().querySelector('ui-empty-state button')).toBeNull();
+      expect(host().querySelector('ui-vacio-ilustrado button')).toBeNull();
     });
 
     it('si la consulta falla: UN error con «Reintentar» que la repite, y ninguna cifra', async () => {
@@ -174,7 +174,7 @@ describe('pantalla Reportes (F7-3)', () => {
       expect(errors).toHaveLength(1);
       expect(text(errors[0])).toContain('No pudimos generar el reporte.');
       expect(host().querySelectorAll('ui-stat')).toHaveLength(0);
-      expect(host().querySelector('ui-empty-state')).toBeNull();
+      expect(host().querySelector('ui-vacio-ilustrado')).toBeNull();
 
       (errors[0].querySelector('button') as HTMLButtonElement).click();
       await fixture.whenStable();
@@ -263,7 +263,7 @@ describe('pantalla Reportes (F7-3)', () => {
       await render({}, { query: { grupo: '999' } });
 
       expect(reporteService.getReporteGrupo).not.toHaveBeenCalled();
-      expect(text(host().querySelector('ui-empty-state'))).toContain('Selecciona un grupo');
+      expect(text(host().querySelector('ui-vacio-ilustrado'))).toContain('Selecciona un grupo');
     });
 
     it('cambiar de grupo con una consulta en curso: solo cuenta la última', async () => {
@@ -288,7 +288,7 @@ describe('pantalla Reportes (F7-3)', () => {
       buttonLabelled('Limpiar')!.click();
       fixture.detectChanges();
 
-      expect(text(host().querySelector('ui-empty-state'))).toContain('Selecciona un grupo');
+      expect(text(host().querySelector('ui-vacio-ilustrado'))).toContain('Selecciona un grupo');
       expect(host().querySelectorAll('ui-stat')).toHaveLength(0);
     });
 

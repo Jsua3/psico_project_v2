@@ -1,11 +1,11 @@
 <!-- Dos cabeceras, una por contexto: en escritorio manda «Grupos» (con «Nuevo grupo»); en teléfono, con un grupo
      abierto por la ruta, la cabecera pasa a ser la del grupo con su regreso. Solo una se muestra a la vez (la otra
      queda display:none, también para los lectores de pantalla), así la pantalla siempre tiene un único h1. -->
-<ui-page-header class="gl-cab gl-cab--lista" [class.gl-cab--con-detalle]="!!grupoActivo() && !!grupoId()"
-  eyebrow="Cohortes académicas" title="Grupos"
+<app-cabecera-herramienta class="gl-cab gl-cab--lista" [class.gl-cab--con-detalle]="!!grupoActivo() && !!grupoId()"
+  [escena]="state() === 'empty' ? null : 'grupos'" eyebrow="Cohortes académicas" title="Grupos"
   description="Organiza estudiantes y asigna casos a cada grupo.">
-  <button ui-button uiPageActions type="button" icon="add" (click)="nuevoGrupo()">Nuevo grupo</button>
-</ui-page-header>
+  <button ui-button uiHerramientaAcciones type="button" icon="add" (click)="nuevoGrupo()">Nuevo grupo</button>
+</app-cabecera-herramienta>
 @if (grupoActivo(); as abierto) {
   <ui-page-header class="gl-cab gl-cab--detalle" [class.gl-cab--con-detalle]="!!grupoId()"
     eyebrow="Grupo" [title]="abierto.nombre" volverA="/portal/grupos" volverEtiqueta="Todos los grupos" />
@@ -16,11 +16,10 @@
 @if (state() === 'error') {
   <ui-error-state kind="server" message="No pudimos cargar los grupos." (retry)="cargar()" />
 } @else if (state() === 'empty') {
-  <ui-card>
-    <ui-empty-state kind="first-use" title="Aún no tienes grupos"
-      description="Un grupo reúne a tus estudiantes: le pones un nombre y un código, los invitas y le asignas casos."
-      actionLabel="Crear mi primer grupo" (action)="nuevoGrupo()" />
-  </ui-card>
+  <ui-vacio-ilustrado escena="grupos" titulo="Aún no tienes grupos" marco="placa"
+    frase="Un grupo reúne a tus estudiantes: le pones un nombre y un código, los invitas y le asignas casos.">
+    <button ui-button type="button" icon="add" (click)="nuevoGrupo()">Crear mi primer grupo</button>
+  </ui-vacio-ilustrado>
 } @else {
   <div class="gl-layout" [class.gl-layout--detalle]="!!grupoId()">
     <section class="gl-list" aria-label="Lista de grupos" [attr.aria-busy]="state() === 'loading' ? 'true' : null">

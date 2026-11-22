@@ -63,6 +63,47 @@
   margin-block-start: var(--ds-space-4);
 }
 
+// ── Corte de consulta: barra de filtros del panel ───────────────────────────────────────────────────────────────
+// El título va en versalitas pequeñas (como la cabecera de una sección de inspector): rotula la barra sin competir
+// con el título de la pantalla ni con las cifras.
+.rg-corte {
+  display: grid;
+  gap: var(--ds-space-2);
+  min-inline-size: 0;
+}
+
+.rg-corte__titulo {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-caption-size);
+  font-weight: var(--ds-type-h3-weight);
+  line-height: var(--ds-type-caption-line);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+// ── Banda de cifras ────────────────────────────────────────────────────────────────────────────────────────────
+// Intentos, finalización, salida segura y bitácoras en una sola fila desde 1024 px: el panel se lee de un vistazo.
+// Las dos rejillas internas se disuelven (`display: contents`) para que sus tarjetas compartan la misma fila.
+.rg-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-4);
+}
+
+@media (min-width: 64rem) {
+  .rg-panel {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--ds-space-4);
+
+    > .rg-stats,
+    > .rg-quality {
+      display: contents;
+    }
+  }
+}
+
 .rg-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));

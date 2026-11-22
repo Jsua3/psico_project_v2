@@ -30,6 +30,14 @@
         <h2 id="re-criterios-titulo" class="re-criterios__titulo">Criterios <span class="re-cuenta">{{ selected()?.criteria?.length ?? 0 }}</span></h2>
         <span class="re-total p-numeros" [class.re-total--ok]="selected()?.totalWeight === 100">Suma {{ numero(selected()?.totalWeight ?? 0) }} %</span>
       </div>
+      <!-- Cabecera de columnas de la matriz (hoja de cálculo): fija bajo la barra mientras se recorre la rúbrica. Es
+           decorativa para el lector de pantalla: cada celda ya dice su nivel en su propio <dt>. -->
+      <div class="re-matriz__cabeza" aria-hidden="true">
+        <span class="re-matriz__columna">Criterio</span>
+        @for (nivel of niveles; track nivel.clave) {
+          <span class="re-matriz__columna re-matriz__nivel" [attr.data-nivel]="nivel.clave">{{ nivel.nombre }}</span>
+        }
+      </div>
       <ol class="re-lectura">
         @for (criterio of selected()?.criteria ?? []; track criterio.id ?? $index; let i = $index) {
           <li class="re-lectura__criterio">
@@ -37,7 +45,7 @@
               <span class="criterion__numero" aria-hidden="true">{{ i + 1 }}</span>
               <div class="re-lectura__texto">
                 <h3 class="re-lectura__titulo">{{ criterio.title }}</h3>
-                <p class="re-lectura__meta">{{ nombreCompetencia(criterio) }} · {{ numero(criterio.weight) }} %</p>
+                <p class="re-lectura__meta">{{ nombreCompetencia(criterio) }} · {{ numero(criterio.weight) }}&nbsp;%</p>
                 @if (criterio.description) { <p class="re-lectura__descripcion">{{ criterio.description }}</p> }
               </div>
             </div>

@@ -225,7 +225,7 @@ test.describe('@docencia reportes', () => {
     await page.route('**/api/grupos', route => route.fulfill({ json: { success: true, data: GRUPOS } }));
     const requested = await mockReports(page);
     await page.goto('/portal/reportes');
-    await expect(page.locator('app-reporte-grupo ui-empty-state')).toContainText('Selecciona un grupo');
+    await expect(page.locator('app-reporte-grupo ui-vacio-ilustrado')).toContainText('Selecciona un grupo');
     expect(requested).toEqual([]);
     expect(await blockingViolations(page, 'app-reporte-grupo')).toEqual([]);
   });
@@ -235,8 +235,8 @@ test.describe('@docencia reportes', () => {
     await page.route('**/api/grupos', route => route.fulfill({ json: { success: true, data: GRUPOS } }));
     await mockReports(page, { grupoId: 2, caseVersionId: null, simulacion: null });
     await page.goto('/portal/reportes?grupo=2');
-    await expect(page.locator('app-reporte-grupo ui-empty-state')).toContainText('Sin intentos en este corte');
-    await expect(page.locator('app-reporte-grupo ui-empty-state')).not.toContainText('Selecciona un grupo');
+    await expect(page.locator('app-reporte-grupo ui-vacio-ilustrado')).toContainText('Sin intentos en este corte');
+    await expect(page.locator('app-reporte-grupo ui-vacio-ilustrado')).not.toContainText('Selecciona un grupo');
     expect(await blockingViolations(page, 'app-reporte-grupo')).toEqual([]);
   });
 
