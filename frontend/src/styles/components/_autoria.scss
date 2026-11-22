@@ -135,6 +135,32 @@ app-autoria-shell .boton-barra[aria-expanded='true'] {
   box-shadow: inset 0 1px 0 var(--asb-filo), inset 0 0 0 1px var(--asb-canto);
 }
 
+// «Agregar» (la pasarela, 2026-11-22): el disparador de su menú es un rótulo más sobre el vidrio, como Probar o Ayuda.
+app-autoria-shell .cromo .menu-agregar .ui-menu__trigger {
+  min-block-size: 2.75rem;
+  padding-inline: 0.75rem 0.625rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: inset 0 1px 0 transparent, inset 0 0 0 1px transparent;
+  color: var(--asb-cromo-tinta);
+  font-size: var(--autoria-texto-16);
+  font-weight: 700;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  app-autoria-shell .cromo .menu-agregar .ui-menu__trigger:hover {
+    background-color: var(--asb-brillo);
+    box-shadow: inset 0 1px 0 var(--asb-filo), inset 0 0 0 1px var(--asb-canto);
+    color: var(--asb-cromo-tinta);
+  }
+}
+
+app-autoria-shell .cromo .menu-agregar .ui-menu__trigger[aria-expanded='true'] {
+  background-color: color-mix(in oklab, var(--asb-acento) 14%, transparent);
+  box-shadow: inset 0 1px 0 var(--asb-filo), inset 0 0 0 1px var(--asb-canto);
+}
+
 // «Volver» es un MÓDULO propio junto a la marca (pedido del usuario, 2026-11-22; /barra-de-vidrio-modular): una cápsula
 // de 44 px con «‹» sobre el vidrio de la barra (brillo y canto de luz, sin un segundo desenfoque: nunca vidrio sobre
 // vidrio). Al pasar el cursor o con el foco del teclado se expande con el resorte suave (620 ms) y su texto aparece en

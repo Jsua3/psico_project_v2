@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, withComponentInputBinding } from '@angular/router';
+import { Router, provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { of } from 'rxjs';
 
@@ -258,5 +258,42 @@ describe('Editor de casos: el módulo «volver» de la barra', () => {
     await listo();
     expect(volver(harness).getAttribute('href')).toBe('/portal/casos/41/editor/plano');
     expect(volver(harness).textContent!.trim()).toBe('Volver al Plano');
+  });
+});
+
+// req: pedido del usuario del 2026-11-22: la pasarela del docente (agregar sin volver a menús anteriores).
+describe('Editor de casos: la pasarela del docente', () => {
+  it('el guion muestra la escena anterior y la siguiente arriba, e invita a escribir la siguiente si está vacía', async () => {
+    const { harness, listo } = await irA('/portal/casos/41/editor');
+    const store = TestBed.inject(CasoStore);
+    const [primera, segunda] = store.caso()!.escenas;
+    await harness.navigateByUrl(`/portal/casos/41/editor/escena/${primera.id}`);
+    await listo();
+    const raiz = harness.routeNativeElement as HTMLElement;
+    const siguiente = raiz.querySelector<HTMLAnchorElement>('.guion-nav__enlace--siguiente')!;
+    expect(siguiente).not.toBeNull();
+    const vacia = !segunda.lineas.length && !segunda.respuestas.length;
+    expect(siguiente.textContent!.replace(/\s+/g, ' ').trim()).toContain(vacia ? 'Escribir la escena 2' : 'Escena 2');
+    expect(siguiente.getAttribute('href')).toBe(`/portal/casos/41/editor/escena/${segunda.id}`);
+  });
+
+  it('«Agregar → Escena nueva» la crea después de la actual y abre su guion', async () => {
+    const { harness, listo } = await irA('/portal/casos/41/editor');
+    const store = TestBed.inject(CasoStore);
+    const antes = store.caso()!.escenas.length;
+    const shell = harness.routeDebugElement!.componentInstance as { agregar(v: string): Promise<void> };
+    await shell.agregar('escena');
+    await listo();
+    expect(store.caso()!.escenas.length).toBe(antes + 1);
+    const nueva = store.caso()!.escenas[antes];
+    expect(TestBed.inject(Router).url).toBe(`/portal/casos/41/editor/escena/${nueva.id}`);
+  });
+
+  it('el siguiente paso está a la vista en la barra de estado', async () => {
+    const { raiz } = await irA('/portal/casos/41/editor/datos');
+    const siguiente = raiz.querySelector<HTMLButtonElement>('app-estudio-barra-estado .est-siguiente')!;
+    expect(siguiente).not.toBeNull();
+    expect(siguiente.textContent).toContain('Siguiente:');
+    expect(siguiente.textContent!.length).toBeGreaterThan('Siguiente: →'.length);
   });
 });
