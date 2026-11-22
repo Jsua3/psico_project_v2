@@ -8,7 +8,7 @@ import { UiButton } from '../../shared/ui/button/ui-button';
   selector: 'app-forbidden', imports: [RouterLink, UiButton, PaginaEstadoComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<app-pagina-estado tipo="sin-permiso" titulo="Esta sección no es para tu rol"
-    [texto]="mensaje()" detalle="Si crees que es un error, escribe a quien administra SIEP en tu programa.">
+    [texto]="mensaje()" detalle="Si crees que es un error, escribe a quien administra la plataforma en tu programa.">
     <a ui-button routerLink="/portal/dashboard">Volver al inicio</a>
   </app-pagina-estado>`,
 })

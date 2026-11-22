@@ -26,6 +26,41 @@
   min-inline-size: 0;
 }
 
+.cs-cuerpo {
+  display: grid;
+  align-content: start;
+  gap: var(--ds-space-3);
+  min-inline-size: 0;
+}
+
+// Un solo caso: una columna a todo el ancho y, cuando la rejilla mide al menos 44rem, la tarjeta acostada. La consulta
+// es de contenedor (la rejilla), no de ventana: así responde al ancho real de la página dentro del armazón.
+.cs-rejilla--uno {
+  grid-template-columns: minmax(0, 1fr);
+  container-type: inline-size;
+}
+
+@container (min-width: 44rem) {
+  .cs-rejilla--uno .cs-tarjeta {
+    // 15rem = el ancho de la portada «tarjeta» (240 px): con `auto` su ancho en porcentaje se volvía circular y caía a 0.
+    grid-template-columns: 15rem minmax(0, 1fr);
+    column-gap: var(--ds-space-6);
+  }
+
+  // A todo el ancho, la descripción no pasa de una medida cómoda de lectura.
+  .cs-rejilla--uno .cs-descripcion {
+    max-inline-size: 65ch;
+  }
+
+  .cs-rejilla--uno .cs-portada {
+    align-self: start;
+  }
+
+  .cs-rejilla--uno .cs-intentos {
+    grid-column: 1 / -1;
+  }
+}
+
 // El caso que se pidió por dirección estando bloqueado: el filo de marca lo señala (el aviso dice por qué).
 .cs-tarjeta--resaltada {
   border-color: var(--l-acento, var(--ds-primary));

@@ -97,12 +97,15 @@ describe('Casos del estudiante', () => {
     expect(host.querySelector('ui-segmentado')).not.toBeNull();
     expect(host.querySelector('input[type="search"]')).toBeNull();
     expect(host.querySelectorAll('.cs-tarjeta')).toHaveLength(2);
+    expect(host.querySelector('.cs-rejilla--uno')).toBeNull();
     const terminados = Array.from(host.querySelectorAll<HTMLElement>('[role="radio"]')).find(radio => radio.textContent?.includes('Terminados'))!;
     expect(terminados.textContent).toContain('1');
     terminados.click();
     await fixture.whenStable();
     fixture.detectChanges();
     expect(host.querySelectorAll('.cs-tarjeta')).toHaveLength(1);
+    // Un solo caso visible no se queda en un tercio de la rejilla: va a todo el ancho.
+    expect(host.querySelector('.cs-rejilla--uno')).not.toBeNull();
   });
 
   it('con más de 8 casos aparece la búsqueda', async () => {

@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 
@@ -26,6 +26,13 @@ import { formatDate, lastClosings, siguientePaso } from './student-dashboard.uti
 
 /** Cuántos casos caben en «Tus casos» antes de mandar a la biblioteca completa. */
 const MAX_FILAS = 6;
+
+/**
+ * Por debajo de este ancho la portada héroe no cabe: su puerta va a ×2 (148 px de alto) y pide unos 340 px de portada;
+ * en un teléfono de 390 px la tarjeta deja ~318 y la puerta se cortaba arriba. Ahí se pinta en tamaño «tarjeta» (puerta
+ * ×1, nítida y entera) a todo el ancho de la tarjeta.
+ */
+const CONSULTA_ESTRECHA = '(max-width: 28rem)';
 
 /** Una fila de «Tus casos»: el caso, su estado en palabras y adónde lleva (`null`: bloqueado, no lleva a ningún lado). */
 interface FilaCaso {
@@ -67,6 +74,8 @@ export class StudentDashboardComponent {
   protected readonly pendientes = signal(0);
   /** El título de la escena donde se retoma (solo con un intento abierto); `null` mientras no se sabe. */
   protected readonly escena = signal<string | null>(null);
+  /** La portada del protagonista en tamaño compacto (teléfono estrecho). Observer sobre la consulta de medios. */
+  protected readonly portadaCompacta = signal(false);
 
   protected readonly siguiente = computed(() => siguientePaso(this.casos(), this.historial()));
   protected readonly estadoDelPaso = computed(() => {
@@ -117,6 +126,7 @@ export class StudentDashboardComponent {
   protected readonly fecha = formatDate;
 
   constructor() {
+    this.observarAncho();
     this.cargar();
     this.invitations.list().subscribe({
       next: lista => {
@@ -146,6 +156,15 @@ export class StudentDashboardComponent {
           this.cargando.set(false);
         },
       });
+  }
+
+  private observarAncho(): void {
+    if (typeof matchMedia !== 'function') return;
+    const consulta = matchMedia(CONSULTA_ESTRECHA);
+    this.portadaCompacta.set(consulta.matches);
+    const alCambiar = (evento: MediaQueryListEvent): void => this.portadaCompacta.set(evento.matches);
+    consulta.addEventListener?.('change', alCambiar);
+    inject(DestroyRef).onDestroy(() => consulta.removeEventListener?.('change', alCambiar));
   }
 
   protected abrirInvitaciones(): void {

@@ -24,8 +24,12 @@ const GRUPOS_COPY = {
   eyebrow: 'Tu entrenamiento',
   titulo: 'Tus grupos',
   descripcion: 'Tus docentes te invitan a sus grupos. Al aceptar, verás los casos que te asignen en ese grupo.',
-  pendientes: { titulo: 'Invitaciones pendientes', vacio: 'No tienes invitaciones pendientes.' },
-  miembro: { titulo: 'Grupos a los que perteneces', vacio: 'Aún no perteneces a ningún grupo.' },
+  pendientes: {
+    titulo: 'Invitaciones pendientes',
+    vacio: 'No tienes invitaciones pendientes.',
+    ayuda: 'Cuando tu docente te invite a un grupo, aparecerá aquí.',
+  },
+  miembro: { titulo: 'Grupos a los que perteneces', vacio: 'Aún no perteneces a ningún grupo.', ayuda: 'Acepta una invitación para entrar a un grupo.' },
   vacio: { titulo: 'Aún no perteneces a ningún grupo', texto: 'Tu docente te invitará; la invitación aparecerá aquí.' },
   error: 'No pudimos cargar tus grupos.',
   cargando: 'Cargando tus grupos…',
@@ -88,7 +92,7 @@ const GRUPOS_COPY = {
               }
             </ul>
           } @else {
-            <p class="inv-vacio">{{ copy.pendientes.vacio }}</p>
+            <p class="inv-vacio"><strong class="inv-vacio__titulo">{{ copy.pendientes.vacio }}</strong> {{ copy.pendientes.ayuda }}</p>
           }
         </ui-section>
 
@@ -110,7 +114,7 @@ const GRUPOS_COPY = {
               }
             </ul>
           } @else {
-            <p class="inv-vacio">{{ copy.miembro.vacio }}</p>
+            <p class="inv-vacio"><strong class="inv-vacio__titulo">{{ copy.miembro.vacio }}</strong> {{ copy.miembro.ayuda }}</p>
           }
         </ui-section>
       }
@@ -163,6 +167,30 @@ const GRUPOS_COPY = {
       color: var(--ds-text-2);
       font-size: var(--ds-type-body-s-size);
       line-height: var(--ds-type-body-s-line);
+    }
+    /* Una sección vacía se lee como un hueco que espera, no como una nota suelta: el contorno punteado ocupa el lugar de
+       la tarjeta que vendrá, y el cuadrito hueco (un píxel de la firma, sin relleno) dice «nada pendiente». */
+    .inv-vacio {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: var(--ds-space-1) var(--ds-space-2);
+      padding: var(--ds-space-4) var(--ds-space-5);
+      border: 1px dashed var(--ds-border);
+      border-radius: var(--l-radio-tarjeta, var(--ds-radius-lg));
+    }
+    .inv-vacio::before {
+      content: '';
+      flex: none;
+      align-self: center;
+      box-sizing: border-box;
+      inline-size: 0.625rem;
+      block-size: 0.625rem;
+      border: 2px solid var(--l-acento, var(--ds-primary));
+    }
+    .inv-vacio__titulo {
+      color: var(--ds-text-1);
+      font-weight: var(--ds-type-h3-weight);
     }
     .inv-item__actions {
       display: flex;

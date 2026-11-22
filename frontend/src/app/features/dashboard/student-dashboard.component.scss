@@ -1,3 +1,5 @@
+@use 'mixins' as m;
+
 // Inicio del estudiante (DISENO §4.1): una página de lectura corta, centrada, con UN protagonista. El mismo ancho y
 // ritmo de la maquetación del portal (.p-pagina); el canal lateral ya lo pone el <main> del armazón.
 :host {
@@ -67,6 +69,12 @@
   max-inline-size: 100%;
 }
 
+// Teléfono estrecho: la portada va en tamaño «tarjeta» (puerta ×1) y ocupa todo el ancho de la tarjeta; ver
+// CONSULTA_ESTRECHA en el componente.
+.sd-protagonista__portada--compacta {
+  inline-size: 100%;
+}
+
 .sd-protagonista__contenido {
   display: grid;
   flex: 1 1 18rem;
@@ -134,6 +142,39 @@
   line-height: var(--ds-type-body-s-line);
 }
 
+// Las filas que llevan a algún lado lo dicen con un chevrón al final (dibujado con dos bordes, sin icono extra); al pasar
+// el cursor se corre un poco hacia la derecha. Las quietas (bloqueadas) no lo llevan.
+a.sd-fila::after {
+  content: '';
+  flex: none;
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  margin-inline: var(--ds-space-1) var(--ds-space-2);
+  border-block-start: 2px solid currentColor;
+  border-inline-end: 2px solid currentColor;
+  color: var(--ds-text-2);
+  rotate: 45deg;
+  transition: translate var(--ds-dur-press) var(--ds-ease-out);
+}
+
+@media (hover: hover) {
+  a.sd-fila:hover::after {
+    translate: 2px -2px;
+  }
+}
+
+.sd-fila__ir {
+  flex: none;
+  color: var(--l-acento, var(--ds-primary));
+  font-size: var(--ds-type-body-s-size);
+  font-weight: var(--ds-type-h3-weight);
+}
+
+a.sd-fila--cierre::after {
+  margin-inline-start: 0;
+  color: var(--l-acento, var(--ds-primary));
+}
+
 // Un caso bloqueado no lleva a ningún lado: se lee un poco más callado, pero conserva el contraste AA.
 .sd-fila--quieta .sd-fila__titulo {
   color: var(--ds-text-2);
@@ -144,9 +185,10 @@
   margin-block-start: var(--ds-space-3);
 }
 
-// En el teléfono la acción de un cierre baja a su propia línea, para no apretar el título.
+// En el teléfono el rótulo «Ver tu recorrido» se calla: la fila entera ya es el enlace y el chevrón dice adónde va; así
+// el título del caso no se aprieta. Su texto sigue en el nombre accesible del enlace.
 @media (max-width: 30rem) {
-  .sd-fila--cierre {
-    flex-wrap: wrap;
+  .sd-fila__ir {
+    @include m.ds-sr-only;
   }
 }

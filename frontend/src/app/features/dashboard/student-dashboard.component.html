@@ -29,7 +29,8 @@
 } @else if (siguiente(); as paso) {
   <ui-section [title]="copy.paso.titulo">
     <ui-card class="sd-protagonista" superficie="tinte">
-      <ui-portada-caso class="sd-protagonista__portada" tamano="heroe" [umbral]="true" [titulo]="paso.caso.title" [portada]="paso.caso.portada" />
+      <ui-portada-caso class="sd-protagonista__portada" [class.sd-protagonista__portada--compacta]="portadaCompacta()"
+        [tamano]="portadaCompacta() ? 'tarjeta' : 'heroe'" [umbral]="true" [titulo]="paso.caso.title" [portada]="paso.caso.portada" />
       <div class="sd-protagonista__contenido">
         @if (estadoDelPaso(); as estado) {
           <ui-badge class="sd-protagonista__estado" [tone]="estado.tono">{{ estado.etiqueta }}</ui-badge>
@@ -86,14 +87,14 @@
     <ul class="sd-lista">
       @for (cierre of cierres(); track cierre.attemptId) {
         <li>
-          <ui-card class="sd-fila sd-fila--cierre">
-            <div class="sd-fila__texto">
+          <!-- Toda la fila es el enlace (un blanco grande, como «Tus casos»); a la derecha dice adónde lleva, con su chevrón. -->
+          <a ui-card class="sd-fila sd-fila--cierre" [routerLink]="['/portal/simulador', cierre.caseVersionId, 'cierre', cierre.attemptId]">
+            <span class="sd-fila__texto">
               <strong class="sd-fila__titulo">{{ cierre.caseTitle }}</strong>
               <span class="sd-fila__meta">Intento del {{ cierre.dateLabel }}</span>
-            </div>
-            <a ui-button variant="ghost" size="sm" [routerLink]="['/portal/simulador', cierre.caseVersionId, 'cierre', cierre.attemptId]"
-              [attr.aria-label]="copy.cierres.accion + ' de ' + cierre.caseTitle">{{ copy.cierres.accion }}</a>
-          </ui-card>
+            </span>
+            <span class="sd-fila__ir">{{ copy.cierres.accion }}</span>
+          </a>
         </li>
       }
     </ul>

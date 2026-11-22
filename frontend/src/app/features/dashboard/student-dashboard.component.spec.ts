@@ -104,6 +104,20 @@ describe('Inicio del estudiante', () => {
     expect(host.querySelector('.ui-button--primary')).toBeNull();
     expect(host.querySelector('a[href="/portal/simulador/1/cierre/fin"]')).not.toBeNull();
     expect(host.textContent).toContain('Tus cierres');
+    // La fila del cierre entera es el enlace (blanco grande), no un botón chico al costado.
+    expect(host.querySelector('a.sd-fila--cierre')?.getAttribute('href')).toBe('/portal/simulador/1/cierre/fin');
+  });
+
+  it('en un teléfono estrecho la portada del siguiente paso va en tamaño tarjeta, para que la puerta no se corte', async () => {
+    vi.stubGlobal('matchMedia', (consulta: string) => ({ matches: true, media: consulta, addEventListener: () => undefined, removeEventListener: () => undefined }));
+    try {
+      const { host } = await render({});
+      const portada = host.querySelector('.sd-protagonista ui-portada-caso');
+      expect(portada?.classList).toContain('ui-portada-caso--tarjeta');
+      expect(portada?.classList).toContain('sd-protagonista__portada--compacta');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('sin casos asignados muestra el vacío y, con invitaciones, la acción para verlas', async () => {

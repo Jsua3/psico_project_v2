@@ -12,6 +12,7 @@ import { safeReturnUrl } from '../../core/auth/return-url';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid.util';
 import { UiButton } from '../../shared/ui/button/ui-button';
+import { UiCard } from '../../shared/ui/card/ui-card';
 import { UiControl, UiField } from '../../shared/ui/field/ui-field';
 import { TemaService } from '../../core/tema/tema.service';
 import { PublicBarComponent } from '../../shared/layout/public-bar.component';
@@ -35,7 +36,7 @@ function sameNewPassword(group: AbstractControl): ValidationErrors | null {
  */
 @Component({
   selector: 'app-change-password',
-  imports: [ReactiveFormsModule, RouterLink, NgTemplateOutlet, PublicBarComponent, UiButton, UiControl, UiField, UiPageHeader],
+  imports: [ReactiveFormsModule, RouterLink, NgTemplateOutlet, PublicBarComponent, UiButton, UiCard, UiControl, UiField, UiPageHeader],
   // Los eventos del formulario notifican a OnPush los cambios de validación.
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -50,29 +51,40 @@ function sameNewPassword(group: AbstractControl): ValidationErrors | null {
         </main>
       </div>
     } @else {
+      <!-- Dentro del portal el formulario va en una tarjeta: se lee como una sola pieza, como el vidrio del modo forzado. -->
       <section class="cambio">
-        <ui-page-header [title]="title()" [description]="description()" volverA="/portal/dashboard" volverEtiqueta="Volver al inicio" />
-        <ng-container [ngTemplateOutlet]="contenido" />
+        <ui-page-header eyebrow="Tu cuenta" [title]="title()" [description]="description()" volverA="/portal/dashboard" volverEtiqueta="Volver al inicio" />
+        <ui-card class="cambio__tarjeta-portal">
+          <ng-container [ngTemplateOutlet]="contenido" />
+        </ui-card>
       </section>
     }
     <ng-template #contenido>
       <p class="ds-sr-only" role="status">{{ statusText() }}</p>
       @if (guardado()) {
-        <p id="cambio-confirmacion" class="cambio__ok" tabindex="-1">Contraseña actualizada.</p>
-        <a ui-button routerLink="/portal/dashboard">Volver al inicio</a>
+        <div class="cambio__hecho">
+          <p id="cambio-confirmacion" class="cambio__ok" tabindex="-1">Contraseña actualizada.</p>
+          <p class="cambio__ok-ayuda">Desde ahora entras con tu nueva contraseña.</p>
+          <a ui-button routerLink="/portal/dashboard">Volver al inicio</a>
+        </div>
       } @else {
       <form class="cambio__form" [formGroup]="form" novalidate (ngSubmit)="submit()">
         <ui-field [label]="modo() === 'forzado' ? 'Contraseña temporal' : 'Contraseña actual'" required revealable [error]="errorOf('currentPassword')">
           <input uiControl id="cambio-actual" type="password" formControlName="currentPassword" autocomplete="current-password" />
         </ui-field>
-        <ui-field label="Nueva contraseña" required revealable [error]="errorOf('newPassword')">
-          <input uiControl id="cambio-nueva" type="password" formControlName="newPassword" autocomplete="new-password" aria-describedby="cambio-requisitos" />
-        </ui-field>
-        <ul id="cambio-requisitos" class="cambio__requisitos" aria-label="Requisitos de la nueva contraseña">
-          <li [class.cumplido]="tieneLongitud()"><span aria-hidden="true">{{ tieneLongitud() ? '✓' : '○' }}</span> Al menos 10 caracteres<span class="ds-sr-only">{{ tieneLongitud() ? ': cumplido' : ': pendiente' }}</span></li>
-          <li [class.cumplido]="noSoloNumeros()"><span aria-hidden="true">{{ noSoloNumeros() ? '✓' : '○' }}</span> No solo números<span class="ds-sr-only">{{ noSoloNumeros() ? ': cumplido' : ': pendiente' }}</span></li>
-          <li><span aria-hidden="true">○</span> Que no sea una contraseña común (se comprueba al guardar)</li>
-        </ul>
+        <!-- La lista de requisitos va pegada a su campo (mismo grupo): se lee como parte de él, no como otro bloque. -->
+        <div class="cambio__nueva">
+          <ui-field label="Nueva contraseña" required revealable [error]="errorOf('newPassword')">
+            <input uiControl id="cambio-nueva" type="password" formControlName="newPassword" autocomplete="new-password" aria-describedby="cambio-requisitos" />
+          </ui-field>
+          <!-- Cada requisito lleva un cuadrito de píxel: hueco si falta, lleno con su visto si se cumple, punteado si lo
+               comprueba el servidor. La forma cambia además del color (nunca solo color), y el lector oye el estado. -->
+          <ul id="cambio-requisitos" class="cambio__requisitos" aria-label="Requisitos de la nueva contraseña">
+            <li [class.cumplido]="tieneLongitud()"><span class="cambio__marca" aria-hidden="true"></span>Al menos 10 caracteres<span class="ds-sr-only">{{ tieneLongitud() ? ': cumplido' : ': pendiente' }}</span></li>
+            <li [class.cumplido]="noSoloNumeros()"><span class="cambio__marca" aria-hidden="true"></span>No solo números<span class="ds-sr-only">{{ noSoloNumeros() ? ': cumplido' : ': pendiente' }}</span></li>
+            <li class="servidor"><span class="cambio__marca" aria-hidden="true"></span>Que no sea una contraseña común (se comprueba al guardar)</li>
+          </ul>
+        </div>
         <ui-field label="Repite la nueva contraseña" required revealable [error]="confirmError()">
           <input uiControl id="cambio-confirmar" type="password" formControlName="confirmPassword" autocomplete="new-password" />
         </ui-field>
@@ -102,9 +114,24 @@ function sameNewPassword(group: AbstractControl): ValidationErrors | null {
     .cambio-publico { min-height: 100vh; }
     .cambio--publico { padding-top: calc(var(--asb-alto-modulo-superior) + var(--ds-space-8)); }
     .cambio__tarjeta { display: grid; gap: var(--ds-space-5); padding: var(--ds-space-6); min-width: 0; }
-    .cambio__requisitos { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--ds-space-1); color: var(--ds-text-2); font-size: var(--ds-type-body-s-size); }
-    .cambio__requisitos .cumplido { color: var(--ds-success, var(--ds-text-1)); }
-    @media (forced-colors: active) { .cambio__tarjeta { border: 1px solid CanvasText; } }
+    .cambio__tarjeta-portal { display: grid; gap: var(--ds-space-5); min-width: 0; }
+    .cambio__nueva { display: grid; gap: var(--ds-space-2); min-width: 0; }
+    .cambio__requisitos { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--ds-space-1); color: var(--ds-text-2); font-size: var(--ds-type-body-s-size); line-height: var(--ds-type-body-s-line); }
+    .cambio__requisitos li { display: flex; align-items: baseline; gap: var(--ds-space-2); }
+    .cambio__requisitos .cumplido { color: var(--ds-text-1); }
+    /* La marca ocupa siempre 0,75rem (el texto no salta). Pendiente: un solo píxel de la firma, pequeño, para que no se
+       confunda con una casilla que se marca; el del servidor, hueco. Cumplido: el cuadro lleno con su visto. */
+    .cambio__marca { position: relative; display: grid; place-items: center; flex: none; align-self: center; box-sizing: border-box; width: 0.75rem; height: 0.75rem; }
+    .cambio__marca::before { content: ''; box-sizing: border-box; width: 0.375rem; height: 0.375rem; background: currentColor; }
+    .servidor .cambio__marca::before { background: transparent; border: 2px solid currentColor; }
+    .cumplido .cambio__marca { background: var(--ds-success); }
+    .cumplido .cambio__marca::before { display: none; }
+    /* El visto, en blanco sobre el cuadro lleno: dos bordes de un rectángulo girado. */
+    .cumplido .cambio__marca::after { content: ''; position: absolute; left: 0.125rem; top: -0.0625rem; width: 0.1875rem; height: 0.375rem;
+      border-right: 2px solid var(--ds-surface-1); border-bottom: 2px solid var(--ds-surface-1); rotate: 45deg; }
+    .cambio__hecho { display: grid; justify-items: start; gap: var(--ds-space-3); }
+    .cambio__ok-ayuda { margin: 0; color: var(--ds-text-2); }
+    @media (forced-colors: active) { .cambio__tarjeta { border: 1px solid CanvasText; } .cumplido .cambio__marca { background: CanvasText; } }
     .cambio__form {
       display: grid;
       grid-template-columns: minmax(0, 1fr);
