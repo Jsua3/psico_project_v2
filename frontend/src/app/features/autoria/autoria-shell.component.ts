@@ -28,6 +28,10 @@ import { HiloDelCasoComponent } from './marco/hilo-del-caso.component';
 import { PanelPendientesComponent } from './marco/panel-pendientes.component';
 import { ProgresoDelCaso } from './marco/progreso.service';
 import { RielDeEscenasComponent } from './marco/riel-de-escenas.component';
+import { injectComandosDelCaso } from './marco/estudio/comandos-del-caso';
+import { EstudioMarcoComponent } from './marco/estudio/estudio-marco.component';
+import { EstudioService } from './marco/estudio/estudio.service';
+import { ExploradorBibliotecaComponent } from './marco/estudio/explorador-biblioteca.component';
 import { RutasAutoria } from './rutas';
 
 const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', icon: 'logout', tone: 'danger' }];
@@ -52,8 +56,10 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
   imports: [
     RouterOutlet, RouterLink, PanelIaComponent, BuscadorComponent, FocoGuiaComponent, AvisosGuardadoComponent,
     UiGlassBar, UiMenu, MarcaComponent, TemaSelectorComponent, HiloDelCasoComponent, RielDeEscenasComponent,
+    EstudioMarcoComponent, ExploradorBibliotecaComponent,
   ],
-  host: { '(document:keydown)': 'atajo($event)', '(window:pagehide)': 'alCerrar()', '(window:beforeunload)': 'antesDeSalir($event)' },
+  providers: [EstudioService],
+  host: { '(window:pagehide)': 'alCerrar()', '(window:beforeunload)': 'antesDeSalir($event)' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <a class="saltar" href="#main-content" (click)="saltar($event)">Saltar al contenido</a>
@@ -91,9 +97,7 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
             <!-- «Buscar» y «Guía» se funden en una sola «Ayuda» (§4.1): abrían casi el mismo diálogo con las mismas acciones. Se
                  conservan las dos entradas de la guía (data-accion «buscar» y «guia») sobre este botón. -->
             <button type="button" class="boton-barra" data-accion="buscar guia" title="Busca una acción o pregúntale a la guía"
-                    aria-keyshortcuts="Control+K" aria-haspopup="dialog" (click)="abrirBuscador('buscar', $event)">
-              Ayuda <span class="atajo-ayuda" aria-hidden="true"><kbd>Ctrl</kbd><kbd>K</kbd></span>
-            </button>
+                    aria-haspopup="dialog" (click)="abrirBuscador('buscar', $event)">Ayuda</button>
             @if (store.caso() && iaDisponible()) {
               <button type="button" class="boton-barra" data-accion="pedir-a-la-ia aceptar-ia" title="Escribe o cambia el caso por ti; tú apruebas"
                       [attr.aria-expanded]="iaAbierta() && !store.soloLectura()" aria-controls="panel-ia" [disabled]="store.soloLectura()"
@@ -120,8 +124,9 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
     }
     <app-foco-guia />
 
-    <div class="cuerpo" [class.con-riel]="esHistoria()" [class.con-ia]="iaAbierta() && !store.soloLectura()">
-      @if (esHistoria()) { <app-riel-de-escenas class="zona zona-riel" /> }
+    <!-- El espacio de trabajo (EDITOR-PRO.md §1): Explorador · lienzo · Inspector y barra de estado. La pantalla de la ruta
+         va en el centro; lo que pone en el Inspector o en la barra de herramientas llega por las ranuras del estudio. -->
+    <app-estudio-marco class="cuerpo" [exploradorPorDefecto]="esHistoria() ? exploradorHistoria : null">
       <main id="main-content" tabindex="-1" class="zona zona-centro">
         @if (store.caso()) { <app-avisos-guardado parte="avisos" /> }
         @if (abriendo()) {
@@ -149,9 +154,35 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
           </fieldset>
         }
       </main>
-      <!-- Flota sobre el borde final, como una hoja. Se oculta en vez de quitarse, para no perder la conversación ni la propuesta. -->
+      <!-- Flota sobre el borde final del lienzo, como una hoja. Se oculta en vez de quitarse, para no perder la conversación ni la propuesta. -->
       <app-panel-ia id="panel-ia" class="columna-ia" [hidden]="!iaAbierta() || store.soloLectura()" (cerrar)="cerrarIa()" />
-    </div>
+
+      <span estudioEstadoInicio class="est-dato estado-donde">{{ dondeEstoy() }}</span>
+      @if (store.caso()) {
+        <button estudioEstadoInicio type="button" class="est-dato-boton" [class.estado-pendientes]="progreso.porCorregir().length"
+                aria-haspopup="dialog" (click)="abrirPendientes($event)">
+          <span class="marca-estado" aria-hidden="true" [attr.data-estado]="progreso.porCorregir().length ? 'con-pendientes' : 'lista'"></span>
+          {{ textoPendientes() }}
+        </button>
+      }
+    </app-estudio-marco>
+
+    <!-- El Explorador de la etapa Historia: las escenas en jerarquía y la biblioteca del caso, en dos pestañas. -->
+    <ng-template #exploradorHistoria>
+      <div class="explorador">
+        <div class="explorador__pestanas" role="tablist" aria-label="Qué ver en el explorador">
+          <button type="button" role="tab" id="exp-tab-escenas" aria-controls="exp-escenas" [attr.aria-selected]="pestana() === 'escenas'"
+                  [attr.tabindex]="pestana() === 'escenas' ? 0 : -1" (click)="pestana.set('escenas')" (keydown)="teclaPestana($event)">Escenas</button>
+          <button type="button" role="tab" id="exp-tab-biblioteca" aria-controls="exp-biblioteca" [attr.aria-selected]="pestana() === 'biblioteca'"
+                  [attr.tabindex]="pestana() === 'biblioteca' ? 0 : -1" (click)="pestana.set('biblioteca')" (keydown)="teclaPestana($event)">Biblioteca</button>
+          <span class="explorador__indicador" aria-hidden="true" [attr.data-pestana]="pestana()"></span>
+        </div>
+        <app-riel-de-escenas id="exp-escenas" role="tabpanel" aria-labelledby="exp-tab-escenas" class="zona zona-riel" [hidden]="pestana() !== 'escenas'" />
+        @if (pestana() === 'biblioteca' && store.caso(); as caso) {
+          <app-explorador-biblioteca id="exp-biblioteca" role="tabpanel" aria-labelledby="exp-tab-biblioteca" class="zona" [caso]="caso" />
+        }
+      </div>
+    </ng-template>
 
     <!-- «Deshacer» de los borrados del guion (EDITOR.md §4.6). El contenedor está siempre para que el lector anuncie el aviso. -->
     <div class="deshacer-zona" role="status">
@@ -186,9 +217,6 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
     /* A 390 px el rótulo no cabe junto a «‹ Casos» y la cuenta (se pisaba con el menú): el título de la página ya lo dice. */
     @media (max-width: 29.999rem) { .contexto-editor { display: none; } }
     .barra-ayuda { display: flex; flex-wrap: nowrap; gap: 0.375rem; }
-    .atajo-ayuda { display: inline-flex; gap: 0.125rem; }
-    .atajo-ayuda kbd { font-size: var(--autoria-texto-14); padding: 0 0.25rem; border-radius: 0.3125rem; background: transparent; }
-    @media (max-width: 119.999rem) { .atajo-ayuda { display: none; } }
     @media (max-width: 89.999rem) and (min-width: 64rem) { .enlace-casos { display: none; } }
     @media (max-width: 79.999rem) and (min-width: 64rem) { .caso-actual { display: none; } }
 
@@ -206,26 +234,44 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
     }
     .insignia--cero { background: transparent; box-shadow: inset 0 0 0 1px var(--l-filo-fuerte); color: var(--asb-cromo-tinta-tenue); }
 
-    .cuerpo { display: grid; grid-template-columns: minmax(0, 1fr); min-inline-size: 0; }
     .zona-centro { inline-size: 100%; min-inline-size: 0; outline: none; }
     .marco-pantalla { border: 0; margin: 0; padding: 0; min-inline-size: 0; }
     .solo-lectura { margin: 0; padding: 0.625rem 0.75rem; border-radius: var(--radio-control); background: var(--primario-tinte); font-weight: 700; }
 
-    /* Escritorio: la página no se desplaza; cada zona, sí (§4.2, regla 1). */
+    /* Explorador de Historia: dos pestañas con un indicador que viaja de una a otra (no salta). */
+    .explorador { display: grid; grid-template-rows: auto minmax(0, 1fr); min-block-size: 0; }
+    .explorador__pestanas {
+      position: relative; display: grid; grid-template-columns: 1fr 1fr; padding-inline: 0.5rem; border-block-end: 1px solid var(--l-filo);
+    }
+    .explorador__pestanas [role='tab'] {
+      min-block-size: 2.75rem; border: 0; background: transparent; color: var(--ds-text-2); font: inherit; font-size: var(--autoria-texto-14);
+      font-weight: 700; cursor: pointer; transition: color var(--ds-dur-fast) var(--ds-ease-out);
+    }
+    .explorador__pestanas [role='tab'][aria-selected='true'] { color: var(--ds-text-1); }
+    @media (hover: hover) and (pointer: fine) { .explorador__pestanas [role='tab']:hover { color: var(--ds-text-1); } }
+    .explorador__indicador {
+      position: absolute; inset-block-end: -1px; inset-inline-start: 0.5rem; inline-size: calc(50% - 0.5rem); block-size: 2px;
+      background: var(--ds-primary); transition: translate var(--ds-dur-move) var(--ds-spring-soft);
+    }
+    .explorador__indicador[data-pestana='biblioteca'] { translate: 100% 0; }
+    .explorador > .zona { min-block-size: 0; overflow: auto; overscroll-behavior: contain; }
+    .explorador > [hidden] { display: none; }
+
+    /* Barra de estado: dónde estoy y lo que falta. */
+    .estado-donde { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; }
+    .estado-pendientes { color: var(--ds-warning-text); font-weight: 700; }
+
+    /* Escritorio: la página no se desplaza; cada zona, sí (§4.2, regla 1). La rejilla la arma el estudio. */
     @media (min-width: 64rem) {
-      .cuerpo { position: relative; flex: 1; min-block-size: 0; }
-      .cuerpo.con-riel { grid-template-columns: 16.5rem minmax(0, 1fr); }
-      .zona { min-block-size: 0; overflow: auto; overscroll-behavior: contain; }
-      /* Las pantallas viejas suman el alto de la barra a sus «sticky» y «scroll-margin»: dentro de la zona central ya no
-         hay barra encima, así que su cuenta empieza en 0 (la variable se hereda por cascada). */
-      .zona-centro { --alto-cabecera: 0px; scroll-padding-block-start: 1rem; }
+      .cuerpo { flex: 1; min-block-size: 0; }
+      .zona-centro { --alto-cabecera: 0px; min-block-size: 0; overflow: auto; overscroll-behavior: contain; scroll-padding-block-start: 1rem; }
       .columna-ia {
         position: absolute; z-index: var(--autoria-capa-5); inset-block: 0.75rem; inset-inline-end: 0.75rem;
         inline-size: min(25rem, calc(100% - 1.5rem)); overflow: auto; overscroll-behavior: contain;
         border: 1px solid var(--l-filo); border-radius: var(--l-radio-tarjeta); background: var(--l-superficie); box-shadow: var(--l-sombra-trabajo);
       }
     }
-    @media (min-width: 64rem) and (max-width: 79.999rem) { .cuerpo.con-riel { grid-template-columns: 3.5rem minmax(0, 1fr); } }
+    @media (prefers-reduced-motion: reduce) { .explorador__indicador { transition: none; } }
 
     /* «Deshacer»: flota abajo, centrado; es vidrio porque flota (§4.7). */
     .deshacer-zona {
@@ -291,6 +337,16 @@ export class AutoriaShellComponent implements CanLeave {
     void alPulsarProbar(evento, this.store);
   }
   protected readonly iaAbierta = signal(false);
+  /** La pestaña del Explorador de Historia. */
+  protected readonly pestana = signal<'escenas' | 'biblioteca'>('escenas');
+  /** «Escena 3 de 8 · Recepción» o el nombre de la etapa: la primera cosa de la barra de estado. */
+  protected readonly dondeEstoy = computed(() => {
+    const escenas = this.progreso.escenas();
+    const i = escenas.findIndex((e) => e.id === this.progreso.escenaActual());
+    if (i >= 0) return `Escena ${i + 1} de ${escenas.length} · ${escenas[i].titulo}`;
+    if (this.esHistoria()) return `Caminos · ${escenas.length} ${escenas.length === 1 ? 'escena' : 'escenas'}`;
+    return this.progreso.avance().find((a) => a.etapa === this.progreso.etapaActual())?.nombre ?? 'Editor de casos';
+  });
   protected readonly buscador = signal<'buscar' | 'preguntar' | null>(null);
   /** Con el buscador o la guía abiertos la barra se congela (DG-9): lo que la guía señala no salta 6 px al desplazarse. */
   protected readonly ayudaAbierta = computed(() => this.buscador() !== null || this.guia.activa() !== null);
@@ -306,6 +362,12 @@ export class AutoriaShellComponent implements CanLeave {
   private readonly injector = inject(Injector);
 
   constructor() {
+    injectComandosDelCaso({
+      buscarEnLaAyuda: () => this.abrirBuscador('buscar'),
+      preguntarALaGuia: () => this.abrirBuscador('preguntar'),
+      verPendientes: () => this.dialogo.sheet(PanelPendientesComponent, { side: 'end', origen: null }),
+      probar: () => void this.router.navigateByUrl(this.rutaEnsayo()),
+    });
     effect(() => {
       const pedido = this.casoPedido();
       if (pedido === null) return;
@@ -337,16 +399,13 @@ export class AutoriaShellComponent implements CanLeave {
     });
   }
 
-  /**
-   * Atajo de todas las pantallas: Ctrl+K abre el buscador. Deshacer y rehacer (Ctrl+Z, Ctrl+Y) valen para la sala y los
-   * atiende su pantalla.
-   */
-  protected atajo(e: KeyboardEvent): void {
-    if (!(e.ctrlKey || e.metaKey)) return;
-    if (e.key.toLowerCase() === 'k') {
-      e.preventDefault();
-      this.abrirBuscador('buscar');
-    }
+  /** Explorador de Historia: ← y → pasan de una pestaña a la otra (patrón de pestañas de las APG). */
+  protected teclaPestana(e: KeyboardEvent): void {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    const otra = this.pestana() === 'escenas' ? 'biblioteca' : 'escenas';
+    this.pestana.set(otra);
+    afterNextRender(() => document.getElementById(`exp-tab-${otra}`)?.focus(), { injector: this.injector });
   }
 
   /**

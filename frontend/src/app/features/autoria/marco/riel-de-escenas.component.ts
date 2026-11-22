@@ -43,8 +43,8 @@ interface FilaEscena {
  *   desplegable, donde Alt+↓ la abre).
  * - Abajo, «Agregar una escena» (en Guion; en Caminos la ofrece la cabecera del mapa, que sabe qué escena está elegida).
  *
- * Por anchos: de 64rem a 80rem el riel se pliega a 56 px (número y estado); por debajo de 64rem es un selector
- * «Escena 2 de 8» que cabe en un teléfono sin desbordar (§4.3).
+ * Vive en la pestaña «Escenas» del Explorador del estudio (su ancho lo ajusta el divisor); por debajo de 64rem es un
+ * selector «Escena 2 de 8» que cabe en un teléfono sin desbordar (§4.3).
  */
 @Component({
   selector: 'app-riel-de-escenas',
@@ -138,8 +138,8 @@ interface FilaEscena {
   `,
   styles: `
     :host {
-      display: flex; flex-direction: column; gap: var(--ds-space-4, 1rem); padding: var(--ds-space-4, 1rem) 0.75rem;
-      background: var(--l-superficie); border-inline-end: 1px solid var(--l-filo);
+      /* Vive dentro del panel Explorador del estudio, que pone la superficie y el filo. */
+      display: flex; flex-direction: column; gap: 0.875rem; padding: 0.75rem 0.5rem 1rem;
     }
     .riel__eyebrow {
       margin: 0; color: var(--ds-text-2); font-size: var(--autoria-texto-14); font-weight: 700; letter-spacing: 0.04em;
@@ -259,17 +259,6 @@ interface FilaEscena {
       font-size: var(--autoria-texto-16);
     }
 
-    /* Franja estrecha de escritorio (64rem a 80rem): el riel se pliega a 56 px con el número y el estado. */
-    @media (min-width: 64rem) and (max-width: 79.999rem) {
-      :host { padding-inline: 0.25rem; gap: 0.75rem; }
-      .riel__paso, .riel__cabecera, .riel__texto, .riel__grupo, .riel__agregar-texto, .riel__vista-texto, .riel__miniatura { display: none; }
-      .riel__vistas { grid-template-columns: 1fr; border-radius: var(--l-radio-control); }
-      .riel__vista { border-radius: calc(var(--l-radio-control) - 0.1875rem); }
-      .riel__escena { grid-template-columns: 1fr; justify-items: center; row-gap: 0.25rem; padding-inline: 0.25rem; }
-      .riel__tesela { inline-size: auto; block-size: auto; }
-      .riel__numero { position: static; min-inline-size: 1.75rem; block-size: 1.75rem; }
-      .riel__agregar { justify-content: center; padding: 0; }
-    }
     /* Teléfono y tableta: el conmutador, «Siguiente paso» y el selector, en una franja sobre el contenido. */
     @media (max-width: 63.999rem) {
       :host { gap: 0.75rem; padding-inline: 1rem; border-inline-end: 0; border-block-end: 1px solid var(--l-filo); }

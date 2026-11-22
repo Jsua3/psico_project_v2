@@ -98,12 +98,13 @@ describe('Editor de casos: la barra de vidrio (tableros 45–51)', () => {
     expect(boton(raiz, 'Ayuda')).toBeDefined();
   });
 
-  it('la ayuda nunca se pliega: ningún botón es plegable y el atajo de la ayuda queda anunciado', async () => {
+  it('la ayuda nunca se pliega: ningún botón es plegable y Ctrl+K queda anunciado en «Comandos» (la paleta)', async () => {
     const { raiz } = await irA('/portal/casos/41/editor');
     const ayuda = raiz.querySelector('header [aria-label="Ayuda"]')!;
     expect(ayuda.querySelectorAll('.control-plegable')).toHaveLength(0);
     expect(raiz.querySelectorAll('header .control-plegable')).toHaveLength(0);
-    expect(boton(raiz, 'Ayuda').getAttribute('aria-keyshortcuts')).toBe('Control+K');
+    // Ctrl+K abre la paleta de comandos del estudio (EDITOR-PRO.md §4); «Ayuda» sigue abriendo el buscador de la guía.
+    expect(raiz.querySelector('[data-accion="comandos"]')!.getAttribute('aria-keyshortcuts')).toBe('Control+K');
   });
 
   it('con el buscador abierto la barra no cambia de estado; al cerrarlo cae al que le toca', async () => {
