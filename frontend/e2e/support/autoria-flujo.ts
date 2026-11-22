@@ -47,9 +47,12 @@ export async function irAlMapaDelCaso(page: Page): Promise<number> {
 export async function crearCasoBienestar(page: Page, titulo: string): Promise<number> {
   await page.goto('/portal/casos/nuevo');
   await expect(page.getByRole('heading', { level: 1, name: '¿Dónde pasa tu caso?' })).toBeVisible({ timeout: scaled(30_000) });
-  await page.getByRole('link', { name: 'Elegir este lugar: Universidad' }).click();
+  await page.getByRole('link', { name: /^Elegir este lugar: Universidad/ }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Elige las salas de tu caso' })).toBeVisible({ timeout: scaled(30_000) });
-  await page.getByRole('button', { name: 'Usar esta idea: Atención en Bienestar' }).click();
+  const aMano = page.getByRole('radio', { name: /^Elegir salas a mano/ });
+  if (await aMano.count()) await page.locator('label.opcion').filter({ has: aMano }).click();
+  const idea = page.getByRole('button', { name: 'Usar esta idea: Atención en Bienestar' });
+  if (await idea.count()) await idea.click();
   await page.getByLabel('Nombre del caso').fill(titulo);
   await page.getByRole('button', { name: /^Crear el caso(?: con estas salas)?$/ }).click();
   const id = await irAlMapaDelCaso(page);
@@ -133,7 +136,9 @@ export async function escribirRespuesta(page: Page, r: RespuestaEscrita): Promis
   const campo = tarjeta.getByLabel(`Respuesta ${n}`, { exact: true });
   await campo.fill(r.texto);
   await campo.blur();
-  await tarjeta.getByRole('radio', { name: r.clase, exact: true }).check();
+  const clase = tarjeta.getByRole('radio', { name: r.clase, exact: true });
+  await tarjeta.locator('label.opcion').filter({ has: clase }).click();
+  await expect(clase).toBeChecked();
   if (r.clase === 'Contraindicada') {
     const razon = tarjeta.getByLabel('Por qué es contraindicada');
     await razon.fill(r.razon ?? 'Puede hacerle daño a la persona.');
@@ -145,7 +150,7 @@ export async function escribirRespuesta(page: Page, r: RespuestaEscrita): Promis
   if (r.hitos?.length) {
     // Los pasos que cumple la respuesta viven en la faceta «Pasos» (E2): se abre antes de marcarlos. El botón se llama
     // «Pasos» más su cuenta («Pasos 0»); abrir una faceta cierra la otra, así que no queda nada abierto de antes.
-    const faceta = tarjeta.getByRole('button', { name: /^Pasos/ });
+    const faceta = tarjeta.getByRole('button', { name: /^Pasos\b/ });
     if ((await faceta.getAttribute('aria-expanded')) !== 'true') await faceta.click();
     for (const hito of r.hitos) await tarjeta.getByRole('checkbox', { name: hito, exact: true }).check();
   }
@@ -177,6 +182,8 @@ export const RECURSO_DE_APOYO = 'Línea de atención de Bienestar Universitario'
 
 /** Escribe los recursos de apoyo de la escena abierta (uno por línea). */
 export async function escribirRecursosDeApoyo(page: Page, texto: string): Promise<void> {
+  const seccion = page.getByRole('button', { name: /^Antes de decidir/ });
+  if (await seccion.getAttribute('aria-expanded') !== 'true') await seccion.click();
   const campo = page.getByLabel('Recursos de apoyo para el estudiante');
   await campo.fill(texto);
   await campo.blur();
@@ -377,7 +384,7 @@ const CAMPO_DESCRIPCION = 'Describe la situación y lo que debe aprender el estu
 export async function elegirDescribirTuCaso(page: Page): Promise<void> {
   await page.goto('/portal/casos/nuevo');
   await expect(page.getByRole('heading', { level: 1, name: '¿Dónde pasa tu caso?' })).toBeVisible({ timeout: scaled(30_000) });
-  await page.getByRole('link', { name: 'Elegir este lugar: Universidad' }).click();
+  await page.getByRole('link', { name: /^Elegir este lugar: Universidad/ }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Elige las salas de tu caso' })).toBeVisible({ timeout: scaled(30_000) });
   const forma = page.getByRole('radio', { name: /^Describe tu caso/ });
   await expect(forma).toBeEnabled({ timeout: scaled(30_000) });

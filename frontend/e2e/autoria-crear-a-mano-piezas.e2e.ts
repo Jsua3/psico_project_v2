@@ -65,12 +65,13 @@ test.describe('crear un caso a mano arma las salas por piezas', () => {
       await page.goto('/portal/casos/nuevo');
       await expect(page.getByRole('heading', { level: 1, name: '¿Dónde pasa tu caso?' })).toBeVisible({ timeout: scaled(30_000) });
       // Las plantillas son radios (como el «Nuevo proyecto» de Unity Hub): se elige y «Continuar» lleva a las salas.
-      await page.getByRole('radio', { name: ruta.lugar, exact: true }).check();
-      await page.getByRole('link', { name: `Elegir este lugar: ${ruta.lugar}` }).click();
+      await page.locator('label.plantilla').filter({ has: page.getByRole('radio', { name: ruta.lugar, exact: true }) }).click();
+      await expect(page.getByRole('radio', { name: ruta.lugar, exact: true })).toBeChecked();
+      await page.getByRole('link', { name: new RegExp(`^Elegir este lugar: ${ruta.lugar}`) }).click();
       await expect(page.getByRole('heading', { level: 1, name: 'Elige las salas de tu caso' })).toBeVisible({ timeout: scaled(30_000) });
       // Con la IA de autoría encendida la pantalla abre en «Describe tu caso»; sin ella, ya está a mano.
       const aMano = page.getByRole('radio', { name: /^Elegir salas a mano/ });
-      if (await aMano.count()) await aMano.check({ force: true }); // la tarjeta lleva el radio oculto
+      if (await aMano.count()) await page.locator('label.opcion').filter({ has: aMano }).click();
       await expect(page.getByRole('button', { name: `Usar esta idea: ${ruta.idea}` })).toBeVisible({ timeout: scaled(15_000) });
       await page.getByRole('button', { name: `Usar esta idea: ${ruta.idea}` }).click();
       await page.getByLabel('Nombre del caso').fill(`A mano por piezas ${prefijo} ${Date.now()}`);
@@ -112,7 +113,7 @@ test.describe('crear un caso a mano arma las salas por piezas', () => {
       // 5. El plano del caso: las salas y sus puertas, ninguna rota.
       await page.goto(`/portal/casos/${casoId}/editor/plano`);
       await expect(page.getByRole('heading', { level: 1, name: 'Plano del caso' })).toBeVisible({ timeout: scaled(30_000) });
-      await expect(page.locator('app-plano-caso button.plano__sala')).toHaveCount(ruta.salas);
+      await expect(page.locator('app-plano-del-lugar button.plano__sala')).toHaveCount(ruta.salas);
       await expect(page.locator('app-plano-caso g.rota')).toHaveCount(0);
       await capturar(page, `${prefijo}-plano`);
 

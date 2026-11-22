@@ -53,7 +53,7 @@ async function createGroup(request: APIRequestContext, name: string, code: strin
   return (await response.json()).data.id as number;
 }
 
-const groupDetailButton = (page: Page, name: string) => page.getByRole('button', { name: new RegExp(`^Ver detalle de ${name}`) });
+const groupDetailButton = (page: Page, name: string) => page.getByRole('link', { name: new RegExp(`^${name}`) });
 
 // ── Todos ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -115,7 +115,7 @@ test('[T04] saltar al contenido y a la navegación: los dos enlaces de salto sal
   const toNav = page.getByRole('link', { name: 'Saltar a la navegación' });
   await expect(toNav).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(header(page).locator('.modulo-principal').getByRole('link', { name: 'Panel', exact: true })).toBeFocused();
+  await expect(header(page).locator('.modulo-principal').getByRole('link', { name: 'Inicio', exact: true })).toBeFocused();
   await expectNoPointer(page, 'saltar al contenido y a la navegación');
 });
 
@@ -130,7 +130,9 @@ test('[T05] usar el menú y el menú de cuenta: un destino se abre con Enter y e
   await pressWithKeyboard(page, account);
   const logout = page.getByRole('menuitem', { name: 'Cerrar sesión' });
   await expect(logout).toBeVisible();
-  await expect(logout).toBeFocused();
+  // El foco entra al menú: a su primer ítem, que es la fila de identidad («Nombre · Rol», deshabilitada pero enfocable,
+  // como recomienda el patrón de menú de ARIA para que se anuncie).
+  await expect(page.locator('[role="menu"] [role="menuitem"]:focus')).toHaveCount(1);
   await page.keyboard.press('Escape');
   await expect(logout).toBeHidden();
   await expect(account).toBeFocused();
@@ -146,6 +148,7 @@ test('[T06] abrir y cerrar diálogos con el foco correcto: el foco entra, el Tab
   await page.goto('/portal/grupos');
   await expect(groupDetailButton(page, name)).toBeVisible({ timeout: scaled(30_000) });
 
+  await pressWithKeyboard(page, groupDetailButton(page, name));
   const trigger = page.getByRole('button', { name: `Más acciones de ${name}` });
   await pressWithKeyboard(page, trigger);
   const remove = page.getByRole('menuitem', { name: 'Borrar' });
@@ -197,14 +200,14 @@ async function completeAttempt(request: APIRequestContext, caseVersionId: number
   expect(decided.status(), `la decisión: ${await decided.text()}`).toBe(200);
 }
 
-const caseCard = (page: Page, title: string) => page.locator('.case-card').filter({ hasText: title });
+const caseCard = (page: Page, title: string) => page.locator('ui-card.cs-tarjeta').filter({ has: page.getByRole('heading', { name: title, exact: true }) });
 
 // req: RNF-004, WCAG 2.1.1
 test('[E01] abrir el catálogo: Tab hasta «Simulador» y Enter muestra los casos', async ({ page, request }) => {
   const fixture = await studentCase(request, 'Catálogo teclado');
   try {
     await keyboardLogin(page, ESTUDIANTE);
-    await goTo(page, 'Simulador', /\/portal\/simulador$/);
+    await goTo(page, 'Casos', /\/portal\/simulador$/);
     await expect(caseCard(page, fixture.title)).toBeVisible({ timeout: scaled(30_000) });
     await expectNoPointer(page, 'abrir el catálogo');
   } finally {
@@ -218,16 +221,18 @@ test('[E02 E03] ver la ficha y aceptar el aviso: entrar al caso y comenzar con t
   const fixture = await studentCase(request, 'Ficha teclado', true);
   try {
     await keyboardLogin(page, ESTUDIANTE);
-    await goTo(page, 'Simulador', /\/portal\/simulador$/);
-    await pressWithKeyboard(page, caseCard(page, fixture.title).locator('.case-card__actions button').first());
+    await goTo(page, 'Casos', /\/portal\/simulador$/);
+    await pressWithKeyboard(page, caseCard(page, fixture.title).getByRole('button', { name: 'Ver ficha' }));
     await page.waitForURL(/\/portal\/simulador\/\d+(\/ficha)?$/, { timeout: scaled(30_000) });
     await expect(page.getByRole('heading', { level: 1, name: fixture.title })).toBeVisible({ timeout: scaled(30_000) });
     await expect(page.getByText('Una mujer llega a urgencias tras una discusión.')).toBeVisible();
 
     await expect(page.getByRole('heading', { level: 2, name: 'Antes de leer' })).toBeVisible();
+    await pressWithKeyboard(page, page.getByRole('link', { name: 'Leer el aviso' }));
+    await expect(page.locator('#aviso')).toBeFocused();
     await pressWithKeyboard(page, page.getByRole('button', { name: 'Comenzar', exact: true }));
     await page.waitForURL(/\/portal\/simulador\/\d+$/, { timeout: scaled(30_000) });
-    await expect(page.locator('app-umbral-caso').or(page.getByRole('dialog').first()).or(page.locator('app-game-world .phaser-host[data-world-ready="true"]')).first()).toBeVisible({ timeout: scaled(30_000) });
+    await expect(page.getByRole('dialog', { name: 'Antes de comenzar' }).or(page.locator('app-game-world .phaser-host[data-world-ready="true"]')).first()).toBeVisible({ timeout: scaled(30_000) });
     await expectNoPointer(page, 'ver la ficha y aceptar el aviso');
   } finally {
     await retireCase(request, fixture.caseVersionId, fixture.records);
@@ -241,16 +246,15 @@ test('[E11 E12] ver el historial y el resultado con su retroalimentación: «Ver
   try {
     await completeAttempt(request, fixture.caseVersionId);
     await keyboardLogin(page, ESTUDIANTE);
-    await goTo(page, 'Simulador', /\/portal\/simulador$/);
-    const summary = page.getByRole('button', { name: 'Ver resumen' }).first();
+    await goTo(page, 'Casos', /\/portal\/simulador$/);
+    const summary = caseCard(page, fixture.title).getByRole('button', { name: 'Ver tu recorrido', exact: true });
     await expect(summary).toBeVisible({ timeout: scaled(30_000) });
     await pressWithKeyboard(page, summary);
-    const report = page.getByRole('dialog');
-    await expect(report).toBeVisible();
-    await expect.poll(() => report.evaluate(element => element.contains(document.activeElement)), { message: 'el foco entra al resumen' }).toBe(true);
-    await expect(report).toContainText(fixture.title);
-    await page.keyboard.press('Escape');
-    await expect(report).toBeHidden();
+    await expect(page).toHaveURL(/\/cierre\//);
+    await expect(page.getByRole('heading', { level: 1, name: fixture.title })).toBeVisible({ timeout: scaled(30_000) });
+    await expect(page.getByRole('heading', { name: 'Tu retroalimentación docente' })).toBeVisible();
+    await pressWithKeyboard(page, page.getByRole('link', { name: 'Tus casos', exact: true }));
+    await expect(page).toHaveURL(/\/portal\/simulador$/);
     await expect(summary).toBeFocused();
     await expectNoPointer(page, 'ver el historial y el resultado');
   } finally {
@@ -286,6 +290,7 @@ test('[E13] editar el avatar: las flechas eligen, «Guardar» guarda y «Restabl
 test('[P01] crear un grupo: Tab hasta el nombre y el código, se escriben y Enter lo crea', async ({ page }) => {
   await keyboardLogin(page, PROFESOR);
   await goTo(page, 'Grupos', /\/portal\/grupos/);
+  await pressWithKeyboard(page, page.getByRole('button', { name: 'Nuevo grupo' }));
   const name = `Grupo teclado ${stamp()}`;
   const code = `GT-${stamp()}`;
   await typeInto(page, page.getByRole('textbox', { name: /Nombre del grupo/ }), name);
@@ -306,14 +311,15 @@ test('[P02] agregar o importar estudiantes: «Invitar a uno» invita por correo 
   await page.goto('/portal/grupos');
   await pressWithKeyboard(page, groupDetailButton(page, name));
 
-  await pressWithKeyboard(page, page.getByRole('button', { name: 'Invitar a uno' }));
+  await pressWithKeyboard(page, page.getByRole('button', { name: 'Invitar estudiante' }));
   await typeInto(page, page.getByRole('textbox', { name: /Correo del estudiante/ }), ESTUDIANTE.email);
   await page.keyboard.press('Enter');
   await expect(page.locator('.gl-message')).toBeVisible({ timeout: scaled(15_000) });
   await expect(page.locator('.gl-message')).not.toHaveClass(/gl-message--error/);
 
+  await pressWithKeyboard(page, page.getByRole('button', { name: 'Importar desde Excel' }));
   const chooser = page.waitForEvent('filechooser', { timeout: scaled(15_000) });
-  await tabTo(page, page.getByLabel('Archivo de estudiantes (.xlsx)'));
+  await tabTo(page, page.getByLabel('Lista de estudiantes'));
   await page.keyboard.press('Enter');
   await chooser;
   await expectNoPointer(page, 'agregar o importar estudiantes');
@@ -329,6 +335,9 @@ test('[P03] asignar un caso: «Asignar un caso», el caso elegido con las flecha
     await keyboardLogin(page, PROFESOR);
     await page.goto('/portal/grupos');
     await pressWithKeyboard(page, groupDetailButton(page, name));
+    await tabTo(page, page.getByRole('tab', { name: 'Estudiantes' }));
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('tab', { name: 'Casos asignados' })).toHaveAttribute('aria-selected', 'true');
     await pressWithKeyboard(page, page.getByRole('button', { name: 'Asignar un caso' }));
     const dialog = page.getByRole('dialog', { name: 'Asignar un caso al grupo' });
     await expect(dialog).toBeVisible();
@@ -405,18 +414,20 @@ test('[P06] crear y activar una rúbrica: el nombre y el criterio se escriben, �
   await keyboardLogin(page, PROFESOR);
   await goTo(page, 'Rúbricas', /\/portal\/rubricas/);
   await pressWithKeyboard(page, page.getByRole('button', { name: 'Nueva rúbrica' }));
-  const form = page.locator('app-rubrics form').first();
+  await pressWithKeyboard(page, page.getByRole('button', { name: /^En blanco/ }));
+  const form = page.locator('app-rubrica-editor form');
   const name = `Rúbrica teclado ${stamp()}`;
   await typeInto(page, form.getByLabel('Nombre').first(), name);
-  const criterion = form.locator('fieldset.criterion').first();
+  const criterion = form.locator('li.criterion').first();
   await typeInto(page, criterion.getByLabel('Nombre'), 'Criterio único');
   await typeInto(page, criterion.getByLabel('Peso %'), '100');
   await pressWithKeyboard(page, form.getByRole('button', { name: 'Guardar' }));
-  await expect(page.locator('app-rubrics .rb-row').filter({ hasText: name })).toBeVisible({ timeout: scaled(15_000) });
+  await expect(toast(page, 'Rúbrica guardada.')).toBeVisible({ timeout: scaled(15_000) });
+  await pressWithKeyboard(page, form.getByRole('button', { name: 'Más', exact: true }));
   const activate = page.getByRole('button', { name: 'Activar', exact: true });
   await expect(activate).not.toHaveAttribute('aria-disabled', 'true');
   await pressWithKeyboard(page, activate);
-  await expect(page.locator('app-rubrics .rb-row').filter({ hasText: name }).locator('ui-badge').first()).toContainText(/activa/i, { timeout: scaled(15_000) });
+  await expect(toast(page, 'Rúbrica activada.')).toBeVisible({ timeout: scaled(15_000) });
   await expectNoPointer(page, 'crear y activar una rúbrica');
 });
 
@@ -539,7 +550,7 @@ test('[A02] crear y editar un caso: se elige el lugar y las salas, se crea el ca
     await expect(page.locator('[data-accion="rubrica-del-caso"][data-tipo]')).toBeVisible({ timeout: scaled(30_000) });
 
     // Enviar a revisión: el botón se alcanza con Tab (con faltas pendientes no se puede pulsar, pero se llega a él y dice por qué).
-    await pressWithKeyboard(page, secciones.getByRole('link', { name: /^Enviar a revisión/ }), { max: 200 });
+    await pressWithKeyboard(page, secciones.getByRole('link', { name: /^Enviar, Enviar a revisión/ }), { max: 200 });
     await expect(page.getByRole('heading', { level: 1, name: 'Enviar a revisión' })).toBeVisible({ timeout: scaled(30_000) });
     await tabTo(page, page.getByRole('button', { name: 'Enviar a Psicología' }), { max: 250 });
     await expectNoPointer(page, 'crear y editar un caso');
@@ -808,18 +819,23 @@ test('[E04 E10] comenzar, pausar con la salida segura y continuar: «Salida segu
   const fixture = await studentCase(request, 'Pausa teclado', true);
   try {
     await keyboardLogin(page, ESTUDIANTE);
-    await goTo(page, 'Simulador', /\/portal\/simulador$/);
-    await pressWithKeyboard(page, caseCard(page, fixture.title).locator('.case-card__actions button').first());
+    await goTo(page, 'Casos', /\/portal\/simulador$/);
+    await pressWithKeyboard(page, caseCard(page, fixture.title).getByRole('button', { name: 'Ver ficha' }));
     await pressWithKeyboard(page, page.getByRole('button', { name: 'Comenzar', exact: true }));
     await page.waitForURL(/\/portal\/simulador\/\d+$/, { timeout: scaled(30_000) });
 
     // Comenzar: el video y el contexto del caso se avanzan con Tab y Enter hasta que el mundo está listo.
     const world = page.locator('app-game-world .phaser-host[data-world-ready="true"]');
     const deadline = Date.now() + scaled(90_000);
-    while (Date.now() < deadline && !(await world.isVisible().catch(() => false))) {
+    while (Date.now() < deadline) {
       const step = page.getByRole('dialog').getByRole('button', { name: /saltar video|^continuar$/i }).first();
-      if (await step.isVisible().catch(() => false)) await pressWithKeyboard(page, step);
-      else await page.waitForTimeout(250);
+      if (await step.isVisible().catch(() => false)) {
+        await pressWithKeyboard(page, step);
+      } else if (await world.isVisible().catch(() => false)) {
+        break;
+      } else {
+        await page.waitForTimeout(250);
+      }
     }
     await expect(world).toBeVisible();
 

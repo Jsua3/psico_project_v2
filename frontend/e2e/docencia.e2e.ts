@@ -75,6 +75,8 @@ async function openPanel(page: Page, data: PanelData = {}): Promise<void> {
     ? route.fulfill({ status: data.dashboardStatus, json: { success: false, message: 'Error simulado' } })
     : route.fulfill({ json: { success: true, data: data.dashboard ?? DASHBOARD } }));
   await page.route('**/api/grupos', route => route.fulfill({ json: { success: true, data: data.grupos ?? GRUPOS } }));
+  await page.route(/\/api\/assignments(\?.*)?$/, route => route.fulfill({ json: { success: true, data: [{ id: 5, caseVersionId: 1, target: { type: 'GROUP', groupId: 1 }, state: 'OPEN', active: true, sortOrder: 0 }] } }));
+  await page.route('**/api/simulation/cases', route => route.fulfill({ json: { success: true, data: CASOS } }));
   await page.route('**/api/simulation/attempts/history', route => route.fulfill({ json: { success: true, data: [] } }));
   await page.goto('/portal/dashboard');
 }
@@ -110,7 +112,7 @@ test.describe('@docencia grupos', () => {
       await page.setViewportSize(viewport);
       await openGroups(page);
       await expect(page.getByRole('heading', { level: 1, name: 'Grupos' })).toBeVisible();
-      await page.getByRole('button', { name: 'Ver detalle de Psicología Jurídica · 2026-2' }).click();
+      await page.getByRole('link', { name: /Psicolog\u00eda Jur\u00eddica/ }).click();
       await expect(page.getByText('Marta Ríos')).toBeVisible();
       expect(await overflowX(page)).toBeLessThanOrEqual(0);
       expect(await blockingViolations(page, 'app-grupo-list')).toEqual([]);
@@ -119,7 +121,7 @@ test.describe('@docencia grupos', () => {
 
   test('sin grupos: un solo vacío de primer uso, sin cifras, y el formulario a la vista', async ({ page }) => {
     await openGroups(page, []);
-    await expect(page.locator('app-grupo-list ui-empty-state')).toHaveCount(1);
+    await expect(page.locator('app-grupo-list ui-vacio-ilustrado')).toHaveCount(1);
     await expect(page.locator('app-grupo-list ui-stat')).toHaveCount(0);
     await expect(page.getByRole('textbox', { name: /Nombre del grupo/ })).toBeVisible();
     expect(await blockingViolations(page, 'app-grupo-list')).toEqual([]);
@@ -143,6 +145,7 @@ test.describe('@docencia grupos', () => {
       if (request.method() === 'DELETE') deletes.push(request.url());
     });
     await openGroups(page);
+    await page.getByRole('link', { name: /Intervenci\u00f3n en Crisis/ }).click();
     await page.getByRole('button', { name: 'Más acciones de Intervención en Crisis · 2026-2' }).click();
     await page.getByRole('menuitem', { name: 'Borrar' }).click();
 
@@ -151,13 +154,14 @@ test.describe('@docencia grupos', () => {
     await dialog.getByRole('button', { name: 'Cancelar' }).click();
     await expect(dialog).toHaveCount(0);
     expect(deletes).toEqual([]);
-    await expect(page.getByRole('row', { name: /Intervención en Crisis/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Intervenci\u00f3n en Crisis/ })).toBeVisible();
   });
 
   test('importar: soltar un archivo que no es .xlsx lo rechaza con un mensaje, y el control nativo sigue ahí', async ({ page }) => {
     await openGroups(page);
-    await page.getByRole('button', { name: 'Ver detalle de Psicología Jurídica · 2026-2' }).click();
-    const zone = page.locator('.gl-drop');
+    await page.getByRole('link', { name: /Psicolog\u00eda Jur\u00eddica/ }).click();
+    await page.getByRole('button', { name: 'Importar desde Excel' }).click();
+    const zone = page.locator('ui-archivo .ui-archivo__zona');
     await expect(zone.locator('input[type="file"]')).toHaveCount(1);
 
     await zone.evaluate(element => {
@@ -165,7 +169,8 @@ test.describe('@docencia grupos', () => {
       transfer.items.add(new File(['x'], 'lista.pdf'));
       element.dispatchEvent(new DragEvent('drop', { dataTransfer: transfer, bubbles: true, cancelable: true }));
     });
-    await expect(page.locator('.gl-message')).toHaveText('Selecciona un archivo .xlsx.');
+    await expect(page.locator('ui-archivo')).toContainText('Ese archivo no es del formato pedido.');
+    await expect(zone.locator('input[type="file"]')).toHaveCount(1);
   });
 });
 
@@ -233,8 +238,9 @@ test.describe('@docencia reportes', () => {
   test('un grupo sin intentos dice «Sin intentos en este corte», no «Selecciona un grupo»', async ({ page }) => {
     await loginAs(page, 'profesor');
     await page.route('**/api/grupos', route => route.fulfill({ json: { success: true, data: GRUPOS } }));
-    await mockReports(page, { grupoId: 2, caseVersionId: null, simulacion: null });
+    await mockReports(page, { grupoId: 2, caseVersionId: 1, simulacion: null });
     await page.goto('/portal/reportes?grupo=2');
+    await page.getByLabel('Caso de simulación').selectOption({ label: `${CASE_TITLE} · v1.0.0` });
     await expect(page.locator('app-reporte-grupo ui-vacio-ilustrado')).toContainText('Sin intentos en este corte');
     await expect(page.locator('app-reporte-grupo ui-vacio-ilustrado')).not.toContainText('Selecciona un grupo');
     expect(await blockingViolations(page, 'app-reporte-grupo')).toEqual([]);
@@ -244,20 +250,18 @@ test.describe('@docencia reportes', () => {
     await mockReports(page);
     await openPanel(page);
 
-    // Camino corto: Grupos → «Ver reporte» del grupo, dos clics. Cada gesto se comprueba por la pantalla a la que
-    // llega: si se interpone un paso (un aviso, un menú), el enlace siguiente no existe y la prueba falla.
-    await page.locator('app-quick-actions').getByRole('link', { name: 'Gestionar grupos' }).click(); // gesto 1
-    await expect(page).toHaveURL(/\/portal\/grupos$/);
-    await page.getByRole('link', { name: 'Ver reporte de Psicología Jurídica · 2026-2' }).click(); // gesto 2
-    await expect(page).toHaveURL(/\/portal\/reportes\?grupo=1$/);
+    // El panel ofrece el reporte del grupo directamente con el caso asignado: un gesto.
+    const group = page.locator('app-dashboard article').filter({ has: page.getByRole('heading', { name: GRUPOS[0].nombre }) });
+    await group.getByRole('link', { name: 'Ver reporte' }).click();
+    await expect(page).toHaveURL(/\/portal\/reportes\?grupo=1&caseVersionId=1$/);
     await expect(page.getByRole('rowheader', { name: 'Marta Ríos' })).toBeVisible();
 
-    // Camino por Reportes: el acceso (gesto 1) y, con un <select> nativo, abrir la lista y elegir el grupo (gestos
-    // 2 y 3). El reporte sale al elegir, sin un botón «Consultar» de por medio.
+    // También se conserva el recorrido por los filtros de Reportes.
     await page.goto('/portal/dashboard');
-    await page.locator('app-quick-actions').getByRole('link', { name: 'Ver reportes' }).click(); // gesto 1
+    await page.getByRole('navigation', { name: 'Navegación principal' }).getByRole('link', { name: 'Reportes', exact: true }).click();
     await expect(page).toHaveURL(/\/portal\/reportes$/);
-    await page.locator('app-reporte-grupo select').first().selectOption({ label: 'Intervención en Crisis · 2026-2 · IC-2026' }); // gestos 2 y 3
+    await page.getByLabel('Grupo', { exact: true }).selectOption({ index: 1 });
+    await expect(page.getByLabel('Caso de simulación').locator('option:checked')).toHaveText(`${CASE_TITLE} · v1.0.0`);
     await expect(page.getByRole('rowheader', { name: 'Marta Ríos' })).toBeVisible();
   });
 });
@@ -655,7 +659,7 @@ test.describe('@docencia hub de casos', () => {
     test(`con casos: sin desborde y Axe sin hallazgos serios (${viewport.width})`, async ({ page }) => {
       await page.setViewportSize(viewport);
       await openHub(page);
-      await expect(page.getByRole('heading', { level: 1, name: 'Edición de casos' })).toBeVisible();
+      await expect(page.getByRole('heading', { level: 1, name: 'Casos' })).toBeVisible();
       await expect(page.getByRole('heading', { level: 3, name: CASE_TITLE })).toBeVisible();
       await settle(page);
       expect(await overflowX(page)).toBeLessThanOrEqual(0);
@@ -678,7 +682,7 @@ test.describe('@docencia hub de casos', () => {
   // P6: todo caso nuevo empieza eligiendo un lugar; ya no hay formulario de caso en blanco en la lista.
   test('sin casos: vacío con «Crear un caso nuevo» que lleva a elegir un lugar', async ({ page }) => {
     await openHub(page, { cases: [] });
-    await page.locator('app-case-authoring-hub ui-empty-state').getByRole('button', { name: 'Crear un caso nuevo' }).click();
+    await page.getByRole('link', { name: 'Crear un caso' }).first().click();
     await expect(page).toHaveURL(/\/portal\/casos\/nuevo$/);
   });
 });
@@ -689,8 +693,9 @@ test.describe('@docencia panel', () => {
     test(`con datos: sin desborde y Axe sin hallazgos serios (${viewport.width})`, async ({ page }) => {
       await page.setViewportSize(viewport);
       await openPanel(page);
-      await expect(page.getByRole('heading', { level: 1, name: 'Seguimiento de tus grupos' })).toBeVisible();
-      await expect(page.locator('app-dashboard ui-stat').first()).toBeVisible();
+      await expect(page.getByRole('heading', { level: 1, name: 'Hola, Profesora' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Tus grupos' })).toBeVisible();
+      await expect(page.locator('app-dashboard article').filter({ has: page.getByRole('heading', { name: GRUPOS[0].nombre }) })).toContainText('24 estudiantes');
       expect(await overflowX(page)).toBeLessThanOrEqual(0);
       expect(await blockingViolations(page, 'app-dashboard')).toEqual([]);
     });
@@ -703,7 +708,7 @@ test.describe('@docencia panel', () => {
     });
     await loginAs(page, 'profesor');
     await page.goto('/portal/dashboard');
-    await expect(page.getByRole('heading', { level: 1, name: 'Seguimiento de tus grupos' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Hola, Profesora' })).toBeVisible();
     await page.waitForLoadState('networkidle');
 
     expect(forbidden).toEqual([]);
@@ -712,10 +717,10 @@ test.describe('@docencia panel', () => {
 
   test('el panel muestra cada acceso una sola vez', async ({ page }) => {
     await openPanel(page);
-    await expect(page.locator('app-dashboard app-quick-actions a')).not.toHaveCount(0);
-    const labels = await page.locator('app-dashboard app-quick-actions a').allInnerTexts();
-    const cleaned = labels.map(label => label.replace(/\s+/g, ' ').trim());
-    expect(new Set(cleaned).size).toBe(cleaned.length);
+    const links = page.locator('app-dashboard a[href]');
+    await expect(links).not.toHaveCount(0);
+    const destinations = await links.evaluateAll(items => items.map(item => item.getAttribute('href')));
+    expect(new Set(destinations).size).toBe(destinations.length);
   });
 
   test('sin grupos: un solo vacío de primer uso y «Crear grupo» lleva a los grupos', async ({ page }) => {
@@ -735,13 +740,13 @@ test.describe('@docencia panel', () => {
   });
 
   test('«Ver detalle» abre la traza del intento elegido, no la del más reciente', async ({ page }) => {
-    await page.route('**/api/instructor/attempts/recent', route => route.fulfill({ json: { success: true, data: RECENT } }));
+    await page.route(/\/api\/instructor\/attempts\?.*/, route => route.fulfill({ json: { success: true, data: { items: RECENT.map(item => ({ ...item, caseVersionId: 1, caseVersionStatus: 'PUBLISHED', endedAt: null, activeSeconds: 0 })), page: 1, pageSize: 5, coverage: { shown: 3, total: 3 } } } }));
     // La respuesta de la traza no importa aquí: solo qué intento pide la pantalla.
     await page.route('**/api/instructor/attempts/*/trace', route => route.fulfill({ status: 500, json: { success: false } }));
     await openPanel(page);
 
     const requested = page.waitForRequest(request => /\/api\/instructor\/attempts\/[^/]+\/trace$/.test(request.url()));
-    await page.getByRole('link', { name: `Ver detalle de ${CASE_TITLE} de Laura P.` }).click();
+    await page.getByRole('link', { name: `Revisar ${CASE_TITLE} de Laura P.` }).click();
 
     await expect(page).toHaveURL(/\/portal\/docente\/trazabilidad\?intento=a-3$/);
     expect((await requested).url()).toMatch(/\/api\/instructor\/attempts\/a-3\/trace$/);

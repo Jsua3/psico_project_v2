@@ -25,11 +25,14 @@ export async function crearCasoDesdeLaUniversidad(page: Page, titulo: string): P
   await expect(page.getByRole('heading', { level: 1, name: '¿Dónde pasa tu caso?' })).toBeVisible({ timeout: scaled(30_000) });
   await page.getByRole('link', { name: /^Elegir este lugar/ }).first().click();
   await expect(page.getByRole('heading', { level: 1, name: 'Elige las salas de tu caso' })).toBeVisible({ timeout: scaled(30_000) });
-  await page.getByRole('button', { name: /^Usar esta idea/ }).first().click();
+  const aMano = page.getByRole('radio', { name: /^Elegir salas a mano/ });
+  if (await aMano.count()) await page.locator('label.opcion').filter({ has: aMano }).click();
+  const idea = page.getByRole('button', { name: /^Usar esta idea: Atención en Bienestar/ });
+  if (await idea.count()) await idea.click();
   await page.getByLabel('Nombre del caso').fill(titulo);
   await page.getByRole('button', { name: /^Crear el caso(?: con estas salas)?$/ }).click();
   const id = await irAlMapaDelCaso(page);
-  await expect(page.locator('button.escena').first()).toBeVisible({ timeout: scaled(30_000) });
+  await expect(page.locator('select#riel-escena option').nth(1)).toBeAttached({ timeout: scaled(30_000) });
   return id;
 }
 
@@ -46,12 +49,14 @@ export async function recorrerEditor(page: Page, visit: (tab: (typeof EDITOR_TAB
   await page.waitForTimeout(400);
   await visit('El caso');
 
-  await page.locator('button.escena').first().dblclick();
+  const escena = await page.locator('select#riel-escena option').nth(1).getAttribute('value');
+  expect(escena).toBeTruthy();
+  await page.goto(`${base}/escena/${escena}`);
   await expect(page.getByRole('heading', { level: 1, name: 'Guion de la escena' })).toBeVisible({ timeout: scaled(30_000) });
   await page.waitForTimeout(400);
   await visit('Guion de la escena');
 
-  await page.getByRole('link', { name: 'Abrir sala' }).click();
+  await page.goto(`${base}/sala/pasillo`);
   await expect(page.locator('.pieza').first()).toBeVisible({ timeout: scaled(30_000) });
   await page.waitForTimeout(400);
   await visit('Sala');
