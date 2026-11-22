@@ -1,3 +1,5 @@
+@use 'sass:map';
+@use '../tokens/color';
 @use 'materiales' as m;
 
 // Portal de trabajo de Metafrónesis (estudiante, docente y administrador), rediseño 2026-11-21 (DISENO §2). Es la
@@ -271,6 +273,15 @@ html:has(app-shell.portal) {
 
 html:has(.p-con-barra-acciones) {
   scroll-padding-bottom: calc(4.5rem + 1rem);
+}
+
+// Portal en oscuro (pendiente de B0 y B1): al rebotar el desplazamiento (macOS, iOS) asomaba el fondo claro de `html`, y
+// la barra de desplazamiento de la página salía clara. Aquí solo se pinta el lienzo y se pide el esquema oscuro: los
+// tokens de la piel siguen en el contenedor del shell (REGLA-010), no en `html`. El color es el `surface-page` de la
+// piel juego, leído del mapa de tokens para no escribir un literal.
+html:has(app-shell.portal[data-skin='game']) {
+  color-scheme: dark;
+  background-color: map.get(color.$game, surface-page);
 }
 
 @media (max-width: 63.999rem) {
