@@ -128,16 +128,48 @@
   }
 }
 
+// Barra contextual de la selección (como en un cliente de correo): aparece al marcar la primera cuenta, con el tinte
+// del acento para que se lea como «modo selección», y se queda fija bajo la barra mientras se recorre la tabla.
 .us-batch {
+  position: sticky;
+  top: var(--l-alto-barra, 0);
+  z-index: var(--ds-z-pegajoso);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--ds-space-2);
   margin-block-end: var(--ds-space-3);
-  padding: var(--ds-space-3);
-  border: 1px solid var(--ds-border-strong);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border: 1px solid var(--l-tinte-filo, var(--ds-border-strong));
   border-radius: var(--ds-radius-md);
-  background: var(--l-vidrio-alto, var(--ds-surface-1));
+  background: var(--l-tinte, var(--ds-primary-subtle));
+  box-shadow: var(--ds-shadow-e1);
+  animation: us-batch-entra var(--ds-dur-base) var(--ds-ease-out);
+
+  strong {
+    margin-inline-end: auto;
+    color: var(--l-acento-tinta, var(--ds-primary));
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@keyframes us-batch-entra {
+  from {
+    opacity: 0;
+    translate: 0 calc(-1 * var(--ds-space-2));
+  }
+}
+
+// La fila marcada se tiñe y lleva la marca de 3 px del acento: se ve qué entra en la acción por lote sin leer casillas.
+.us-fila--marcada {
+  background: var(--l-fila-elegida, var(--ds-primary-subtle));
+  box-shadow: inset 3px 0 0 var(--l-acento, var(--ds-primary));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .us-batch {
+    animation: none;
+  }
 }
 
 // Misma letra que la etiqueta de la búsqueda (ui-field): los selectos no se ven más grandes que ella.

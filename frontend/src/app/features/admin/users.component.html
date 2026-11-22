@@ -78,7 +78,7 @@
   </ui-filtros>
   @if (seleccion().length) {
     <div class="us-batch" aria-label="Acciones de cuentas seleccionadas">
-      <strong>{{ seleccion().length }} seleccionadas</strong>
+      <strong>{{ seleccion().length }} {{ seleccion().length === 1 ? 'seleccionada' : 'seleccionadas' }}</strong>
       <button ui-button type="button" variant="secondary" [disabled]="saving()" (click)="cambiarLote(false)">Desactivar</button>
       <button ui-button type="button" variant="secondary" [disabled]="saving()" (click)="cambiarLote(true)">Activar</button>
       <button ui-button type="button" variant="ghost" (click)="seleccion.set([])">Quitar selección</button>
@@ -104,7 +104,7 @@
       </thead>
       <tbody>
         @for (user of filtrados(); track user.id) {
-          <tr uiRow [selected]="selectedUser()?.id === user.id">
+          <tr uiRow [selected]="selectedUser()?.id === user.id" [class.us-fila--marcada]="seleccion().includes(user.id)">
             <td class="us-sel"><label class="us-check"><input type="checkbox" [attr.aria-label]="'Seleccionar a ' + user.nombre + ' ' + user.apellido" [checked]="seleccion().includes(user.id)" (change)="seleccionar(user.id, $any($event.target).checked)"><span class="us-check__txt" aria-hidden="true">Seleccionar</span></label></td>
             <th scope="row" class="us-name" data-celda="principal">{{ user.nombre }} {{ user.apellido }}</th>
             <td><span class="us-email" [title]="user.email">{{ user.email }}</span></td>
