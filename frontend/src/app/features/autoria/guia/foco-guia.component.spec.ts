@@ -1,3 +1,6 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
@@ -46,6 +49,28 @@ describe('FocoGuiaComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Alt');
 
     guia.cerrar();
+    main.remove();
+    fixture.nativeElement.remove();
+  });
+
+  // req: EDITOR.md §4.7 y §7.3 E0, criterio 7: la guía ya no usa el violeta (que es el color de acción).
+  it('la guía se marca con un anillo discontinuo de --guia (= --ds-info) y la palabra «Guía»', async () => {
+    TestBed.resetTestingModule();
+    await TestBed.configureTestingModule({ imports: [FocoGuiaComponent], providers: [provideRouter([{ path: '**', children: [] }])] }).compileComponents();
+    const main = document.createElement('main');
+    main.innerHTML = '<button data-accion="buscar">Ayuda</button>';
+    document.body.appendChild(main);
+    const fixture = TestBed.createComponent(FocoGuiaComponent);
+    document.body.appendChild(fixture.nativeElement);
+    await TestBed.inject(GuiaService).mostrar('buscar', 'foco');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('.anillo .aqui')!.textContent).toBe('Guía');
+    const fuente = readFileSync(join(__dirname, 'foco-guia.component.ts'), 'utf-8');
+    expect(fuente).toMatch(/\.anillo \{[^}]*border: 4px dashed var\(--guia\)/);
+    const piel = readFileSync(join(__dirname, '../../../../styles/skins/_autoria.scss'), 'utf-8');
+    expect(piel).toContain('--guia: var(--ds-info);');
+    TestBed.inject(GuiaService).cerrar();
     main.remove();
     fixture.nativeElement.remove();
   });

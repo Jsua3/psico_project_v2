@@ -201,12 +201,15 @@ describe('ShellComponent: barra de vidrio en el portal', () => {
       expect(pieles()).toEqual([null, null]);
     });
 
-    it('en el editor de casos (chrome: propio) la piel se queda clara aunque el tema sea oscuro (EDITOR.md decide su tema)', async () => {
+    // EDITOR.md §4.7 (E0): el editor sigue el tema; antes se quedaba en la piel clara.
+    it('en el editor de casos (chrome: propio) la piel también sigue el tema', async () => {
       tema().fijar('oscuro');
       await go('/portal/casos/nuevo');
-      expect(host().getAttribute('data-skin')).toBe('portal');
-      await go('/portal/dashboard');
       expect(host().getAttribute('data-skin')).toBe('game');
+      tema().fijar('claro');
+      await go('/portal/dashboard');
+      await go('/portal/casos/nuevo');
+      expect(host().getAttribute('data-skin')).toBe('portal');
     });
   });
 

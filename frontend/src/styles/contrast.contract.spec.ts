@@ -351,3 +351,68 @@ describe('contraste: acento violeta del portal', () => {
     expect(claro('primary')).toBe('#004876');
   });
 });
+
+// E0 (EDITOR.md §4.7, 2026-11-21): el editor de casos sigue el tema. Su piel (`skins/_autoria.scss`) son alias de los
+// tokens del portal, así que sus pares se miden con los valores de las DOS pieles: la clara (`$portal` con el acento
+// violeta) y la oscura (`$game`). Si alguno no llegara, el editor volvería al claro fijo (una línea en shell.component.ts).
+describe('contraste: editor de casos en las dos pieles', () => {
+  const color = source('./tokens/_color.scss');
+  const piel = source('./skins/_autoria.scss');
+  const mapa = (nombre: string) => new RegExp(`\\$${nombre}: \\(([^)]*)\\)`).exec(color)?.[1] ?? '';
+  const valor = (bloque: string, nombre: string) => new RegExp(`\\n  ${nombre}: (#[0-9A-Fa-f]{6})`).exec(bloque)?.[1] ?? '';
+  const acento = mapa('portal-acento');
+  const claro = (n: string) => valor(`\n${acento}`, n) || valor(mapa('portal'), n);
+  const oscuro = (n: string) => valor(mapa('game'), n);
+  const PIELES = { claro, oscuro };
+
+  it('cada variable del editor es un alias de un token (no un color escrito a mano), salvo la ciruela de «Con riesgo»', () => {
+    for (const [variable, token] of [
+      ['--tinta', 'var(--ds-text-1)'], ['--texto-secundario', 'var(--ds-text-2)'], ['--primario', 'var(--ds-primary)'],
+      ['--sobre-primario', 'var(--ds-on-primary)'], ['--borde-control', 'var(--ds-border-strong)'], ['--superficie', 'var(--l-superficie)'],
+      ['--peligro', 'var(--ds-danger)'], ['--adecuada', 'var(--ds-success)'], ['--aviso-texto', 'var(--ds-warning-text)'],
+      ['--guia', 'var(--ds-info)'], ['--foco', 'var(--ds-focus)'],
+    ]) expect(piel).toContain(`${variable}: ${token};`);
+    expect(piel).not.toContain('data-skin="portal"');
+  });
+
+  it('texto y enlaces llegan a 4,5:1 sobre la superficie, la superficie hundida y la página, en las dos pieles', () => {
+    for (const t of Object.values(PIELES)) {
+      for (const fondo of ['surface-1', 'surface-2', 'surface-page'].map(t)) {
+        for (const tinta of ['text-1', 'text-2', 'primary'].map(t)) expect(contrastRatio(tinta, fondo)).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  it('botones primarios, tintes de selección y avisos llegan a 4,5:1; bordes de control y anillo de la guía, a 3:1', () => {
+    for (const t of Object.values(PIELES)) {
+      expect(contrastRatio(t('on-primary'), t('primary'))).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(t('on-primary'), t('primary-hover'))).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(t('primary'), t('primary-subtle'))).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(t('warning-text'), t('warning-bg'))).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(t('danger'), t('danger-bg'))).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(t('success'), t('success-bg'))).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(t('info'), t('info-bg'))).toBeGreaterThanOrEqual(4.5);
+      // La insignia de «Pendientes»: la superficie sobre el ámbar del aviso.
+      expect(contrastRatio(t('surface-1'), t('warning-text'))).toBeGreaterThanOrEqual(4.5);
+      // La palabra «Guía» sobre su anillo: --sobre-primario sobre --guia.
+      expect(contrastRatio(t('on-primary'), t('info'))).toBeGreaterThanOrEqual(4.5);
+      for (const fondo of ['surface-1', 'surface-page'].map(t)) {
+        expect(contrastRatio(t('border-strong'), fondo)).toBeGreaterThanOrEqual(3);
+        expect(contrastRatio(t('info'), fondo)).toBeGreaterThanOrEqual(3);
+        expect(contrastRatio(t('focus'), fondo)).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+
+  it('«Con riesgo» conserva su ciruela con un valor por piel: texto ≥ 4,5:1 sobre su tinte y la superficie; borde ≥ 3:1', () => {
+    const ciruela = (bloque: string) => ['--riesgo', '--riesgo-tinte', '--riesgo-borde']
+      .map(v => new RegExp(`${v}: (#[0-9a-fA-F]{6});`).exec(bloque)?.[1] ?? '');
+    const [base, oscura] = piel.split("[data-skin='game'] app-autoria-shell");
+    for (const [[texto, tinte, borde], superficie] of [[ciruela(base), claro('surface-1')], [ciruela(oscura), oscuro('surface-1')]] as const) {
+      expect(contrastRatio(texto, tinte)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(texto, superficie)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(borde, superficie)).toBeGreaterThanOrEqual(3);
+      expect(contrastRatio(borde, tinte)).toBeGreaterThanOrEqual(3);
+    }
+  });
+});

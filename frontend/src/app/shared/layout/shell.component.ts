@@ -116,10 +116,10 @@ export class ShellComponent {
   readonly conBarra = computed(() => this.chrome() === 'full');
   /**
    * Piel del portal (DP-02): la que eligió la persona en la cápsula (claro = portal, oscuro = game). En el juego manda
-   * `.game-container[data-skin="game"]` por dentro. El editor (chrome «propio») se queda en la piel clara de hoy: su
-   * tema lo decide EDITOR.md, y si lo quiere, cambia esta línea.
+   * `.game-container[data-skin="game"]` por dentro. El editor de casos (chrome «propio») también sigue el tema (EDITOR.md
+   * §4.7, E0): pasar del portal oscuro a un editor claro y de ahí al juego oscuro eran dos saltos de luz.
    */
-  readonly pielDelShell = computed<'game' | 'portal'>(() => (this.propio() ? 'portal' : this.tema.piel()));
+  readonly pielDelShell = computed<'game' | 'portal'>(() => this.tema.piel());
   readonly navItems = computed(() => navItemsFor(this.auth.currentUser()?.role));
   /** Móvil (D11): lo que no se pliega en escritorio es pestaña; lo que se pliega va a «Más». */
   protected readonly tabs = computed(() => this.navItems().filter(item => !this.folds(item)).map(item => this.toTab(item)));

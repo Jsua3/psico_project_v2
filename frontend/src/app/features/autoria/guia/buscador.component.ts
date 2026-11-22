@@ -1,12 +1,13 @@
-import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, input, linkedSignal, output, signal, viewChild } from '@angular/core';
 
 import { IaService } from '../ia/ia.service';
 import { ACCIONES, type Accion, buscarAcciones } from './acciones';
 import { GuiaService } from './guia.service';
 
 /**
- * Buscador de acciones (Ctrl+K) y pregunta a la guía. Sin IA o sin conexión, el buscador
- * lleva al mismo lugar: el docente escribe con sus palabras («cara») y elige.
+ * «Ayuda» del editor (Ctrl+K): un solo diálogo con dos pestañas, «Buscar una acción» y «Preguntar a la guía» (EDITOR.md
+ * §4.1: antes eran dos botones que abrían casi el mismo diálogo con las mismas acciones). Sin IA o sin conexión, preguntar
+ * lleva al mismo lugar que buscar: el docente escribe con sus palabras («cara») y elige.
  */
 @Component({
   selector: 'app-buscador',
@@ -14,15 +15,23 @@ import { GuiaService } from './guia.service';
   template: `
     <div class="fondo" (click)="cerrar.emit()"></div>
     <div class="dialogo" role="dialog" aria-modal="true" aria-labelledby="bq-titulo" (keydown)="tecla($event)">
-      <h2 id="bq-titulo">{{ modo() === 'preguntar' ? 'Pregúntale a la guía' : 'Buscar una acción' }}</h2>
-      <label for="bq" class="etiqueta">{{ modo() === 'preguntar' ? '¿Dónde está o cómo se hace?' : '¿Qué quieres hacer?' }}</label>
+      <h2 id="bq-titulo">Ayuda</h2>
+      <div class="pestanas" role="tablist" aria-label="Cómo quieres buscar" (keydown)="teclaPestana($event)">
+        @for (p of pestanas; track p.modo) {
+          <button type="button" role="tab" class="pestana" [id]="'bq-pestana-' + p.modo" aria-controls="bq-panel"
+                  [attr.aria-selected]="modoActual() === p.modo" [attr.tabindex]="modoActual() === p.modo ? 0 : -1"
+                  (click)="cambiarModo(p.modo)">{{ p.nombre }}</button>
+        }
+      </div>
+      <div id="bq-panel" role="tabpanel" class="panel" [attr.aria-labelledby]="'bq-pestana-' + modoActual()">
+      <label for="bq" class="etiqueta">{{ modoActual() === 'preguntar' ? '¿Dónde está o cómo se hace?' : '¿Qué quieres hacer?' }}</label>
       <input id="bq" #campo type="text" role="combobox" class="campo" autocomplete="off"
              aria-autocomplete="list" aria-controls="bq-lista" [attr.aria-expanded]="resultados().length > 0"
              [attr.aria-activedescendant]="resultados().length ? 'bq-' + activo() : null"
              [value]="consulta()" (input)="escribir($any($event.target).value)"
-             [placeholder]="modo() === 'preguntar' ? 'Por ejemplo: ¿dónde cambio la cara de un personaje?' : 'Por ejemplo: cara, final, mover'" />
+             [placeholder]="modoActual() === 'preguntar' ? 'Por ejemplo: ¿dónde cambio la cara de un personaje?' : 'Por ejemplo: cara, final, mover'" />
       <p role="status" class="texto-secundario estado">{{ estado() }}</p>
-      @if (modo() === 'preguntar') {
+      @if (modoActual() === 'preguntar') {
         <div class="acciones">
           <button type="button" class="boton boton-guia" [attr.aria-disabled]="!consulta().trim() || preguntando()" (click)="preguntar()">
             {{ preguntando() ? 'Buscando…' : 'Preguntar' }}
@@ -37,6 +46,7 @@ import { GuiaService } from './guia.service';
           </li>
         }
       </ul>
+      </div>
       <div class="acciones pie">
         <span class="texto-secundario"><kbd>↑</kbd> <kbd>↓</kbd> para moverte, <kbd>Enter</kbd> para ir, <kbd>Esc</kbd> para cerrar.</span>
         <button type="button" class="boton" (click)="cerrar.emit()">Cerrar</button>
@@ -47,17 +57,30 @@ import { GuiaService } from './guia.service';
     .fondo { position: fixed; inset: 0; z-index: var(--autoria-capa-40); background: var(--velo); }
     .dialogo {
       position: fixed; z-index: var(--autoria-capa-41); top: 10vh; left: 50%; transform: translateX(-50%); width: min(640px, calc(100vw - 32px));
-      max-height: 80vh; overflow: auto; box-sizing: border-box; padding: 20px; background: var(--superficie); border-radius: 16px;
+      max-height: 80vh; overflow: auto; box-sizing: border-box; padding: 20px; background: var(--superficie); border: 1px solid var(--linea); border-radius: var(--radio-tarjeta); color: var(--tinta);
       display: flex; flex-direction: column; gap: 10px; box-shadow: var(--sombra-buscador);
     }
     h2 { margin: 0; font-size: var(--autoria-texto-22); line-height: 30px; }
+    /* Las dos pestañas, como un control segmentado: la elegida, en superficie con filo (forma, no solo color). */
+    .pestanas { display: flex; gap: 0.25rem; padding: 0.25rem; border-radius: var(--radio-control); background: var(--fondo-hundido); }
+    .pestana {
+      flex: 1 1 0; min-block-size: 2.75rem; padding-inline: 0.75rem; border: 1px solid transparent; border-radius: calc(var(--radio-control) - 0.25rem);
+      background: transparent; color: var(--texto-secundario); font: inherit; font-size: var(--autoria-texto-16); font-weight: 700; cursor: pointer;
+    }
+    .pestana[aria-selected='true'] { border-color: var(--borde-control); background: var(--superficie); color: var(--tinta); }
+    .pestana:active { scale: 0.98; }
+    .panel { display: flex; flex-direction: column; gap: 10px; }
     .etiqueta { font-weight: 700; font-size: var(--autoria-texto-16); }
-    .campo { min-height: 48px; padding: 0 12px; font: inherit; font-size: var(--autoria-texto-18); border: 2px solid var(--borde-control); border-radius: var(--radio-control); }
+    .campo {
+      min-height: 48px; padding: 0 12px; font: inherit; font-size: var(--autoria-texto-18); border: 1px solid var(--borde-control);
+      border-radius: var(--radio-control); background: var(--superficie); color: var(--tinta);
+    }
     .estado { margin: 0; font-size: var(--autoria-texto-16); }
     .lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
     .lista li { display: flex; flex-direction: column; gap: 2px; min-height: 48px; padding: 8px 12px; border-radius: 10px; cursor: pointer; justify-content: center; }
     .lista li span { font-size: var(--autoria-texto-16); }
-    .lista li[aria-selected='true'] { background: var(--guia-tinte); outline: 2px solid var(--guia); }
+    /* El resultado activo: tinte y filo discontinuo de la guía (forma y color, como su anillo). */
+    .lista li[aria-selected='true'] { background: var(--guia-tinte); outline: 2px dashed var(--guia); outline-offset: -2px; }
     .boton-guia { background: var(--guia); border-color: var(--guia); color: var(--sobre-primario); }
     .pie { justify-content: space-between; align-items: center; }
     .pie span { font-size: var(--autoria-texto-16); }
@@ -65,6 +88,12 @@ import { GuiaService } from './guia.service';
 })
 export class BuscadorComponent {
   readonly modo = input<'buscar' | 'preguntar'>('buscar');
+  /** La pestaña elegida: empieza en la que pidió quien abrió la ayuda y se cambia dentro del diálogo. */
+  protected readonly modoActual = linkedSignal(() => this.modo());
+  protected readonly pestanas = [
+    { modo: 'buscar' as const, nombre: 'Buscar una acción' },
+    { modo: 'preguntar' as const, nombre: 'Preguntar a la guía' },
+  ];
   readonly cerrar = output<void>();
 
   private readonly guia = inject(GuiaService);
@@ -102,7 +131,8 @@ export class BuscadorComponent {
     const n = this.resultados().length;
     if (e.key === 'Tab') {
       const dialogo = e.currentTarget as HTMLElement;
-      const foco = [...dialogo.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), [tabindex="0"]')];
+      // La pestaña no elegida (tabindex -1) no está en el orden del tabulador: se llega a ella con las flechas.
+      const foco = [...dialogo.querySelectorAll<HTMLElement>('button:not([disabled]):not([tabindex="-1"]), input:not([disabled]), [tabindex="0"]')];
       const primero = foco[0];
       const ultimo = foco[foco.length - 1];
       if (primero && ultimo) {
@@ -128,9 +158,25 @@ export class BuscadorComponent {
       this.activo.update((i) => (i - 1 + n) % n);
     } else if (e.key === 'Enter' && (e.target as HTMLElement).id === 'bq') {
       e.preventDefault();
-      if (this.modo() === 'preguntar' && this.consulta().trim()) void this.preguntar();
+      if (this.modoActual() === 'preguntar' && this.consulta().trim()) void this.preguntar();
       else if (n) this.elegir(this.resultados()[this.activo()]);
     }
+  }
+
+  protected cambiarModo(modo: 'buscar' | 'preguntar'): void {
+    this.modoActual.set(modo);
+    this.aviso.set('');
+  }
+
+  /** Flechas, Inicio y Fin entre las pestañas (patrón de pestañas de WAI-ARIA), con activación automática. */
+  protected teclaPestana(e: KeyboardEvent): void {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const otro = this.modoActual() === 'buscar' ? 'preguntar' : 'buscar';
+    const destino = e.key === 'Home' ? 'buscar' : e.key === 'End' ? 'preguntar' : otro;
+    this.cambiarModo(destino);
+    queueMicrotask(() => document.getElementById('bq-pestana-' + destino)?.focus());
   }
 
   protected elegir(a: Accion): void {

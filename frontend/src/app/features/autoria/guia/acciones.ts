@@ -18,8 +18,9 @@ export interface Accion {
   ayuda: string;
 }
 
+// «Casos» y no «Mis casos»: es el nombre que DISENO.md (DP-05) da a ese destino en todo el portal.
 export const PANTALLAS = {
-  inicio: 'Mis casos',
+  inicio: 'Casos',
   lugar: 'Elegir un lugar',
   salas: 'Elegir salas',
   mapa: 'Escenas y caminos',
@@ -28,6 +29,8 @@ export const PANTALLAS = {
   guion: 'Guion de una escena',
   finales: 'Finales del caso',
   revision: 'Enviar a revisión',
+  plano: 'Plano del caso',
+  pendientes: 'Pendientes del caso',
   cabecera: 'Cualquier pantalla (arriba)',
 } as const;
 
@@ -91,7 +94,25 @@ export const ACCIONES: readonly Accion[] = [
   // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
   { id: 'probar', nombre: 'Probar el caso en el juego', pantalla: PANTALLAS.cabecera, ruta: '', palabras: 'jugar ensayar ver como estudiante', ayuda: 'Abre tu borrador en el juego real, en otra pestaña, para jugarlo como un estudiante y ver por qué una respuesta no aparece.' },
   { id: 'enviar-revision', nombre: 'Enviar el caso a revisión', pantalla: PANTALLAS.cabecera, ruta: '', palabras: 'psicología publicar terminar revisar', ayuda: 'Revisa qué falta y envía el caso a Psicología.' },
-  { id: 'buscar', nombre: 'Buscar una acción por su nombre', pantalla: PANTALLAS.cabecera, ruta: '', palabras: 'buscador encontrar ctrl k', ayuda: 'Escribe con tus palabras qué quieres hacer.' },
+  { id: 'buscar', nombre: 'Buscar una acción por su nombre', pantalla: PANTALLAS.cabecera, ruta: '', palabras: 'buscador encontrar ctrl k ayuda guía', ayuda: 'Escribe con tus palabras qué quieres hacer.' },
+  // E0 (EDITOR.md §7.3): las acciones del marco nuevo. BORRADOR: textos nuevos, pendientes de la aprobación de Psicología.
+  {
+    id: 'ver-pendientes', nombre: 'Ver lo que le falta al caso', pantalla: PANTALLAS.cabecera, ruta: '',
+    palabras: 'pendientes avisos falta corregir errores problemas lista revisar',
+    ayuda: '«Pendientes» abre todo lo que falta, agrupado por etapa. Lo que está por corregir trae «Llévame ahí».',
+  },
+  {
+    id: 'siguiente-paso', nombre: 'Saber qué hacer ahora', pantalla: PANTALLAS.mapa, ruta: '/editor',
+    palabras: 'siguiente paso ahora qué sigue continuar empezar orden',
+    ayuda: '«Siguiente paso», arriba del riel de escenas, dice qué conviene hacer ahora y te lleva ahí.',
+  },
+  // «vista-del-estudiante» llega cuando E2 pinte la vista junto al guion (D-37): la guía exige que cada acción tenga su
+  // elemento en pantalla, y hoy no hay ninguno que señalar.
+  {
+    id: 'leer-todo-el-guion', nombre: 'Leer todo el guion seguido', pantalla: PANTALLAS.guion, ruta: '/editor/escena/:escena',
+    palabras: 'leer completo entero seguido todas las escenas libreto revisar texto',
+    ayuda: 'El riel de escenas las lista en el orden de la historia: ábrelas una tras otra para leer el guion completo.',
+  },
 ];
 
 const sinTildes = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();

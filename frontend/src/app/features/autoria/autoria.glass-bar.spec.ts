@@ -12,7 +12,7 @@ import { ServidorFalso } from './testing/servidor-falso';
 import { cuentaDePrueba } from './testing/cuenta';
 import { universidad } from './testing/universidad';
 
-async function irA(url: string) {
+async function irA(url: string, iaEncendida = true) {
   TestBed.resetTestingModule();
   const servidor = new ServidorFalso(casoCopiadoDeLugar(universidad, ['consultorio', 'pasillo'], { caseVersionId: 41, revision: 3 }), universidad);
   await TestBed.configureTestingModule({
@@ -22,7 +22,7 @@ async function irA(url: string) {
         { path: 'portal/casos/:caseVersionId/editor', children: rutasEditorCaso },
         { path: 'portal/casos', children: [] },
       ]),
-      { provide: AuthoringApi, useValue: { ...servidor.api, assistantStatus: () => of({ enabled: true, mode: 'connected', remainingToday: 5 }) } },
+      { provide: AuthoringApi, useValue: { ...servidor.api, assistantStatus: () => of({ enabled: iaEncendida, mode: iaEncendida ? 'connected' : 'disabled', remainingToday: 5 }) } },
       cuentaDePrueba,
     ],
   }).compileComponents();
@@ -70,32 +70,46 @@ describe('Editor de casos: la barra de vidrio (tableros 45–51)', () => {
     expect(barra.getAttribute('data-estado')).toBe('scroll');
   });
 
-  it('con un caso abierto, el módulo central trae «‹ Mis casos», el nombre del caso y sus secciones; la cuenta, la ayuda y el menú', async () => {
+  // E0 (EDITOR.md §4.1): «‹ Casos» (el nombre de DISENO.md), una sola «Ayuda» que funde Buscar y Guía, el estado de
+  // guardado, «Probar» y «Pendientes» junto a la cuenta, y el selector de tema.
+  it('con un caso abierto, el módulo central trae «‹ Casos», el nombre del caso y su hilo; la cuenta, las herramientas, la ayuda y el menú', async () => {
     const { raiz } = await irA('/portal/casos/41/editor');
     const central = raiz.querySelector('header .modulo-principal')!;
     expect(central.querySelector('a')!.getAttribute('href')).toBe('/portal/casos');
-    expect(central.textContent).toContain('Mis casos');
+    expect(central.textContent).toContain('Casos');
+    expect(central.textContent).not.toContain('Mis casos');
     expect(central.querySelector('.caso-actual')!.textContent).toContain('Primera escucha');
     const cuenta = raiz.querySelector('header .modulo-cuenta')!;
     const ayuda = cuenta.querySelector('[role="group"][aria-label="Ayuda"]')!;
-    expect([...ayuda.querySelectorAll('button')].map((b) => b.textContent!.replace(/\s+/g, ' ').trim().split(' Ctrl')[0])).toEqual(['Buscar', 'Guía', 'Asistente de IA']);
+    expect([...ayuda.querySelectorAll('button')].map((b) => b.textContent!.replace(/\s+/g, ' ').trim().split(' Ctrl')[0])).toEqual(['Ayuda', 'Asistente de IA']);
+    expect(ayuda.querySelector('button')!.getAttribute('data-accion')).toBe('buscar guia');
+    expect(cuenta.querySelector('[data-estado-guardado]')).not.toBeNull();
+    expect(cuenta.querySelector('a.enlace-probar')).not.toBeNull();
+    expect(cuenta.querySelector('button[data-accion="ver-pendientes"]')!.getAttribute('aria-label')).toMatch(/^Pendientes: /);
+    expect(cuenta.querySelector('app-tema-selector')).not.toBeNull();
     expect(cuenta.querySelector('ui-menu')).not.toBeNull();
     expect(cuenta.textContent).toContain('Marta Ríos');
     expect(cuenta.textContent).toContain('Docente');
   });
 
-  it('la ayuda nunca se pliega: ningún botón es plegable y el atajo del buscador queda anunciado', async () => {
+  it('con el asistente apagado no se ofrece su botón', async () => {
+    const { raiz } = await irA('/portal/casos/41/editor', false);
+    expect(raiz.querySelector('header [data-accion~="pedir-a-la-ia"]')).toBeNull();
+    expect(boton(raiz, 'Ayuda')).toBeDefined();
+  });
+
+  it('la ayuda nunca se pliega: ningún botón es plegable y el atajo de la ayuda queda anunciado', async () => {
     const { raiz } = await irA('/portal/casos/41/editor');
     const ayuda = raiz.querySelector('header [aria-label="Ayuda"]')!;
     expect(ayuda.querySelectorAll('.control-plegable')).toHaveLength(0);
     expect(raiz.querySelectorAll('header .control-plegable')).toHaveLength(0);
-    expect(boton(raiz, 'Buscar').getAttribute('aria-keyshortcuts')).toBe('Control+K');
+    expect(boton(raiz, 'Ayuda').getAttribute('aria-keyshortcuts')).toBe('Control+K');
   });
 
   it('con el buscador abierto la barra no cambia de estado; al cerrarlo cae al que le toca', async () => {
     const { raiz, listo } = await irA('/portal/casos/41/editor');
     const barra = raiz.querySelector('header')!;
-    boton(raiz, 'Buscar').click();
+    boton(raiz, 'Ayuda').click();
     await listo();
     expect(raiz.querySelector('app-buscador')).not.toBeNull();
     desplazarA(400);
@@ -123,22 +137,26 @@ describe('Editor de casos: la barra de vidrio (tableros 45–51)', () => {
     expect(barra.getAttribute('data-estado')).toBe('scroll');
   });
 
-  it('las secciones del caso van dentro de la barra, en el módulo central, y no hay banda debajo', async () => {
+  // E0 (EDITOR.md §3.1): las cuatro secciones de antes pasan a ser el hilo de cinco etapas, con su estado dicho en texto.
+  it('el hilo del caso va dentro de la barra, en el módulo central, con las cinco etapas y su estado; no hay banda debajo', async () => {
     const { raiz } = await irA('/portal/casos/41/editor');
     expect(raiz.querySelector('.banda')).toBeNull();
     const secciones = raiz.querySelector('header .modulo-principal nav[aria-label="Secciones del caso"]')!;
     expect([...secciones.querySelectorAll('a')].map((a) => a.getAttribute('href'))).toEqual([
-      '/portal/casos/41/editor', '/portal/casos/41/editor/datos', '/portal/casos/41/editor/finales',
-      '/portal/casos/41/editor/revision', '/portal/casos/41/ensayo',
+      '/portal/casos/41/editor/datos', '/portal/casos/41/editor/plano', '/portal/casos/41/editor',
+      '/portal/casos/41/editor/finales', '/portal/casos/41/editor/revision',
     ]);
-    // Cada sección se anuncia con su nombre completo, aunque por ancho se vea su rótulo corto.
-    expect([...secciones.querySelectorAll('a')].map((a) => a.getAttribute('aria-label'))).toEqual([
-      'El caso', 'Datos del caso', 'Finales', 'Enviar a revisión', 'Probar el caso en el juego (se abre en otra pestaña)',
-    ]);
+    // Cada etapa se anuncia con su nombre completo y su estado, aunque por ancho se vea solo su número.
+    const nombres = [...secciones.querySelectorAll('a')].map((a) => a.getAttribute('aria-label')!);
+    expect(nombres.map((n) => n.split(',')[0])).toEqual(['Datos del caso', 'Lugar y salas', 'Historia: escenas y guion', 'Evaluación', 'Enviar a revisión']);
+    expect(nombres[2]).toMatch(/^Historia: escenas y guion, \d+ de \d+ escenas? escritas?/);
+    // Cada etapa lleva su estado también como forma (no solo color).
+    expect([...secciones.querySelectorAll('.marca-estado')].every((m) => !!m.getAttribute('data-estado'))).toBe(true);
     // La guía las encuentra por su acción.
-    for (const accion of ['datos-del-caso', 'definir-finales', 'probar', 'enviar-revision']) expect(secciones.querySelector(`[data-accion~="${accion}"]`)).not.toBeNull();
-    // La pantalla en la que estás se marca para el lector de pantalla.
-    expect(secciones.querySelector('a[aria-current="page"]')!.getAttribute('aria-label')).toBe('El caso');
+    for (const accion of ['datos-del-caso', 'definir-finales', 'enviar-revision']) expect(secciones.querySelector(`[data-accion~="${accion}"]`)).not.toBeNull();
+    expect(raiz.querySelector('header [data-accion~="probar"]')).not.toBeNull();
+    // La etapa en la que estás se marca para el lector de pantalla.
+    expect(secciones.querySelector('a[aria-current="page"]')!.getAttribute('aria-label')).toMatch(/^Historia: escenas y guion/);
   });
 
   it('las secciones nunca se pliegan al desplazarse: ninguna es plegable', async () => {
@@ -164,12 +182,12 @@ describe('AutoriaShellComponent · el botón «Probar» de la barra', () => {
 
   it('es un enlace al ensayo del caso, que abre otra pestaña, y la guía lo encuentra como «probar»', async () => {
     const { raiz } = await irA('/portal/casos/41/editor');
-    const enlace = raiz.querySelector<HTMLAnchorElement>('header nav[aria-label="Secciones del caso"] a.enlace-probar')!;
+    const enlace = raiz.querySelector<HTMLAnchorElement>('header .modulo-cuenta a.enlace-probar')!;
     expect(enlace.getAttribute('href')).toBe('/portal/casos/41/ensayo');
     expect(enlace.target).toBe('_blank');
     expect(enlace.rel).toContain('noopener');
     expect(enlace.getAttribute('aria-label')).toBe('Probar el caso en el juego (se abre en otra pestaña)');
-    expect(enlace.textContent?.trim()).toBe('Probar ↗');
+    expect(enlace.textContent?.replace(/\s+/g, ' ').trim()).toBe('Probar ↗');
     expect(enlace.getAttribute('data-accion')).toBe('probar');
   });
 
@@ -192,7 +210,7 @@ describe('AutoriaShellComponent · «Probar» ya no es una pantalla del editor',
 
   it('la barra no tiene la sección «Probar como estudiante» y sí el botón «Probar»', async () => {
     const { raiz } = await irA('/portal/casos/41/editor');
-    const nombres = [...raiz.querySelectorAll('header nav[aria-label="Secciones del caso"] a')].map((a) => a.getAttribute('aria-label'));
+    const nombres = [...raiz.querySelectorAll('header a')].map((a) => a.getAttribute('aria-label'));
     expect(nombres).not.toContain('Probar como estudiante');
     expect(nombres).toContain('Probar el caso en el juego (se abre en otra pestaña)');
   });
