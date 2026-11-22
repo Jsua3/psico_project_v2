@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSign
 
 import { GESTOS, type Gesto } from '../../../../core/models/simulation.model';
 import { CasoStore } from '../../estado/caso.store';
+import { AutoAltoDirective } from '../../marco/auto-alto.directive';
 import { rutaRetrato } from '../../modelo/biblioteca.service';
 import type { ClaseRespuesta, Escena, Reaccion, Respuesta } from '../../modelo/caso';
 import { EXPRESIONES } from '../../modelo/escenario';
@@ -20,6 +21,7 @@ const GESTO_DE_CLASE: Record<ClaseRespuesta, Gesto> = {
  */
 @Component({
   selector: 'app-reaccion',
+  imports: [AutoAltoDirective],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <fieldset class="reaccion" [id]="idBase()" tabindex="-1" [attr.aria-describedby]="idBase() + '-ayuda'">
@@ -28,7 +30,7 @@ const GESTO_DE_CLASE: Record<ClaseRespuesta, Gesto> = {
       <p [id]="idBase() + '-ayuda'" class="texto-secundario nota">Lo que hace el personaje cuando el estudiante elige esta respuesta. Si no escribes nada, solo cambia su cara y hace el gesto de su clase.</p>
 
       <label [for]="idBase() + '-linea'" class="etiqueta">Lo que dice</label>
-      <textarea [id]="idBase() + '-linea'" class="campo" rows="2" [value]="frase()"
+      <textarea autoAlto [id]="idBase() + '-linea'" class="campo" rows="1" [value]="frase()"
                 [attr.aria-invalid]="problema() ? 'true' : null"
                 [attr.aria-describedby]="problema() ? idBase() + '-problema' : null"
                 (change)="guardarFrase($any($event.target).value)"></textarea>
@@ -73,16 +75,17 @@ const GESTO_DE_CLASE: Record<ClaseRespuesta, Gesto> = {
     </fieldset>
   `,
   styles: `
-    .reaccion { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 12px; border: 2px solid var(--borde-control); border-radius: var(--radio-control); }
-    legend { font-weight: 700; font-size: var(--autoria-texto-16); padding: 0 4px; }
-    .etiqueta { font-weight: 700; font-size: var(--autoria-texto-16); }
-    .campo { min-height: 48px; padding: 8px 12px; font: inherit; font-size: var(--autoria-texto-16); line-height: 24px; border: 2px solid var(--borde-control); border-radius: var(--radio-control); background: var(--superficie); width: 100%; }
-    textarea.campo { resize: vertical; }
-    .nota { margin: 0; font-size: var(--autoria-texto-16); line-height: 24px; }
+    .reaccion { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 12px; border: 1px solid var(--linea); border-radius: var(--radio-control); background: var(--fondo-hundido); }
+    legend { font-weight: 700; font-size: var(--autoria-texto-14); color: var(--texto-secundario); padding: 0 4px; }
+    .etiqueta { font-weight: 700; font-size: var(--autoria-texto-14); }
+    .campo { min-height: 44px; padding: 8px 12px; font: inherit; font-size: var(--autoria-texto-16); line-height: 24px; border: 1px solid var(--borde-control); border-radius: var(--radio-control); background: var(--superficie); width: 100%; }
+    textarea.campo { resize: none; }
+    .nota { margin: 0; font-size: var(--autoria-texto-14); line-height: 20px; }
     .problema { color: var(--peligro); }
     .tres-campos { display: flex; flex-wrap: wrap; gap: 12px; }
     .campo-col { display: flex; flex-direction: column; gap: 4px; flex: 1 1 200px; min-width: 0; }
     .vista { display: flex; align-items: center; min-height: 72px; }
+    .vista img { border-radius: 6px; background: var(--juego-fondo); }
   `,
 })
 export class ReaccionComponent {

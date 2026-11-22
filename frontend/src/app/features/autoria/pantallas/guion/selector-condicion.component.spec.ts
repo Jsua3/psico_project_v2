@@ -142,14 +142,18 @@ describe('SelectorCondicionComponent', () => {
 
   it('una pieza sin guardar no aparece y una herramienta que nadie entrega lleva su aviso', async () => {
     const { raiz, casilla } = await montar();
-    const nombres = [...raiz.querySelectorAll('label.casilla')].map((l) => l.textContent!.trim());
+    const nombres = [...raiz.querySelectorAll('label.casilla')].map((l) => l.textContent!.replace(/▲\s*sin entrega/, '').trim());
     expect(nombres).toContain('Vaso de agua');
     expect(nombres).not.toContain('Caja de pañuelos');
-    expect(raiz.querySelectorAll('#aparece-si-r1-g-objetos ~ label.casilla').length).toBe(2);
+    expect(raiz.querySelectorAll('#aparece-si-r1-g-objetos ~ .casillas label.casilla').length).toBe(2);
     expect(casilla('used-PAP').getAttribute('aria-describedby')).toBeNull(); // la entrega el vaso
-    expect(casilla('used-FICHA').getAttribute('aria-describedby')).toBe('aparece-si-r1-aviso-FICHA');
-    expect(raiz.querySelector('#aparece-si-r1-aviso-FICHA')!.textContent)
+    // El aviso se dice UNA vez, arriba de las herramientas (EDITOR.md §3.4.1); la herramienta lleva su marca y apunta a él.
+    expect(casilla('used-FICHA').getAttribute('aria-describedby')).toBe('aparece-si-r1-aviso-herramientas');
+    expect(raiz.querySelectorAll('[id^="aparece-si-r1-aviso"]').length).toBe(1);
+    expect(raiz.querySelector('#aparece-si-r1-aviso-herramientas')!.textContent)
       .toContain('Nadie entrega esta herramienta en el caso: el estudiante no podrá conseguirla.');
+    expect(casilla('used-FICHA').closest('label')!.textContent).toContain('sin entrega');
+    expect(casilla('used-PAP').closest('label')!.textContent).not.toContain('sin entrega');
   });
 
   it('marcar una herramienta escribe {used: código}', async () => {

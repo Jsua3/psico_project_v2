@@ -61,17 +61,22 @@ function nombreDe(caso: CasoBorrador | null, tipo: string, clave: string): strin
           @if (piezas()[g.clave].length > 0) {
             <div role="group" class="grupo" [attr.aria-labelledby]="idBase() + '-g-' + g.clave">
               <p [id]="idBase() + '-g-' + g.clave" class="grupo-titulo">{{ g.titulo }} · {{ g.verbo }}</p>
-              @for (p of piezas()[g.clave]; track p.tipo + p.clave) {
-                <label class="casilla">
-                  <input type="checkbox" [id]="idBase() + '-' + p.tipo + '-' + p.clave" [checked]="marcada(p)"
-                         [attr.aria-describedby]="p.aviso ? idBase() + '-aviso-' + p.clave : null"
-                         (change)="alternar(p, $any($event.target).checked)" />
-                  {{ p.nombre }}
-                </label>
-                @if (p.aviso) {
-                  <p [id]="idBase() + '-aviso-' + p.clave" class="texto-secundario nota aviso"><span aria-hidden="true">▲</span> {{ p.aviso }}</p>
-                }
+              <!-- El aviso se dice UNA vez, arriba del grupo; cada pieza a la que le toca lleva solo una marca (EDITOR.md §3.4.1). -->
+              @if (avisoDe(g.clave); as aviso) {
+                <p [id]="idBase() + '-aviso-' + g.clave" class="texto-secundario nota aviso"><span aria-hidden="true">▲</span> {{ aviso }}</p>
               }
+              <div class="casillas">
+                @for (p of piezas()[g.clave]; track p.tipo + p.clave) {
+                  <label class="casilla">
+                    <input type="checkbox" [id]="idBase() + '-' + p.tipo + '-' + p.clave" [checked]="marcada(p)"
+                           [attr.aria-describedby]="p.aviso ? idBase() + '-aviso-' + g.clave : null"
+                           (change)="alternar(p, $any($event.target).checked)" />
+                    {{ p.nombre }}
+                    <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                    @if (p.aviso) { <span class="marca-aviso"><span aria-hidden="true">▲</span> sin entrega</span> }
+                  </label>
+                }
+              </div>
             </div>
           }
         }
@@ -86,13 +91,17 @@ function nombreDe(caso: CasoBorrador | null, tipo: string, clave: string): strin
     </fieldset>
   `,
   styles: `
-    .condicion { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 12px; border: 2px solid var(--borde-control); border-radius: var(--radio-control); }
-    legend { font-weight: 700; font-size: var(--autoria-texto-16); padding: 0 4px; }
+    .condicion { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 12px; border: 1px solid var(--linea); border-radius: var(--radio-control); background: var(--fondo-hundido); }
+    legend { font-weight: 700; font-size: var(--autoria-texto-14); color: var(--texto-secundario); padding: 0 4px; }
     .grupo { display: flex; flex-direction: column; gap: 4px; }
-    .grupo-titulo { margin: 0; font-weight: 700; font-size: var(--autoria-texto-16); }
+    .grupo-titulo { margin: 0; font-weight: 700; font-size: var(--autoria-texto-14); }
+    .casillas { display: flex; flex-wrap: wrap; gap: 0 16px; }
     .casilla { display: flex; align-items: center; gap: 8px; min-height: 44px; font-size: var(--autoria-texto-16); }
-    .nota { margin: 0; font-size: var(--autoria-texto-16); line-height: 24px; }
-    .aviso { padding-left: 32px; }
+    .casilla input { inline-size: 1.25rem; block-size: 1.25rem; accent-color: var(--primario); }
+    .marca-aviso { padding: 0 6px; border: 1px solid currentColor; border-radius: 999px; color: var(--aviso-texto); font-size: var(--autoria-texto-14); font-weight: 700; white-space: nowrap; }
+    .nota { margin: 0; font-size: var(--autoria-texto-14); line-height: 20px; }
+    .aviso { color: var(--aviso-texto); }
+    button:active { scale: 0.97; }
     .peligro { color: var(--peligro); align-self: flex-start; }
   `,
 })
@@ -126,6 +135,11 @@ export class SelectorCondicionComponent {
     const caso = this.store.caso();
     return l.forma === 'otra' ? describirCondicion(l.crudo, (tipo, clave) => nombreDe(caso, tipo, clave)) : '';
   });
+
+  /** El aviso de un grupo (el de su primera pieza que lo traiga): se dice una vez para todo el grupo. */
+  protected avisoDe(grupo: 'personas' | 'objetos' | 'herramientas'): string | null {
+    return this.piezas()[grupo].find((p) => p.aviso)?.aviso ?? null;
+  }
 
   protected marcada(p: PiezaElegible): boolean {
     const l = this.lectura();
