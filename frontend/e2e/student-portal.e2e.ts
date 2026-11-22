@@ -256,7 +256,8 @@ test.describe('@estudiante estados de ruta', () => {
     await expect(page.getByRole('region', { name: 'Mensajes del sistema' }).getByText(/todavía está bloqueado/)).toBeVisible({ timeout: scaled(15_000) });
     const card = page.locator('ui-card.cs-tarjeta').first();
     await expect(card.getByText('Bloqueado', { exact: true })).toBeVisible();
-    await expect(card.getByText(/Se abre al terminar el caso anterior/)).toBeVisible();
+    // El motivo visible (el botón deshabilitado lo repite en una descripción oculta, a propósito).
+    await expect(card.getByRole('paragraph').filter({ hasText: /Se abre al terminar el caso anterior/ })).toBeVisible();
     // «Iniciar…» o «Continuar» si otra prueba dejó un intento abierto: bloqueado igual (coherente con la guardia).
     await expect(card.getByRole('button', { name: 'Ver ficha' })).toBeDisabled();
     expect(await blockingViolations(page, 'app-simulation-catalog')).toEqual([]);

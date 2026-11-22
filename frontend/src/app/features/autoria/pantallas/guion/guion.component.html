@@ -137,8 +137,9 @@
         <div class="insp__escena">
         <div class="cabecera__datos">
             @if (e.salaId) {
-              <a class="ficha-sala" [routerLink]="rutas.a('/editor/sala', e.salaId)" [attr.aria-label]="'Abrir sala: ' + nombreSala(e.salaId)">
-                <span class="ficha-sala__rotulo">Sala</span>{{ nombreSala(e.salaId) }}<span aria-hidden="true" class="ficha-sala__flecha">›</span>
+              <!-- Nombre por el contenido («Abrir Sala: nombre»), no por aria-label: Axe pegaba «Sala» con el nombre visible. -->
+              <a class="ficha-sala" [routerLink]="rutas.a('/editor/sala', e.salaId)">
+                <span class="solo-lector">Abrir </span><span class="ficha-sala__rotulo">Sala</span><span class="solo-lector">: </span>{{ nombreSala(e.salaId) }}<span aria-hidden="true" class="ficha-sala__flecha">›</span>
               </a>
             } @else {
               <span class="ficha-sala ficha-sala--sin">Sin sala</span>

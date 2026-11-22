@@ -79,7 +79,7 @@ const LARGO_DESCRIPCION = 110;
         @if (!soloLectura()) {
           <li class="agregar-item">
             <button type="button" class="agregar" [id]="'agregar-' + p.hito.clave" [attr.aria-expanded]="abierto()"
-                    [attr.aria-label]="'Agregar una respuesta que cumple ' + p.hito.nombre"
+                    [attr.aria-label]="'Agregar respuesta que cumple ' + p.hito.nombre"
                     [attr.aria-controls]="abierto() ? 'sel-' + p.hito.clave + '-titulo' : null" (click)="alternar.emit()">
               <span aria-hidden="true">+</span> Agregar respuesta
             </button>
