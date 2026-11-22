@@ -111,9 +111,14 @@
 }
 
 // El vidrio del diálogo es algo más denso que el de la barra: aquí se lee y se escribe.
-.ui-dialog-pane.ui-overlay-materiales,
-.ui-sheet-pane.ui-overlay-materiales {
+.ui-dialog-pane.ui-overlay-materiales {
   --l-vidrio-alto: color-mix(in oklab, var(--ds-surface-1) 94%, transparent);
+}
+
+// La hoja, opaca: se apoya en el borde de la pantalla sobre el contenido más denso (la barra inferior, las tarjetas) y
+// al 94 % sus filas dejaban ver el texto de detrás como un fantasma (medido en la hoja «Más» a 390 px, pasada final).
+.ui-sheet-pane.ui-overlay-materiales {
+  --l-vidrio-alto: var(--ds-surface-1);
 }
 
 // Entrada del diálogo: escala .98 → 1 y opacidad en 200 ms; salida en 160 ms (DISENO §2.6). La escala usa

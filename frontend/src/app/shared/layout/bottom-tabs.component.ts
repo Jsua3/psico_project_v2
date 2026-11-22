@@ -48,10 +48,12 @@ const pathOf = (url: string) => url.split(/[?#;]/, 1)[0];
                   <span class="hoja-mas__cuenta" aria-hidden="true">{{ insignia(tab.cuenta) }}</span>
                   <span class="ds-sr-only">{{ insigniaAccesible(tab.cuenta) }}</span>
                 }
+                <span class="hoja-mas__ir" aria-hidden="true"></span>
               </a>
             } @else {
               <a class="hoja-mas__enlace" [href]="tab.href" (click)="ref.close()">
                 <mat-icon aria-hidden="true">{{ tab.icon }}</mat-icon><span>{{ tab.label }}</span>
+                <span class="hoja-mas__ir" aria-hidden="true"></span>
               </a>
             }
           </li>
@@ -60,25 +62,51 @@ const pathOf = (url: string) => url.split(/[?#;]/, 1)[0];
     </ui-dialog-frame>
   `,
   styles: [`
-    .hoja-mas { display: grid; gap: var(--ds-space-1); margin: 0; padding: 0; list-style: none; }
+    /* Lista agrupada de iOS (ajustes): una sola tarjeta hundida con filas separadas por un filo que empieza después
+       del icono, y un chevrón al final que dice «lleva a otra página». Antes eran filas sueltas sobre el vidrio, sin
+       estado al pasar el cursor: no se distinguían de un texto. */
+    .hoja-mas {
+      display: grid;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      border-radius: var(--l-radio-control, var(--ds-radius-md));
+      background: var(--l-relleno, var(--ds-surface-2));
+      box-shadow: inset 0 0 0 1px var(--l-filo, var(--ds-border));
+      list-style: none;
+    }
+    .hoja-mas li + li .hoja-mas__enlace::before {
+      content: '';
+      position: absolute;
+      inset-block-start: 0;
+      inset-inline: calc(var(--ds-space-3) * 2 + 1.5rem) 0;
+      border-block-start: 1px solid var(--l-filo, var(--ds-border));
+    }
     .hoja-mas__enlace {
+      position: relative;
       display: flex;
       align-items: center;
       gap: var(--ds-space-3);
-      min-block-size: var(--ds-target-min);
+      min-block-size: calc(var(--ds-target-min) + var(--ds-space-2));
       padding-inline: var(--ds-space-3);
-      border-radius: var(--ds-radius-md);
       color: var(--ds-text-1);
       font-size: var(--ds-type-body-size);
       text-decoration: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: background-color var(--ds-dur-fast) var(--ds-ease-out);
     }
-    .hoja-mas__enlace:active { background-color: var(--ds-primary-subtle); }
-    /* La insignia al final de la fila, como en los ajustes de iOS. */
+    .hoja-mas__enlace > mat-icon:first-child { flex: none; color: var(--ds-text-2); }
+    .hoja-mas__enlace:focus-visible { outline-offset: -3px; }
+    @media (hover: hover) and (pointer: fine) {
+      .hoja-mas__enlace:hover { background-color: var(--l-fila-encima, var(--ds-surface-2)); }
+    }
+    .hoja-mas__enlace:active { background-color: var(--l-fila-elegida, var(--ds-primary-subtle)); }
+    /* La insignia y el chevrón al final de la fila, como en los ajustes de iOS. */
     .hoja-mas__cuenta {
       margin-inline-start: auto;
       min-inline-size: 1.5rem;
       padding: 0.125rem 0.5rem;
-      border-radius: 999px;
+      border-radius: var(--ds-radius-pill);
       background-color: var(--ds-primary);
       color: var(--ds-on-primary);
       font-size: var(--ds-type-caption-size);
@@ -86,8 +114,22 @@ const pathOf = (url: string) => url.split(/[?#;]/, 1)[0];
       line-height: 1.4;
       text-align: center;
     }
+    /* Chevrón dibujado (la fuente de iconos va recortada y no trae «chevron_right»): dos filos de 2 px girados. */
+    .hoja-mas__ir {
+      flex: none;
+      inline-size: 0.5rem;
+      block-size: 0.5rem;
+      margin-inline: auto var(--ds-space-1);
+      border-block-start: 2px solid var(--ds-text-3, var(--ds-text-2));
+      border-inline-end: 2px solid var(--ds-text-3, var(--ds-text-2));
+      rotate: 45deg;
+    }
+    :host-context([dir='rtl']) .hoja-mas__ir { rotate: -135deg; }
+    .hoja-mas__cuenta + .hoja-mas__ir, .hoja-mas__cuenta + .ds-sr-only + .hoja-mas__ir { margin-inline-start: 0; }
     .hoja-mas__enlace[aria-current='page'] { color: var(--ds-primary); font-weight: 600; }
+    .hoja-mas__enlace[aria-current='page'] > mat-icon:first-child { color: var(--ds-primary); }
     @media (forced-colors: active) {
+      .hoja-mas { border: 1px solid CanvasText; }
       .hoja-mas__enlace[aria-current='page'] { text-decoration-line: underline; text-decoration-thickness: 2px; }
       .hoja-mas__cuenta { border: 1px solid CanvasText; }
     }
