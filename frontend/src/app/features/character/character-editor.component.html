@@ -16,8 +16,9 @@
   }
 } @else {
   <div class="ce-grid">
-    <!-- La vista previa es una ventana al juego (piel «game», oscura en los dos temas, como el umbral); el control de
-         movimiento queda debajo, en la piel del portal, para leerse igual en claro y en oscuro. -->
+    <!-- La vista previa es una ventana al juego (piel «game», oscura en los dos temas, como el umbral). El control de
+         movimiento vive dentro, junto a la figura que anima: el portal re-emite sus materiales en la piel game
+         (_portal.scss), así que la opción elegida se lee igual en claro y en oscuro. -->
     <div class="ce-vista">
     <section class="ce-stage" data-skin="game" aria-label="Vista previa del personaje">
       <div class="ce-preview">
@@ -29,10 +30,10 @@
         </figure>
         <button class="ce-turn" type="button" aria-label="Girar a la derecha" (click)="girar(1)"><span aria-hidden="true">→</span></button>
       </div>
+      <ui-segmentado etiqueta="Movimiento" [opciones]="movimientos" [valor]="motion()" (valorChange)="elegirMovimiento($event)" />
       <p class="ce-help">Así te verán en el simulador. No afecta tu evaluación.</p>
       <p class="ds-sr-only">{{ summary() }}</p>
     </section>
-    <ui-segmentado etiqueta="Movimiento" [opciones]="movimientos" [valor]="motion()" (valorChange)="elegirMovimiento($event)" />
     </div>
     <ui-card class="ce-panel">
       <fieldset class="ce-group">

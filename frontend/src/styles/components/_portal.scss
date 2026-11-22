@@ -300,6 +300,22 @@ html:has(app-shell.portal[data-skin='game']) {
   }
 }
 
+// Una ventana al juego dentro del portal (la vista previa de Mi personaje): la piel game re-emite los `--ds-*`, pero
+// los `--l-*` se calculan donde se declaran y llegaban heredados del `.portal` claro (superficie blanca, filos
+// oscuros). El segmentado pintaba así su opción elegida sobre una pastilla blanca con el texto claro de la piel game,
+// casi ilegible. Se vuelven a emitir aquí para que resuelvan contra la piel oscura; en el tema oscuro el shell ya es
+// game y esto repite los mismos valores. Solo los tokens de color (no el mixin entero: todo esto viaja en el CSS inicial).
+.portal [data-skin='game'] {
+  --l-acento-tinta: var(--ds-primary-hover);
+  --l-superficie: var(--ds-surface-1);
+  --l-superficie-hundida: var(--ds-surface-2);
+  --l-relleno: color-mix(in oklab, var(--ds-text-1) 5%, transparent);
+  --l-filo: color-mix(in oklab, var(--ds-text-1) 10%, transparent);
+  --l-filo-fuerte: color-mix(in oklab, var(--ds-text-1) 17%, transparent);
+  --l-brillo: color-mix(in oklab, var(--ds-text-1) 9%, transparent);
+  --l-fila-encima: color-mix(in oklab, var(--ds-text-1) 4%, transparent);
+}
+
 // Esquinas continuas (squircle) donde el navegador las dibuja: la curvatura de iOS en lugar del arco circular.
 @supports (corner-shape: squircle) {
   .portal .p-etiqueta {
@@ -309,7 +325,8 @@ html:has(app-shell.portal[data-skin='game']) {
 
 // Transparencia reducida y más contraste: superficies sólidas y filos marcados.
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  .portal {
+  .portal,
+  .portal [data-skin='game'] {
     @include m.materiales-reducidos;
   }
 }

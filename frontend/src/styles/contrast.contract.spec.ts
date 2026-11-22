@@ -248,6 +248,20 @@ describe('contraste: portal', () => {
     expect(source('./base/_focus.scss')).toMatch(/:focus-visible \{\s*@include ds-focus-ring;/);
     expect(trace).not.toContain('outline: 3px solid rgba(111, 76, 175, .28);');
   });
+
+  // Pasada final (base): una ventana a la piel game dentro del portal claro (la vista previa de Mi personaje) heredaba
+  // los `--l-*` ya resueltos en claro, y el segmentado pintaba su opción elegida en una pastilla blanca con el texto
+  // claro de la piel game (#E8ECF8 sobre #FFFFFF). Ahora el portal los vuelve a declarar dentro de la piel game.
+  it('dentro de una piel game del portal los materiales resuelven contra la piel oscura', () => {
+    const portal = source('./components/_portal.scss');
+    const regla = portal.match(/\.portal \[data-skin='game'\] \{([^}]*)\}/)?.[1] ?? '';
+    expect(regla).toContain('--l-superficie: var(--ds-surface-1);');
+    expect(regla).toContain('--l-filo-fuerte: color-mix(in oklab, var(--ds-text-1) 17%, transparent);');
+    expect(regla).toContain('--l-relleno: color-mix(in oklab, var(--ds-text-1) 5%, transparent);');
+    // La opción elegida del segmentado: texto de la piel game sobre la superficie de la piel game.
+    expect(contrastRatio('#E8ECF8', '#151B2E')).toBeGreaterThanOrEqual(4.5);
+    expect(portal).toMatch(/\.portal,\s*\.portal \[data-skin='game'\] \{\s*@include m\.materiales-reducidos;/);
+  });
 });
 
 describe('contraste: navegación lateral', () => {
