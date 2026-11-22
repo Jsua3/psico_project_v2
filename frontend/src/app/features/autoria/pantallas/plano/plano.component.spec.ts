@@ -78,8 +78,11 @@ describe('PlanoCasoComponent', () => {
 
   it('sin salas por piezas muestra el aviso', async () => {
     const { raiz } = await montar(null);
-    expect(raiz.textContent).toContain('Este caso todavía no tiene plano');
+    expect(raiz.textContent).toContain('Este caso aún no tiene salas por piezas');
     expect(raiz.textContent).toContain('Las salas de este caso son de imagen fija');
     expect(raiz.querySelector('app-plano-del-lugar')).toBeNull();
+    // El vacío no es un callejón: lleva al mapa del caso, donde viven las salas de imagen fija.
+    const salida = [...raiz.querySelectorAll('a')].find((a) => a.textContent?.trim() === 'Ir al mapa del caso');
+    expect(salida?.getAttribute('href')).toMatch(/\/editor$/);
   });
 });

@@ -2,12 +2,12 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
-import { UiFiguraPixel } from '../../../../shared/ui/figura-pixel/ui-figura-pixel';
 import { PlanoDelLugarComponent, type PuertaRota } from '../../../simulator/plano/plano-del-lugar.component';
 import { dibujarPlano, normalizarLayout, puntoEnElMuro, type PlanoDelLugar, type SalaDibujada } from '../../../simulator/plano/plano';
 import { AutoriaApiService } from '../../api/autoria-api.service';
 import { CatalogoDePiezas } from '../../estado/catalogo-de-piezas';
 import { CasoStore } from '../../estado/caso.store';
+import { EstudioHerramientaComponent, EstudioRanuraDirective } from '../../marco/estudio';
 import { BibliotecaService, rutaArte } from '../../modelo/biblioteca.service';
 import type { Escenario } from '../../modelo/escenario';
 import { faltasPorSala } from '../../modelo/salas-a-documento';
@@ -30,196 +30,17 @@ const PUERTA_GROSOR = 14;
  * `dibujarPlano`, la geometría del plano del juego), porque el componente del juego es compartido con el minimapa y no
  * pinta imágenes; de ese componente se conserva la lista legible (los rótulos de lectura y sus botones), que es lo que
  * usa el teclado y el lector de pantalla.
+ *
+ * Ronda 3 (EDITOR-PRO.md): el dibujo es el lienzo del estudio, a todo el centro sobre una cuadrícula de puntos; la lista de
+ * salas va en el Inspector; «Volver al mapa» es una herramienta; el nombre de cada sala se ajusta a su ancho; cargando es un
+ * esqueleto con la forma del plano y el vacío, un plano dibujado con cuartos de la biblioteca y una salida.
  */
 @Component({
   selector: 'app-plano-caso',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PlanoDelLugarComponent, RouterLink, UiFiguraPixel],
-  template: `
-    <section class="plano-caso" [class.plano-caso--angosto]="!conDibujo()" aria-labelledby="plano-caso-titulo">
-      <header class="plano-caso__cabecera">
-        <div class="plano-caso__titulo">
-          <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-          <h1 id="plano-caso-titulo">Plano del caso</h1>
-          <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-          <p id="plano-caso-descripcion" class="plano-caso__descripcion">
-            Las salas por piezas del caso y sus puertas. Elige una sala para abrir su editor.
-          </p>
-        </div>
-        <a class="boton boton-secundario plano-caso__volver" [routerLink]="rutas.a('/editor')">Volver al mapa</a>
-      </header>
-
-      @switch (estado().tipo) {
-        @case ('cargando') {
-          <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-          <p class="plano-caso__estado" role="status">Cargando el plano…</p>
-        }
-        @case ('error') {
-          <div class="plano-caso__estado">
-            <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-            <p role="alert">No se pudo cargar el plano.</p>
-            <button type="button" class="boton" (click)="cargar()">Reintentar</button>
-          </div>
-        }
-        @case ('listo') {
-          @if (plano(); as plano) {
-            <div class="plano-caso__cuerpo">
-              <!-- El dibujo con las miniaturas: para el ratón y la vista; el teclado usa la lista de la derecha. -->
-              <div class="plano-caso__visor">
-                <svg class="plano-caso__dibujo" [attr.viewBox]="viewBox()" role="img" [attr.aria-label]="resumen()"
-                  preserveAspectRatio="xMidYMid meet" focusable="false">
-                  <defs>
-                    @for (sala of dibujo().salas; track sala.clave) {
-                      <clipPath [attr.id]="recorte(sala.clave)">
-                        <rect [attr.x]="sala.x" [attr.y]="sala.y" [attr.width]="sala.ancho" [attr.height]="sala.alto" rx="24" />
-                      </clipPath>
-                    }
-                  </defs>
-                  @for (sala of dibujo().salas; track sala.clave) {
-                    <g class="sala" [attr.data-miniatura]="sala.clave" (click)="abrir(sala.clave)">
-                      <rect class="sala__piso" [attr.x]="sala.x" [attr.y]="sala.y" [attr.width]="sala.ancho" [attr.height]="sala.alto" rx="24" />
-                      @if (miniaturas().get(sala.clave); as arte) {
-                        <image class="sala__arte" [attr.href]="arte" [attr.x]="sala.x" [attr.y]="sala.y" [attr.width]="sala.ancho"
-                          [attr.height]="sala.alto" preserveAspectRatio="xMidYMid slice" [attr.clip-path]="'url(#' + recorte(sala.clave) + ')'" />
-                      }
-                      <rect class="sala__velo" [attr.x]="sala.x" [attr.y]="sala.y + sala.alto * 0.62" [attr.width]="sala.ancho"
-                        [attr.height]="sala.alto * 0.38" [attr.clip-path]="'url(#' + recorte(sala.clave) + ')'" />
-                      <rect class="sala__borde" [attr.x]="sala.x" [attr.y]="sala.y" [attr.width]="sala.ancho" [attr.height]="sala.alto"
-                        rx="24" vector-effect="non-scaling-stroke" />
-                      @for (p of sala.puertas; track $index) {
-                        <rect class="puerta" vector-effect="non-scaling-stroke"
-                          [attr.x]="horizontal(p.muro) ? p.x - PUERTA_LARGO : p.x - PUERTA_GROSOR"
-                          [attr.y]="horizontal(p.muro) ? p.y - PUERTA_GROSOR : p.y - PUERTA_LARGO"
-                          [attr.width]="horizontal(p.muro) ? 2 * PUERTA_LARGO : 2 * PUERTA_GROSOR"
-                          [attr.height]="horizontal(p.muro) ? 2 * PUERTA_GROSOR : 2 * PUERTA_LARGO" />
-                      }
-                      <text class="sala__nombre" [attr.x]="sala.x + 32" [attr.y]="sala.y + sala.alto - 36" [attr.font-size]="letra()">{{ sala.titulo }}</text>
-                    </g>
-                  }
-                  @for (r of rotasDibujadas(); track $index) {
-                    <g class="rota">
-                      <circle vector-effect="non-scaling-stroke" [attr.cx]="r.x" [attr.cy]="r.y" r="44" />
-                      <text [attr.x]="r.x" [attr.y]="r.y" text-anchor="middle" dominant-baseline="central" font-size="64">×</text>
-                    </g>
-                  }
-                </svg>
-              </div>
-              <aside class="plano-caso__salas" aria-labelledby="plano-caso-salas">
-                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-                <h2 id="plano-caso-salas">Salas</h2>
-                <app-plano-del-lugar class="plano-caso__lista" [plano]="plano" modo="completo" [visitadas]="todas()"
-                  [rotas]="rotas()" [elegible]="true" (salaElegida)="abrir($event)" />
-              </aside>
-            </div>
-          } @else {
-            <!-- El vacío con la misma forma que los de Evaluación (figura del simulador, título, frase y salida), no una nota suelta. -->
-            <section class="plano-caso__vacio" aria-labelledby="plano-vacio-titulo">
-              <ui-figura-pixel class="plano-caso__figura" personaje="supervisor-clinico" [escala]="3" />
-              <div class="plano-caso__vacio-texto">
-                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-                <h2 id="plano-vacio-titulo">Este caso todavía no tiene plano</h2>
-                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-                <p role="status">El plano dibuja las salas armadas por piezas y sus puertas. Las salas de este caso son de imagen fija: se editan desde el mapa del caso.</p>
-              </div>
-            </section>
-          }
-        }
-      }
-    </section>
-  `,
-  styles: [`
-    :host { display: block; min-inline-size: 0; }
-    .plano-caso {
-      display: flex; flex-direction: column; gap: var(--ds-space-3); min-inline-size: 0;
-      padding: var(--ds-space-3) var(--ds-space-4) var(--ds-space-4);
-    }
-    .plano-caso__cabecera { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--ds-space-2) var(--ds-space-5); }
-    .plano-caso__titulo { min-inline-size: 0; }
-    .plano-caso__titulo h1 { margin: 0; font-size: var(--autoria-texto-32); line-height: 2.5rem; letter-spacing: -0.015em; overflow-wrap: anywhere; }
-    .plano-caso__descripcion { margin: 0.25rem 0 0; color: var(--ds-text-2); font-size: var(--autoria-texto-16); line-height: 1.5rem; overflow-wrap: anywhere; }
-    .plano-caso__volver { min-block-size: var(--ds-target-min); }
-
-    .plano-caso__cuerpo { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--ds-space-3); min-inline-size: 0; }
-    /* El escenario oscuro del juego: las miniaturas son pixel art y se leen sobre él en las dos pieles. */
-    .plano-caso__visor {
-      display: grid; min-inline-size: 0; min-block-size: 18rem; padding: var(--ds-space-4); overflow: hidden;
-      border: 1px solid var(--l-filo); border-radius: var(--l-radio-tarjeta); box-shadow: var(--l-sombra-trabajo);
-      background:
-        radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--juego-acento) 12%, transparent), transparent 70%),
-        var(--juego-escenario);
-    }
-    .plano-caso__dibujo { display: block; inline-size: 100%; block-size: 100%; min-block-size: 0; }
-    .sala { cursor: pointer; }
-    .sala__piso { fill: var(--juego-elevado); }
-    .sala__arte { image-rendering: pixelated; }
-    .sala__velo { fill: var(--juego-escenario); opacity: 0.55; pointer-events: none; }
-    .sala__borde { fill: none; stroke: var(--juego-borde); stroke-width: 1.5; transition: stroke var(--ds-dur-fast) var(--ds-ease-out); }
-    @media (hover: hover) and (pointer: fine) { .sala:hover .sala__borde { stroke: var(--juego-acento-claro); stroke-width: 3; } }
-    .sala:active .sala__borde { stroke: var(--juego-acento); }
-    .puerta { fill: var(--juego-acento-claro); stroke: var(--juego-escenario); stroke-width: 1.5; }
-    .sala__nombre {
-      fill: var(--juego-texto); font-family: var(--pixel-f-nombre, var(--ds-font-sans)); font-weight: 700;
-      paint-order: stroke; stroke: var(--juego-escenario); stroke-width: 0.25em; stroke-linejoin: round; pointer-events: none;
-    }
-    .rota circle { fill: var(--juego-escenario); stroke: var(--juego-aviso); stroke-width: 3; stroke-dasharray: 6 4; }
-    .rota text { fill: var(--juego-aviso); font-weight: 700; }
-
-    .plano-caso__salas {
-      display: flex; flex-direction: column; gap: var(--ds-space-2); min-inline-size: 0; padding: var(--ds-space-3);
-      border: 1px solid var(--l-filo); border-radius: var(--l-radio-tarjeta); background: var(--l-superficie);
-    }
-    .plano-caso__salas h2 { margin: 0; font-size: var(--autoria-texto-18); }
-    /* Del componente del juego solo se usa la lista legible: el dibujo lo pinta esta pantalla con las miniaturas. */
-    :host ::ng-deep .plano-caso__lista .plano__dibujo { display: none; }
-    :host ::ng-deep .plano-caso__lista .plano__lista { gap: var(--ds-space-2); font-size: var(--autoria-texto-14); }
-    :host ::ng-deep .plano-caso__lista .plano__sala {
-      min-block-size: var(--ds-target-min); border-color: var(--l-filo-fuerte); border-radius: var(--l-radio-control);
-      background: transparent; color: var(--ds-text-1); overflow-wrap: anywhere;
-      transition: background-color var(--ds-dur-fast) var(--ds-ease-out);
-    }
-    @media (hover: hover) and (pointer: fine) { :host ::ng-deep .plano-caso__lista .plano__sala:hover { background: var(--l-superficie-hundida); } }
-    :host ::ng-deep .plano-caso__lista .plano__sala:focus-visible { outline: 3px solid var(--ds-focus); outline-offset: 2px; }
-    :host ::ng-deep .plano-caso__lista .plano__rota { color: var(--ds-danger); }
-
-    .plano-caso__estado {
-      align-self: start; max-inline-size: min(100%, var(--l-ancho-lectura)); margin: 0; padding: var(--ds-space-5);
-      border: 1px solid var(--l-filo); border-radius: var(--l-radio-tarjeta); background: var(--l-superficie); overflow-wrap: anywhere;
-    }
-    .plano-caso__estado p { margin: 0 0 var(--ds-space-3); }
-    /* Sin dibujo (cargando, error o vacío) no hace falta todo el ancho: la misma medida y el mismo margen que las demás pantallas. */
-    .plano-caso--angosto { box-sizing: border-box; inline-size: 100%; max-inline-size: 72rem; margin-inline: auto; padding-block-start: var(--ds-space-5); }
-    .plano-caso__vacio {
-      display: flex; align-items: center; gap: 1.25rem 2rem; max-inline-size: 48rem; padding: 1.5rem 1.75rem;
-      border-radius: var(--l-radio-tarjeta); background: var(--l-superficie); box-shadow: inset 0 0 0 1px var(--l-filo), var(--l-sombra-trabajo);
-    }
-    .plano-caso__figura { flex: none; }
-    .plano-caso__vacio-texto { display: flex; flex-direction: column; gap: 0.5rem; min-inline-size: 0; }
-    .plano-caso__vacio-texto h2 { margin: 0; font-size: var(--autoria-texto-24); line-height: 2rem; }
-    .plano-caso__vacio-texto p { margin: 0; color: var(--ds-text-2); font-size: var(--autoria-texto-16); line-height: 1.5rem; }
-    @media (max-width: 40rem) {
-      .plano-caso__titulo h1 { font-size: var(--autoria-texto-24); line-height: 2rem; }
-      .plano-caso__vacio { flex-direction: column; align-items: flex-start; padding: 1.25rem; }
-      .plano-caso__vacio-texto h2 { font-size: var(--autoria-texto-20); line-height: 1.75rem; }
-    }
-    @media (forced-colors: active) { .plano-caso__vacio { border: 1px solid CanvasText; } }
-
-    /* Escritorio: la pantalla mide la zona central (no se desplaza); la lista de salas se desplaza por su cuenta. */
-    @media (min-width: 64rem) {
-      .plano-caso { block-size: calc(100dvh - var(--alto-barra, 4.5rem)); overflow: hidden; }
-      .plano-caso__cuerpo { flex: 1; min-block-size: 0; grid-template-columns: minmax(0, 1fr) clamp(16rem, 22vw, 22rem); }
-      .plano-caso__salas { min-block-size: 0; overflow: auto; overscroll-behavior: contain; }
-    }
-    @media (max-width: 63.999rem) {
-      .plano-caso { padding-inline: var(--ds-space-3); }
-      .plano-caso__visor { block-size: min(70dvh, 28rem); }
-    }
-    @media (prefers-reduced-motion: reduce) { .sala__borde { transition: none; } }
-    @media (forced-colors: active) {
-      .plano-caso__visor, .plano-caso__salas { border: 1px solid CanvasText; }
-      .sala__borde { stroke: CanvasText; }
-      .puerta { fill: Highlight; }
-    }
-  `],
+  imports: [PlanoDelLugarComponent, RouterLink, EstudioRanuraDirective, EstudioHerramientaComponent],
+  templateUrl: './plano.component.html',
+  styleUrl: './plano.component.scss',
 })
 export class PlanoCasoComponent {
   protected readonly rutas = inject(RutasAutoria);
@@ -246,6 +67,11 @@ export class PlanoCasoComponent {
   protected readonly viewBox = computed(() => { const { x, y, ancho, alto } = this.dibujo().caja; return `${x} ${y} ${ancho} ${alto}`; });
   /** Nombres de unas 32 letras a lo ancho del plano: se leen al tamaño que se muestre. */
   protected readonly letra = computed(() => Math.round(this.dibujo().caja.ancho / 32));
+  /** La letra del nombre de una sala: la general, o menos si el nombre no cabe en el ancho de la sala (~0,6 em por letra). */
+  protected letraDe(sala: SalaDibujada): number {
+    const cabe = (sala.ancho - 64) / (Math.max((sala.titulo ?? '').length, 1) * 0.6);
+    return Math.max(12, Math.round(Math.min(this.letra(), cabe)));
+  }
   // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
   protected readonly resumen = computed(() => `Plano de las salas: ${(this.plano()?.salas ?? []).map(s => s.titulo).join(', ')}.`);
   /**
