@@ -74,12 +74,15 @@ describe('Editor de casos: la barra de vidrio (tableros 45–51)', () => {
   // guardado, «Probar» y «Pendientes» junto a la cuenta, y el selector de tema.
   it('con un caso abierto, el módulo central trae «‹ Casos», el nombre del caso y su hilo; la cuenta, las herramientas, la ayuda y el menú', async () => {
     const { raiz } = await irA('/portal/casos/41/editor');
-    // «Volver» es un módulo propio junto a la marca (pedido del usuario, 2026-11-22): la marca no es un enlace.
+    // En el editor la marca cede su sitio a «volver» (pedido del usuario, 2026-11-22): un círculo dentro de la banda en el
+    // teléfono y, en escritorio, una pieza de vidrio APARTE de la barra (hermana de la píldora, no dentro de ella).
     const logo = raiz.querySelector<HTMLElement>('header .modulo-logo')!;
-    expect(logo.querySelector('app-marca')!.closest('a')).toBeNull();
-    const volver = logo.querySelector<HTMLAnchorElement>('a.volver')!;
-    expect(volver.getAttribute('href')).toBe('/portal/casos');
-    expect(volver.textContent!.trim()).toBe('Volver a casos');
+    expect(logo.querySelector('app-marca')).toBeNull();
+    expect(logo.querySelector('a.volver--en-barra')!.getAttribute('href')).toBe('/portal/casos');
+    const pieza = raiz.querySelector<HTMLAnchorElement>('header > a.volver--pieza')!;
+    expect(pieza.closest('nav.bandeja')).toBeNull();
+    expect(pieza.getAttribute('href')).toBe('/portal/casos');
+    expect(pieza.textContent!.trim()).toBe('Volver a casos');
     const central = raiz.querySelector('header .modulo-principal')!;
     expect(central.querySelector('a[href="/portal/casos"]')).toBeNull();
     expect(central.textContent).not.toContain('Mis casos');

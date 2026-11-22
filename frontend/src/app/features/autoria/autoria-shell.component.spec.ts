@@ -158,12 +158,13 @@ describe('AutoriaShellComponent · como ruta del programa', () => {
     expect(store.caso()!.id).toBe('41');
     expect(raiz.querySelector('header .caso-actual')!.textContent).toContain('Primera escucha en Bienestar');
     expect(raiz.querySelector('main h1')!.textContent).toContain('Escenas y caminos');
-    // Los enlaces del marco cuelgan del caso abierto y de la lista de casos: la marca, «Casos», las cinco etapas del hilo y
-    // «Probar», todo en la barra (E0: el hilo cambia las cuatro secciones de antes por las cinco etapas de EDITOR.md §3.1).
+    // Los enlaces del marco cuelgan del caso abierto y de la lista de casos: «volver» (el círculo de la banda del teléfono),
+    // las cinco etapas del hilo y «Probar» en la barra, y la pieza «volver» de escritorio, aparte de la barra (2026-11-22).
+    // Cada «volver» se ve en su ancho; los dos llevan al mismo sitio.
     const enlaces = [...raiz.querySelectorAll<HTMLAnchorElement>('header a')].map((a) => a.getAttribute('href'));
     expect(enlaces).toEqual([
       '/portal/casos', '/portal/casos/41/editor/datos', '/portal/casos/41/editor/plano', '/portal/casos/41/editor',
-      '/portal/casos/41/editor/evaluacion', '/portal/casos/41/editor/revision', '/portal/casos/41/ensayo',
+      '/portal/casos/41/editor/evaluacion', '/portal/casos/41/editor/revision', '/portal/casos/41/ensayo', '/portal/casos',
     ]);
   });
 

@@ -11,7 +11,6 @@ import type { CanLeave } from '../../core/navigation/can-leave.guard';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { UiGlassBar } from '../../shared/ui/glass-bar/ui-glass-bar';
 import { roleLabel } from '../../shared/ui/labels';
-import { MarcaComponent } from '../../shared/ui/marca/marca.component';
 import { UiMenu, UiMenuItem } from '../../shared/ui/menu/ui-menu';
 import { TemaSelectorComponent } from '../../shared/ui/tema/tema-selector.component';
 
@@ -56,7 +55,7 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
   selector: 'app-autoria-shell',
   imports: [
     RouterOutlet, RouterLink, PanelIaComponent, BuscadorComponent, FocoGuiaComponent, AvisosGuardadoComponent,
-    UiGlassBar, UiMenu, MarcaComponent, TemaSelectorComponent, HiloDelCasoComponent, RielDeEscenasComponent,
+    UiGlassBar, UiMenu, TemaSelectorComponent, HiloDelCasoComponent, RielDeEscenasComponent,
     EstudioMarcoComponent, ExploradorBibliotecaComponent,
   ],
   providers: [EstudioService],
@@ -65,13 +64,11 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
   template: `
     <a class="saltar" href="#main-content" (click)="saltar($event)">Saltar al contenido</a>
     <header ui-glass-bar label="Editor de casos" compactLabel="Editor de casos" [congelada]="ayudaAbierta()" #cabecera>
-      <!-- La marca y, junto a ella, el módulo «‹» para volver (pedido del usuario, 2026-11-22): una cápsula de vidrio que al
-           pasar el cursor o con el foco se expande y dice a dónde vuelve; desde el guion o una sala, al menú del que se vino
-           dentro del editor; desde una pantalla principal, a Casos. El nombre accesible es su propio texto. -->
+      <!-- En el editor la marca cede su sitio a «volver» (pedido del usuario, 2026-11-22). En el teléfono es un círculo «‹»
+           dentro de la banda; en escritorio es una PIEZA DE VIDRIO APARTE de la barra (la de abajo, fuera de la píldora). -->
       <div class="modulo modulo-logo">
-        <span class="logo-marca"><app-marca class="barra-marca" /></span>
-        <a class="volver pulsable" [routerLink]="volver().ruta" data-accion="volver">
-          <span class="volver__capsula">
+        <a class="volver volver--en-barra pulsable" [routerLink]="volver().ruta" data-accion="volver">
+          <span class="volver__contenido">
             <svg class="volver__flecha" viewBox="0 0 20 20" aria-hidden="true"><path d="m12 4-6 6 6 6" /></svg>
             <span class="volver__texto">{{ volver().texto }}</span>
           </span>
@@ -132,6 +129,15 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
           <span id="aviso-ia" class="solo-lector">{{ textoAsistenteBloqueado() }}</span>
         }
       </div>
+      <!-- «Volver» en escritorio: una pieza de vidrio separada de la masa de la barra, a su izquierda, con su propio vidrio
+           (no cuelga de la píldora: nunca vidrio sobre vidrio). Al pasar el cursor o con el foco crece con el resorte de la
+           barra y dice a dónde vuelve (Casos; o Caminos, el Plano o el guion según de dónde se vino); la masa le cede sitio. -->
+      <a class="volver volver--pieza pulsable" [routerLink]="volver().ruta" data-accion="volver">
+        <span class="volver__contenido">
+          <svg class="volver__flecha" viewBox="0 0 20 20" aria-hidden="true"><path d="m12 4-6 6 6 6" /></svg>
+          <span class="volver__texto">{{ volver().texto }}</span>
+        </span>
+      </a>
     </header>
 
     @if (buscador(); as modo) {
