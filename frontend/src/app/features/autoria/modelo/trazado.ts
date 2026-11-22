@@ -1,5 +1,3 @@
-import dagre from '@dagrejs/dagre';
-
 import type { CasoBorrador } from './caso';
 
 /** Tamaño de la tarjeta de una escena en el mapa. */
@@ -14,9 +12,6 @@ export const ALTO_ESCENA = 140;
  */
 export type DireccionTrazado = 'izquierda-derecha' | 'arriba-abajo';
 
-/** El nombre que dagre le da a cada dirección. */
-const RANKDIR: Record<DireccionTrazado, 'LR' | 'TB'> = { 'izquierda-derecha': 'LR', 'arriba-abajo': 'TB' };
-
 /**
  * El primer lugar libre a partir de `deseada`, bajando de a una tarjeta, para que una escena
  * nueva no quede encima de otra.
@@ -28,30 +23,50 @@ export function posicionLibre(ocupadas: { x: number; y: number }[], deseada: { x
   return p;
 }
 
-/**
- * Posiciones de las escenas con un trazado por capas (dagre): cada respuesta es una flecha de su escena a la escena a la
- * que lleva. Sin `direccion`, de izquierda a derecha, como siempre: quien ya ordenó su mapa no ve cambios.
- */
+/** Distribuye por distancia m?nima desde el inicio; los ciclos nunca alteran una capa ya alcanzada. */
 export function trazarEscenas(
   caso: CasoBorrador,
   direccion: DireccionTrazado = 'izquierda-derecha',
 ): Map<string, { x: number; y: number }> {
-  const g = new dagre.graphlib.Graph();
-  // De arriba abajo, el paso entre filas es más corto que entre columnas: las tarjetas son más anchas que altas.
-  const separacion = direccion === 'arriba-abajo' ? { nodesep: 40, ranksep: 56 } : { nodesep: 48, ranksep: 64 };
-  g.setGraph({ rankdir: RANKDIR[direccion], ...separacion, marginx: 0, marginy: 0 });
-  g.setDefaultEdgeLabel(() => ({}));
-  for (const e of caso.escenas) g.setNode(e.id, { width: ANCHO_ESCENA, height: ALTO_ESCENA });
-  for (const e of caso.escenas) {
-    for (const r of e.respuestas) {
-      if (r.destinoId && r.destinoId !== e.id && g.hasNode(r.destinoId)) g.setEdge(e.id, r.destinoId);
+  const escenas = new Map(caso.escenas.map((e) => [e.id, e]));
+  const capas = new Map<string, number>();
+  const recorrer = (inicio: string, nivel: number) => {
+    const cola = [inicio];
+    capas.set(inicio, nivel);
+    for (let i = 0; i < cola.length; i++) {
+      const id = cola[i];
+      for (const respuesta of escenas.get(id)!.respuestas) {
+        const destino = respuesta.destinoId;
+        if (destino && escenas.has(destino) && !capas.has(destino)) {
+          capas.set(destino, capas.get(id)! + 1);
+          cola.push(destino);
+        }
+      }
     }
+  };
+  const inicio = caso.inicioId && escenas.has(caso.inicioId) ? caso.inicioId : caso.escenas[0]?.id;
+  if (inicio) recorrer(inicio, 0);
+  // Las escenas desconectadas se colocan despu?s del recorrido principal, sin ocultarlas.
+  for (const e of caso.escenas) if (!capas.has(e.id)) recorrer(e.id, Math.max(0, ...capas.values()) + 1);
+  const columnas: string[][] = [];
+  for (const e of caso.escenas) (columnas[capas.get(e.id)!] ??= []).push(e.id);
+  // Orden baric?ntrico de los predecesores: reduce cruces conservando el orden ante empates.
+  for (let c = 1; c < columnas.length; c++) {
+    const anterior = columnas[c - 1];
+    const centro = (id: string) => {
+      const indices = anterior.flatMap((origen, i) => escenas.get(origen)!.respuestas.some((r) => r.destinoId === id) ? [i] : []);
+      return indices.length ? indices.reduce((a, b) => a + b, 0) / indices.length : anterior.length / 2;
+    };
+    columnas[c].sort ( (a, b) => centro(a) - centro(b));
   }
-  dagre.layout(g);
+  const maximo = Math.max(0, ...columnas.map((c) => c.length));
+  const horizontal = direccion === 'izquierda-derecha';
+  const pasoPrincipal = horizontal ? ANCHO_ESCENA + 112 : ALTO_ESCENA + 96;
+  const pasoTransversal = horizontal ? ALTO_ESCENA + 80 : ANCHO_ESCENA + 80;
   const posiciones = new Map<string, { x: number; y: number }>();
-  for (const id of g.nodes()) {
-    const n = g.node(id);
-    posiciones.set(id, { x: Math.round(n.x - ANCHO_ESCENA / 2), y: Math.round(n.y - ALTO_ESCENA / 2) });
-  }
+  columnas.forEach((columna, c) => columna.forEach((id, fila) => {
+    const transversal = Math.round((fila + (maximo - columna.length) / 2) * pasoTransversal);
+    posiciones.set(id, horizontal ? { x: c * pasoPrincipal, y: transversal } : { x: transversal, y: c * pasoPrincipal });
+  }));
   return posiciones;
 }

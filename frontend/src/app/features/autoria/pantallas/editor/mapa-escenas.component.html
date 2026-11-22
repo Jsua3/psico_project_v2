@@ -112,7 +112,7 @@
             @if (miniatura(e); as src) {
               <img class="miniatura__arte" [src]="src" alt="" width="208" height="64" decoding="async" draggable="false" />
             } @else {
-              <span class="miniatura__vacia"></span>
+              <span class="miniatura__vacia">@if (!e.salaId) { <span>Sin sala</span> }</span>
             }
             <span class="numero">{{ numero(e.id) }}</span>
             <span class="etiquetas">

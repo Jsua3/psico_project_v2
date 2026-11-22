@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 
 import { rutaSpriteKit } from '../../modelo/biblioteca.service';
 import type { CasoBorrador, Escena } from '../../modelo/caso';
@@ -25,6 +25,7 @@ interface Actor { clave: string; nombre: string; x: number; y: number; fila: num
       <div class="camara__visor">
         @if (sala(); as s) {
           <div class="camara__cuadro">
+            <div class="camara__mundo" [style.transform]="transformacion()">
             @if (s.fondo) {
               <app-sala-vista class="camara__sala" [caso]="caso()" [salaId]="s.id" />
             } @else {
@@ -34,16 +35,21 @@ interface Actor { clave: string; nombre: string; x: number; y: number; fila: num
                 <span class="camara__vacia"></span>
               }
               @for (a of actores(); track a.clave) {
-                <span class="actor" [style.left.px]="a.x" [style.top.px]="a.y">
-                  <span class="actor__sprite" [style.background-image]="'url(' + a.sprite + ')'" [style.background-position-y.px]="-36 * a.fila"></span>
+                <span class="actor" [style.left.%]="a.x / 480 * 100" [style.top.%]="a.y / 264 * 100">
+                  <span class="actor__sprite" [style.background-image]="'url(' + a.sprite + ')'" [style.background-position-y.%]="a.fila / 7 * 100"></span>
                 </span>
               }
             }
             @if (hablante(); as h) {
-              <!-- Quien habla: un aro de píxeles a sus pies y su línea en un globo (sale del borde si no cabe). -->
-              <span class="aro" [style.left.px]="h.x" [style.top.px]="h.pies" aria-hidden="true"></span>
-              <span class="globo" [class.globo--izquierda]="h.x > 300" [style.left.px]="h.x" [style.top.px]="h.cabeza - 4">
-                <strong>{{ h.nombre }}</strong> {{ textoGlobo() }}
+              <!-- Quien habla: un aro de píxeles a sus pies (se acerca con la sala). -->
+              <span class="aro" [style.left.%]="h.x / 480 * 100" [style.top.%]="h.pies / 264 * 100" aria-hidden="true"></span>
+            }
+            </div>
+            <!-- El globo va FUERA del mundo que se escala: conserva su tamaño de letra y se acota al cuadro (antes, con la
+                 cámara a ×2, salía al doble y se cortaba en el borde; medido el 2026-11-22). -->
+            @if (globo(); as g) {
+              <span class="globo" [class.globo--izquierda]="g.izquierda" [style.left.%]="g.x" [style.top.%]="g.y">
+                <strong>{{ g.nombre }}</strong> {{ textoGlobo() }}
               </span>
             }
           </div>
@@ -54,6 +60,11 @@ interface Actor { clave: string; nombre: string; x: number; y: number; fila: num
       <figcaption class="camara__pie">
         <span class="rec" aria-hidden="true"></span>
         <span>Cámara · {{ sala()?.nombre ?? 'Sin sala' }}</span>
+        @if (sala()) {
+          <button type="button" class="camara__alternar" (click)="alternarSala()" [attr.aria-pressed]="salaEntera()">
+            {{ salaEntera() ? 'Seguir a quien habla' : 'Ver la sala entera' }}
+          </button>
+        }
         <span class="camara__dato">{{ actores().length }} {{ actores().length === 1 ? 'personaje' : 'personajes' }}</span>
         @if (hablante(); as h) { <span class="camara__dato">Habla: {{ h.nombre }}</span> }
       </figcaption>
@@ -64,14 +75,15 @@ interface Actor { clave: string; nombre: string; x: number; y: number; fila: num
     .camara { margin: 0; overflow: hidden; border: 1px solid var(--l-filo); border-radius: var(--l-radio-tarjeta); background: var(--l-superficie); }
     /* Una franja oscura de lado a lado con el cuadro al centro: el visor de una cámara, no una foto suelta. */
     .camara__visor {
-      display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; padding: 0.75rem; background: var(--juego-escenario, var(--ds-text-1));
-      background-image: radial-gradient(circle, color-mix(in oklab, var(--ds-surface-1) 10%, transparent) 1px, transparent 1.5px);
-      background-size: 0.75rem 0.75rem;
+      display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; padding: 0.75rem; background: var(--l-superficie-hundida);
     }
     .camara__cuadro {
-      position: relative; inline-size: 480px; max-inline-size: 100%; aspect-ratio: 960 / 528; overflow: hidden; border-radius: 0.375rem;
+      position: relative; container-type: inline-size; inline-size: 480px; max-inline-size: 100%; aspect-ratio: 960 / 528; overflow: hidden; border-radius: 0.375rem;
       box-shadow: 0 0 0 1px color-mix(in oklab, var(--ds-surface-1) 18%, transparent), var(--l-sombra-alta);
     }
+    .camara__mundo { position: absolute; inset: 0; transform-origin: 0 0; transition: transform var(--ds-dur-move) var(--ds-ease-out); }
+    .camara__alternar { min-block-size: 44px; padding: 0 0.5rem; border: 1px solid var(--l-filo); border-radius: var(--l-radio-chico); background: var(--l-superficie); color: var(--ds-text-1); font: inherit; cursor: pointer; }
+    .camara__alternar:focus-visible { outline: 2px solid var(--ds-primary); outline-offset: 2px; }
     .camara__sala { inline-size: 100%; }
     .camara__fondo { display: block; inline-size: 100%; block-size: 100%; image-rendering: pixelated; }
     .camara__vacia {
@@ -82,7 +94,7 @@ interface Actor { clave: string; nombre: string; x: number; y: number; fila: num
     .actor { position: absolute; translate: -50% -100%; line-height: 0; pointer-events: none; }
     /* La hoja del kit (192 × 576) tiene cuadros de 48 × 72; a la mitad, 24 × 36 (el mismo factor que el cuarto). */
     .actor__sprite {
-      display: block; inline-size: 24px; block-size: 36px; background-repeat: no-repeat; background-size: 96px 288px;
+      display: block; inline-size: 5cqw; block-size: 7.5cqw; background-repeat: no-repeat; background-size: 400% 800%;
       background-position-x: 0; image-rendering: pixelated;
     }
     .aro {
@@ -110,7 +122,7 @@ interface Actor { clave: string; nombre: string; x: number; y: number; fila: num
     @keyframes globo-entra { from { opacity: 0; translate: -1rem calc(-100% + 0.25rem); } }
     /* En el teléfono el pie dice solo qué cámara es: las cifras ya están en el Inspector. */
     @media (max-width: 29.999rem) { .camara__dato { display: none; } }
-    @media (prefers-reduced-motion: reduce) { .aro, .globo { animation: none; } }
+    @media (prefers-reduced-motion: reduce) { .aro, .globo { animation: none; } .camara__mundo { transition: none; } }
   `,
 })
 export class CamaraEscenaComponent {
@@ -120,6 +132,32 @@ export class CamaraEscenaComponent {
   readonly miniatura = input<string | null>(null);
   /** La línea que se está escribiendo: su personaje es quien habla. */
   readonly lineaEnfocada = input<string | null>(null);
+
+  protected readonly salaEntera = signal(false);
+  protected alternarSala(): void { this.salaEntera.update((valor) => !valor); }
+  /**
+   * Encuadre de la cámara en % del cuadro: a ×2, la esquina visible (ox, oy) se acerca a quien habla sin salir de la sala;
+   * con la sala entera, ×1 desde el origen. Un punto en p % del mundo queda en pantalla en escala × (p − origen) %.
+   */
+  private readonly encuadre = computed(() => {
+    const h = this.hablante();
+    if (this.salaEntera() || !h) return { ox: 0, oy: 0, escala: 1 };
+    const limitar = (n: number) => Math.max(0, Math.min(50, n));
+    return { ox: limitar(h.x / 480 * 100 - 25), oy: limitar(h.pies / 264 * 100 - 25), escala: 2 };
+  });
+  protected readonly transformacion = computed(() => {
+    const { ox, oy, escala } = this.encuadre();
+    return `translate(${-ox * escala}%, ${-oy * escala}%) scale(${escala})`;
+  });
+  /** Dónde va el globo en pantalla: sobre la cabeza de quien habla, siempre dentro del cuadro. */
+  protected readonly globo = computed(() => {
+    const h = this.hablante();
+    if (!h) return null;
+    const { ox, oy, escala } = this.encuadre();
+    const x = Math.max(6, Math.min(94, escala * (h.x / 480 * 100 - ox)));
+    const y = Math.max(24, Math.min(100, escala * ((h.cabeza - 4) / 264 * 100 - oy)));
+    return { nombre: h.nombre, x, y, izquierda: x > 60 };
+  });
 
   protected readonly sala = computed(() => this.caso().salas.find((s) => s.id === this.escena().salaId) ?? null);
 

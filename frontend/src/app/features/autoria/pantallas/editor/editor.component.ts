@@ -67,7 +67,7 @@ import { RutasAutoria } from '../../rutas';
                   @if (miniatura(e); as src) {
                     <img class="insp-sala__arte" [src]="src" alt="" width="960" height="528" decoding="async" />
                   } @else {
-                    <span class="insp-sala__vacia"></span>
+                    <span class="insp-sala__vacia">@if (!e.salaId) { <span>Sin sala</span> }</span>
                   }
                 </div>
                 <p class="elegida__rotulo">Escena elegida</p>
@@ -216,10 +216,12 @@ import { RutasAutoria } from '../../rutas';
     }
     .insp-sala__arte { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; image-rendering: pixelated; }
     .insp-sala__vacia, .vacia__arte {
-      display: block; inline-size: 100%; block-size: 100%;
-      background: linear-gradient(var(--l-superficie-hundida) 0 38%, transparent 38%),
-        repeating-conic-gradient(var(--l-filo-fuerte) 0 25%, transparent 0 50%) 0 0 / 0.75rem 0.75rem;
+      display: grid; place-items: center; inline-size: 100%; block-size: 100%; color: var(--ds-text-1);
+      background: linear-gradient(90deg, var(--l-filo-fuerte) 4%, transparent 4% 96%, var(--l-filo-fuerte) 96%),
+        linear-gradient(var(--l-superficie-hundida) 0 60%, var(--l-filo-fuerte) 60% 64%, var(--l-superficie) 64%);
     }
+    .insp-sala__vacia span { padding: 0.25rem 0.5rem; background: var(--l-superficie); box-shadow: 0 0 0 2px var(--l-filo-fuerte); }
+
     .elegida__rotulo {
       margin: 0; color: var(--ds-text-2); font-size: var(--autoria-texto-14); font-weight: 700; font-variant-caps: all-small-caps;
       letter-spacing: 0.06em; line-height: 1.25rem;

@@ -37,6 +37,27 @@ describe('trazarEscenas', () => {
     expect(new Set([a.x, b.x, c.x]).size).toBe(1);
   });
 
+  it('EDITOR-PRO ? separa ocho escenas, ramas y vueltas atr?s por profundidad m?nima', () => {
+    const caso = lineal();
+    const base = caso.escenas[0];
+    caso.escenas = Array.from({ length: 8 }, (_, i) => ({ ...structuredClone(base), id: `e${i}`, respuestas: [] }));
+    caso.inicioId = 'e0';
+    const unir = (desde: number, hasta: number) => caso.escenas[desde].respuestas.push({
+      id: `r${desde}-${hasta}`, texto: '', clase: 'RECOMMENDED', razon: '', efectos: {}, retroalimentacion: '', destinoId: `e${hasta}`, marcaIa: false,
+    });
+    [[0, 1], [0, 2], [1, 3], [1, 4], [2, 5], [3, 6], [4, 6], [5, 7], [7, 2], [6, 0]].forEach(([a, b]) => unir(a, b));
+    for (const direccion of ['izquierda-derecha', 'arriba-abajo'] as const) {
+      const posiciones = trazarEscenas(caso, direccion);
+      const inicio = posiciones.get('e0')!;
+      expect(direccion === 'izquierda-derecha' ? inicio.x : inicio.y).toBe(0);
+      const puntos = [...posiciones.values()];
+      for (let i = 0; i < puntos.length; i++) for (let j = i + 1; j < puntos.length; j++) {
+        expect(Math.abs(puntos[i].x - puntos[j].x) >= ANCHO_ESCENA || Math.abs(puntos[i].y - puntos[j].y) >= ALTO_ESCENA).toBe(true);
+      }
+      expect(posiciones.get('e1')![direccion === 'izquierda-derecha' ? 'x' : 'y']).toBe(posiciones.get('e2')![direccion === 'izquierda-derecha' ? 'x' : 'y']);
+    }
+  });
+
   it('las ramas de arriba abajo se reparten a lo ancho sin encimarse', () => {
     const caso = lineal();
     const [a, b, c] = caso.escenas;
