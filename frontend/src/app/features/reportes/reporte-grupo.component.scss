@@ -125,42 +125,6 @@
   line-height: var(--ds-type-body-s-line);
 }
 
-.rg-hito__bar {
-  display: flex;
-  align-items: center;
-  gap: var(--ds-space-3);
-}
-
-.rg-bar {
-  flex: 1 1 auto;
-  min-width: 0;
-  block-size: 0.75rem;
-  border: 1px solid var(--ds-border-strong);
-  border-radius: var(--ds-radius-sm, 4px);
-  background: var(--ds-surface-2);
-  overflow: hidden;
-}
-
-.rg-bar__fill {
-  display: block;
-  block-size: 100%;
-  background: var(--ds-primary);
-  transform: scaleX(var(--rg-ratio, 0));
-  transform-origin: left center;
-}
-
-@media (forced-colors: active) {
-  .rg-bar__fill {
-    background: CanvasText;
-  }
-}
-
-.rg-bar__value {
-  font-variant-numeric: tabular-nums;
-  font-size: var(--ds-type-body-s-size);
-  white-space: nowrap;
-}
-
 .rg-hitos-tabla {
   margin-block-start: var(--ds-space-3);
 
@@ -168,5 +132,17 @@
     cursor: pointer;
     font-weight: var(--ds-type-h3-weight);
     font-size: var(--ds-type-body-s-size);
+  }
+}
+
+@media (max-width: 40rem) {
+  .rg-name { min-width: 0; overflow-wrap: anywhere; }
+  .rg-nowrap { white-space: normal; }
+}
+
+// En tarjeta, «Contraindicadas» y «Recomendadas» no caben en la columna fija de 6,5 rem y se partían a media palabra.
+@container (max-width: 40rem) {
+  td.rg-num.rg-num[data-etiqueta]::before {
+    flex-basis: 9.5rem;
   }
 }

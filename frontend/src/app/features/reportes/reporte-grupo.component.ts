@@ -14,6 +14,7 @@ import {
   CoberturaCategoria, EstudianteSimulacionReporte, HitoCobertura, ReporteGrupo, ReporteSimulacionGrupo,
 } from '../../core/models/sesion.model';
 import { SimulationCaseSummary } from '../../core/models/simulation.model';
+import { UiBarras, UiBarrasDato } from '../../shared/ui/barras/ui-barras';
 import { UiBadge, UiBadgeTone } from '../../shared/ui/badge/ui-badge';
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiCard } from '../../shared/ui/card/ui-card';
@@ -53,12 +54,12 @@ const COBERTURA_SIN_DATOS = 'Aún no hay datos suficientes para mostrarlo';
   standalone: true,
   imports: [
     ReactiveFormsModule, RouterLink,
-    UiBadge, UiButton, UiCard, UiControl, UiField, UiLink, UiPageHeader, UiProgress, UiSection, UiSkeleton, UiStat,
+    UiBarras, UiBadge, UiButton, UiCard, UiControl, UiField, UiLink, UiPageHeader, UiProgress, UiSection, UiSkeleton, UiStat,
     UiEmptyState, UiErrorState, UiTable, UiTableRow, UiTableTable,
   ],
   templateUrl: './reporte-grupo.component.html',
   styleUrl: './reporte-grupo.component.scss',
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ReporteGrupoComponent {
   private readonly reporteService = inject(ReporteService);
@@ -219,14 +220,30 @@ export class ReporteGrupoComponent {
     });
   }
 
+  /** Los porcentajes publicados no permiten reconstruir cantidades sin revelar celdas suprimidas. */
+  barrasHitos(sim: ReporteSimulacionGrupo): UiBarrasDato[] {
+    return sim.hitos.filter(h => h.porcentaje != null).map(h => ({
+      etiqueta: h.label, valor: h.porcentaje!, tono: 'info', patron: 'rayas',
+    }));
+  }
+
+  barrasDecisiones(sim: ReporteSimulacionGrupo): UiBarrasDato[] {
+    const suma = (clave: keyof EstudianteSimulacionReporte['clases']) => sim.estudiantes.reduce((n, e) => n + e.clases[clave], 0);
+    return [
+      { etiqueta: 'Recomendadas', valor: suma('recommended'), tono: 'success', patron: 'liso' },
+      { etiqueta: 'Aceptables', valor: suma('acceptable'), tono: 'info', patron: 'rayas' },
+      { etiqueta: 'Con riesgo', valor: suma('risky'), tono: 'warning', patron: 'puntos' },
+      { etiqueta: 'Contraindicadas', valor: suma('contraindicated'), tono: 'danger', patron: 'rayas' },
+    ];
+  }
+
+  totalDecisiones(sim: ReporteSimulacionGrupo): number {
+    return this.barrasDecisiones(sim).reduce((total, fila) => total + fila.valor, 0);
+  }
+
   /** Un porcentaje con coma decimal y un decimal como máximo («62,5»). */
   porcentaje(value: number): string {
     return this.decimal.transform(value, '1.0-1') ?? '0';
-  }
-
-  /** Proporción 0–1 del porcentaje del grupo (el relleno de la barra escala con transform). */
-  ratio(percent: number): number {
-    return Math.min(1, Math.max(0, percent / 100));
   }
 
   /** La cobertura de un hito en palabras; sin categoría (celda mínima), dice que aún no hay datos suficientes. */
@@ -237,11 +254,6 @@ export class ReporteGrupoComponent {
   /** La palabra «clave» de un hito que decide el final. */
   marca(hito: HitoCobertura): string | null {
     return milestoneMark(hito);
-  }
-
-  /** Lo que lee quien usa lector de pantalla en la barra: el hito, la cobertura en palabras y el porcentaje. */
-  barraEtiqueta(hito: HitoCobertura): string {
-    return `${hito.label}: ${this.coberturaPalabras(hito)}, ${this.porcentaje(hito.porcentaje ?? 0)} % del grupo`;
   }
 
   /** «2 de 3»: los hitos que cumplió en su último intento completado; sin ese dato, un guion. */

@@ -425,24 +425,19 @@ describe('pantalla Reportes (F7-3)', () => {
         expect(text(host().querySelector('.rg-hitos'))).not.toMatch(/\d/);
       });
 
-      it('con 20 estudiantes o más trae el porcentaje: barra con nombre en palabras y su valor también en texto', async () => {
-        const sim = simulation({
-          hitos: [
-            { key: 'escucha', label: 'Escuchar sin interrumpir', decisive: false, cobertura: 'MAYORIA', porcentaje: 62.5 },
-            { key: 'proteccion', label: 'Recomendar medidas de protección', decisive: true, cobertura: 'MENOS_DE_LA_MITAD', porcentaje: 30 },
-          ],
-        });
+      it('representa los porcentajes publicados con denominador y patrón', async () => {
+        const sim = simulation({ hitos: [
+          { key: 'escucha', label: 'Escuchar', decisive: false, cobertura: 'MAYORIA', porcentaje: 62.5 },
+          { key: 'proteccion', label: 'Proteger', decisive: true, cobertura: 'MENOS_DE_LA_MITAD', porcentaje: 30 },
+        ] });
         await render({ reporte: grupoId => of(report(grupoId, sim)) });
         choose(select('Grupo'), 'Cohorte A · COH-A');
         await fixture.whenStable();
         fixture.detectChanges();
-
-        const bars = [...host().querySelectorAll('.rg-bar')];
-        expect(bars).toHaveLength(2);
-        expect(bars.every(bar => bar.getAttribute('role') === 'img')).toBe(true);
-        expect(bars[0].getAttribute('aria-label')).toBe('Escuchar sin interrumpir: La mayoría cumplió este paso, 62.5 % del grupo');
-        expect(text(hitoRows()[0].querySelector('.rg-bar__value'))).toBe('62.5 %');
-        expect(text(hitoRows()[1].querySelector('.rg-bar__value'))).toBe('30 %');
+        const chart = host().querySelector('ui-barras');
+        expect(text(chart)).toContain('62,5 de 100');
+        expect(text(chart)).toContain('30 de 100');
+        expect(chart?.querySelector('.ui-barras__tinta--rayas')).not.toBeNull();
       });
 
       it('una tabla equivalente trae los mismos hitos con su cobertura en palabras y el porcentaje (o un guion)', async () => {

@@ -151,6 +151,14 @@ describe('reporte de un estudiante (F10-7)', () => {
     });
   });
 
+  it('apila la tabla y solo enlaza a la revisión general, sin identificar un intento', async () => {
+    await render();
+    expect(host().querySelector('ui-table')?.classList.contains('ui-table--apilar')).toBe(true);
+    const link = host().querySelector('.re-privacy a');
+    expect(link?.getAttribute('href')).toBe('/portal/docente/trazabilidad');
+    expect(link?.getAttribute('href')).not.toContain('a1');
+  });
+
   // req: RF-25, CU-14, RQ-NEG-006
   describe('«Mostrando X de N» y «Ver más intentos»', () => {
     it('dice cuántos intentos muestra de cuántos hay y lo anuncia', async () => {

@@ -77,8 +77,7 @@
       <ui-section class="rg-result" [title]="selectedGroup()?.nombre || 'Grupo seleccionado'">
         <div class="rg-stack">
           <p class="rg-hint">
-            {{ selectedCase()?.title || 'Todos los casos asignados' }} · {{ sim.estudiantes.length }} estudiantes con datos ·
-            {{ completionRate(sim) }}&nbsp;% completado
+            De {{ sim.totalIntentos }} intentos, {{ sim.intentosCompletados }} terminaron, {{ sim.intentosEnProgreso }} están en curso y {{ sim.intentosSalidaSegura }} usaron la salida segura. Hay datos de {{ sim.estudiantes.length }} estudiantes.
           </p>
 
           <div class="rg-stats">
@@ -98,7 +97,7 @@
             </ui-card>
             <ui-card>
               <ui-progress label="Salida segura" [value]="safeExitRate(sim)" />
-              <p class="rg-hint">{{ sim.intentosSalidaSegura }} intentos usaron salida segura.</p>
+              <p class="rg-hint">{{ sim.intentosSalidaSegura }} de {{ sim.totalIntentos }} intentos usaron salida segura. Usarla es parte del cuidado.</p>
             </ui-card>
           </div>
 
@@ -118,21 +117,18 @@
                       @if (marca(hito); as mark) { <ui-badge tone="info">{{ mark }}</ui-badge> }
                     </span>
                     <span class="rg-hito__words">{{ coberturaPalabras(hito) }}</span>
-                    @if (hito.porcentaje !== undefined && hito.porcentaje !== null) {
-                      <span class="rg-hito__bar">
-                        <span class="rg-bar" role="img" [attr.aria-label]="barraEtiqueta(hito)">
-                          <span class="rg-bar__fill" [style.--rg-ratio]="ratio(hito.porcentaje)"></span>
-                        </span>
-                        <span class="rg-bar__value">{{ porcentaje(hito.porcentaje) }}&nbsp;%</span>
-                      </span>
-                    }
                   </li>
                 }
               </ul>
 
+              @if (barrasHitos(sim).length) {
+                <ui-barras [datos]="barrasHitos(sim)" [total]="100" modo="lista"
+                  descripcion="Cada barra es el porcentaje del grupo que cumplió ese paso (de 100). Los pasos sin porcentaje disponible no aparecen en el gráfico." />
+              }
+
               <details class="rg-hitos-tabla">
                 <summary>Ver la cobertura como tabla</summary>
-                <ui-table label="Tabla de cobertura por hito" density="compact">
+                <ui-table label="Tabla de cobertura por hito" density="compact" apilar>
                   <table ui-table>
                     <thead>
                       <tr>
@@ -158,12 +154,22 @@
             }
           </ui-section>
 
+          <ui-section title="¿Qué decisiones confunden al grupo?" [level]="3">
+            @if (totalDecisiones(sim) > 0) {
+              <ui-barras modo="apilada" [datos]="barrasDecisiones(sim)" [total]="totalDecisiones(sim)"
+                [descripcion]="'Reparto de ' + totalDecisiones(sim) + ' decisiones registradas en este corte.'" />
+            } @else {
+              <p class="rg-hint">Aún no hay decisiones registradas en este corte.</p>
+            }
+            <p class="rg-hint">El detalle por escena aún no está disponible.</p>
+          </ui-section>
+
           <ui-section title="Simulación por estudiante" [level]="3">
             <p class="rg-hint">
               Detalle operativo para seguimiento docente y administrativo. Los números por clase son conteos de
               decisiones registradas; el orden es por nombre.
             </p>
-            <ui-table label="Tabla de simulación por estudiante" density="compact">
+            <ui-table label="Tabla de simulación por estudiante" density="compact" apilar>
               <table ui-table>
                 <thead>
                   <tr>
