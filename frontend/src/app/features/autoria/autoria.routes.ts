@@ -20,7 +20,8 @@ export const pantallasDelEditor: Routes = [
   { path: '', component: EditorComponent, title: 'El caso · Editor de casos' },
   { path: 'sala/:salaId', component: SalaComponent, title: 'Sala · Editor de casos' },
   { path: 'escena/:escenaId', component: GuionComponent, title: 'Guion · Editor de casos' },
-  { path: 'datos', component: DatosComponent, title: 'Datos del caso · Editor de casos' },
+  // Datos guarda solo, pero un campo con error o un tema sin agregar viven solo en la pantalla: se pregunta antes de irse.
+  { path: 'datos', component: DatosComponent, title: 'Datos del caso · Editor de casos', canDeactivate: [canLeaveGuard] },
   // E5: la etapa Evaluación tiene tres pestañas, cada una con su dirección (EDITOR.md §3.5).
   { path: 'evaluacion', component: EvaluacionComponent, title: 'Pasos profesionales · Editor de casos' },
   { path: 'rubrica', component: RubricaDelCasoComponent, title: 'Rúbrica del caso · Editor de casos' },

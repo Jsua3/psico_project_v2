@@ -1472,21 +1472,45 @@ export class CasoStore {
 
   /**
    * E5 · El caso adopta una rúbrica (RK-1): una copia propia de la versión, de una rúbrica que la docente ve o de las
-   * competencias del programa. Como `enviarARevision`, va fuera de la cola (no es un cambio del borrador que se pueda
-   * deshacer) pero con la revisión vigente, después de que lo pendiente llegó; luego relee el caso, que trae las
-   * competencias nuevas para la faceta «Criterios». Con la revisión vencida avisa el conflicto de siempre.
+   * competencias del programa. Viaja POR LA COLA, como cualquier cambio: así lo que la docente escriba mientras la petición
+   * va y viene espera su turno y sale después con la revisión nueva, en vez de chocar con ella o perderse en una recarga.
+   * El servidor responde con la vista del editor ya con la rúbrica nueva, de modo que no hace falta otra lectura (que
+   * podría fallar después de que la adopción sí entró): esa vista pasa a ser la base y los cambios en cola se reaplican
+   * encima. Si mientras tanto se abrió otro caso, nada se aplica. Con la revisión vencida avisa el conflicto de siempre.
    */
   async adoptarRubrica(cuerpo: RubricAdoptRequest): Promise<void> {
-    await this.sincronizado();
     const sesion = this.sesion;
-    if (!sesion) throw new Error('Este caso todavía no se guardó.');
-    try {
-      await firstValueFrom(sesion.api.adoptRubric(sesion.caseVersionId, cuerpo, sesion.revision));
-    } catch (error) {
-      if (this.sesion === sesion && revisionConflictOf(error)) this.avisarConflicto([]);
-      throw error;
+    if (!sesion || !this.estado()) throw new Error('Este caso todavía no se guardó.');
+    if (this.soloLectura()) throw new Error('El caso ya no es un borrador: su rúbrica no se puede cambiar.');
+    let adoptada = false;
+    let fallo: unknown = null;
+    this.ejecutar({
+      nombre: 'la rúbrica del caso',
+      aplicar: () => undefined, // en el borrador no cambia nada hasta que el servidor responde
+      enviar: async (despues, s) => {
+        try {
+          const vista = await firstValueFrom(s.api.adoptRubric(s.caseVersionId, cuerpo, s.revision));
+          s.vista = vista;
+          s.revision = vista.revision;
+          // `despues` es lo que la cola toma como base: se vuelve lo que el servidor dice ahora (con los ids locales).
+          const leido = casoLeidoDelServidor(s, despues);
+          for (const clave of Object.keys(despues)) delete (despues as unknown as Record<string, unknown>)[clave];
+          Object.assign(despues, leido);
+          adoptada = true;
+        } catch (error) {
+          fallo = error;
+          throw error;
+        }
+      },
+    });
+    await this.sincronizado();
+    if (this.sesion !== sesion) throw new Error('Se abrió otro caso antes de que la rúbrica quedara guardada.');
+    if (adoptada) {
+      this.lecturaAhora.update((v) => v + 1); // las pantallas que leen la rúbrica del servidor la vuelven a pedir
+      return;
     }
-    await this.cargar(sesion.caseVersionId, true);
+    // Con conflicto la operación queda en la cola hasta que la docente recargue; el error de revisión lo dice el marco.
+    throw fallo ?? new Error('No se pudo cambiar la rúbrica del caso.');
   }
 
   /** Otra sesión cambió el caso: se avisa, no se manda nada más y se espera a que el docente decida recargar. */

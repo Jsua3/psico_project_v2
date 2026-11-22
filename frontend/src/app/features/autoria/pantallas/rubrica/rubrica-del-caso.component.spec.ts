@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 
 import { AuthoringApi } from '../../../../core/api/authoring.api';
 import { type RubricAdmin, RubricService } from '../../../../core/api/rubric.service';
@@ -184,6 +184,57 @@ describe('RubricaDelCasoComponent (E5)', () => {
     elegirOpcion(raiz, 'Primera escucha');
     await listo();
     expect(raiz.querySelector('.elector__aviso')!.textContent).toContain('1 respuesta marca criterios que la rúbrica elegida no tiene («Valoración del riesgo»)');
+  });
+
+  it('una edición hecha mientras la adopción viaja espera su turno y sale con la revisión nueva, sin perderse', async () => {
+    const { store, servidor } = await montar();
+    const adopcion = store.adoptarRubrica({ fromCompetencies: true });
+    store.editarFicha('Contexto escrito durante la adopción', ['Un objetivo']);
+    await adopcion;
+    await store.sincronizado();
+    expect(servidor.metodos.filter((m) => m === 'adoptRubric' || m === 'updateBrief')).toEqual(['adoptRubric', 'updateBrief']);
+    expect(servidor.llamadasA('updateBrief').map((l) => l.revision)).toEqual([4]);
+    expect(store.conflicto()).toBeNull();
+    expect(store.caso()!.contexto).toBe('Contexto escrito durante la adopción');
+    expect(store.caso()!.competencias).toHaveLength(4);
+  });
+
+  it('si se abre otro caso mientras la adopción viaja, no se aplica al caso nuevo y se dice', async () => {
+    const { store } = await montar();
+    const adopcion = store.adoptarRubrica({ fromCompetencies: true });
+    store.cerrar();
+    await expect(adopcion).rejects.toThrow('Se abrió otro caso');
+    expect(store.caso()).toBeNull();
+  });
+
+  it('no se confirma el cambio mientras se comprueba qué criterios se pierden, y si la consulta falla se dice y se reintenta', async () => {
+    const pendiente = new Subject<RubricAdmin>();
+    const { raiz, store, servidor, rubricas, listo } = await montar({ rubricas: { detail: vi.fn(() => pendiente) } });
+    boton(raiz, 'Usar las competencias del programa').click();
+    await listo();
+    const escena = store.caso()!.escenas[0];
+    store.editarRespuesta(escena.id, store.agregarRespuesta(escena.id), { texto: 'Hablemos del riesgo.', efectos: { competencias: ['VALORACION_DEL_RIESGO'] } });
+    await listo();
+    boton(raiz, 'Cambiar por otra').click();
+    await listo();
+    servidor.llamadas.length = 0;
+    elegirOpcion(raiz, 'Primera escucha');
+    await listo();
+    expect(raiz.querySelector('app-elector-de-rubrica [role="status"]')!.textContent).toContain('Comprobando');
+    const usar = boton(raiz, 'Usar en el caso');
+    expect(usar.getAttribute('aria-disabled')).toBe('true');
+    usar.click();
+    await listo();
+    expect(servidor.llamadasA('adoptRubric')).toHaveLength(0);
+    pendiente.error(new HttpErrorResponse({ status: 500 }));
+    await listo();
+    expect(raiz.querySelector('app-elector-de-rubrica [role="alert"]')!.textContent).toContain('No pudimos comprobar');
+    expect(boton(raiz, 'Usar en el caso').getAttribute('aria-disabled')).toBe('true');
+    (rubricas.detail as ReturnType<typeof vi.fn>).mockReturnValue(of(rubrica({ id: 7, criteria: [{ id: 5, competency: 'ESCUCHA_ACTIVA', title: 'Escucha', weight: 100, displayOrder: 1, active: true }] })));
+    boton(raiz, 'Volver a comprobar').click();
+    await listo();
+    expect(raiz.querySelector('.elector__aviso')!.textContent).toContain('«Valoración del riesgo»');
+    expect(boton(raiz, 'Usar en el caso').getAttribute('aria-disabled')).toBe('false');
   });
 
   it('en solo lectura se ve el estado pero no hay acciones', async () => {

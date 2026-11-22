@@ -43,13 +43,22 @@ export interface OpcionDeRubrica {
           </label>
         }
       </fieldset>
+      @if (comprobando()) {
+        <p class="elector__estado" role="status">Comprobando qué criterios marcados se conservan…</p>
+      }
+      @if (errorComprobacion()) {
+        <div class="elector__error-fila" role="alert">
+          <p class="elector__error">{{ errorComprobacion() }}</p>
+          <button type="button" class="boton" (click)="recomprobar.emit()">Volver a comprobar</button>
+        </div>
+      }
       @if (perdidas().length) {
         <p class="elector__aviso" role="note">
           <span aria-hidden="true">▲</span> {{ avisoDePerdidas() }}
         </p>
       }
       <div class="elector__acciones">
-        <button type="submit" class="boton boton-primario" [attr.aria-disabled]="elegida() === null || ocupado()">
+        <button type="submit" class="boton boton-primario" [attr.aria-disabled]="elegida() === null || ocupado() || comprobando() || !!errorComprobacion()">
           {{ ocupado() ? 'Guardando…' : 'Usar en el caso' }}
         </button>
         <button type="button" class="boton" (click)="cancelar.emit()">Cancelar</button>
@@ -65,6 +74,7 @@ export interface OpcionDeRubrica {
     .elector__titulo { margin: 0; font-size: var(--autoria-texto-20); line-height: 1.75rem; }
     .elector__ayuda, .elector__estado { margin: 0; color: var(--ds-text-2); font-size: var(--autoria-texto-16); line-height: 1.5rem; }
     .elector__error { margin: 0; color: var(--peligro); font-weight: 700; }
+    .elector__error-fila { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
     .opciones { display: flex; flex-direction: column; gap: 0.375rem; margin: 0; padding: 0; border: 0; min-inline-size: 0; }
     .opcion {
       display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 0.75rem; min-block-size: 2.75rem;
@@ -100,10 +110,14 @@ export class ElectorDeRubricaComponent {
   readonly perdidas = input<readonly string[]>([]);
   /** Cuántas respuestas marcan esos criterios. */
   readonly respuestasAfectadas = input(0);
+  /** Se está averiguando qué criterios se pierden: no se confirma hasta saberlo. */
+  readonly comprobando = input(false);
+  readonly errorComprobacion = input('');
 
   readonly elegir = output<OpcionDeRubrica['id']>();
   readonly confirmar = output<void>();
   readonly cancelar = output<void>();
+  readonly recomprobar = output<void>();
 
   protected avisoDePerdidas(): string {
     const n = this.respuestasAfectadas();

@@ -207,6 +207,57 @@ describe('DatosComponent · los datos del caso se guardan solos', () => {
     expect(contexto().value).toBe('Texto que el sistema rechaza.');
   });
 
+  it('un campo con error no retiene a los demás: el contexto bueno se guarda aunque el nombre esté vacío', async () => {
+    const { servidor, store, nombre, contexto, estado, escribir, listo } = await montar();
+    await escribir(nombre(), '');
+    await escribir(contexto(), 'Un contexto nuevo y válido.', true);
+    await store.sincronizado();
+    await listo();
+    const envios = servidor.llamadasA('updateBrief');
+    expect(envios).toHaveLength(1);
+    expect(envios[0].args[0]).toMatchObject({ context: 'Un contexto nuevo y válido.' });
+    expect(envios[0].args[0]).not.toHaveProperty('title', '');
+    expect(store.caso()!.titulo).toBe('Primera escucha en Bienestar');
+    expect(nombre().value).toBe(''); // el campo con error conserva lo escrito
+    expect(estado()).toBe('Se guardó lo demás. Corrige lo marcado para guardarlo también.');
+  });
+
+  it('cambiar de pantalla con un campo por corregir o un tema sin agregar pregunta antes; sin nada pendiente, no', async () => {
+    const { fixture, nombre, escribir, raiz } = await montar();
+    const componente = fixture.componentInstance as unknown as { canLeave(): Promise<boolean> };
+    await expect(componente.canLeave()).resolves.toBe(true);
+    await escribir(nombre(), '');
+    const salida = componente.canLeave();
+    await new Promise((r) => setTimeout(r, 0));
+    const dialogo = document.querySelector('ui-consequence-dialog')!;
+    expect(dialogo.textContent).toContain('el nombre del caso');
+    [...dialogo.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent?.includes('Seguir editando'))!.click();
+    await expect(salida).resolves.toBe(false);
+    await escribir(nombre(), 'Primera escucha en Bienestar');
+    await escribir(raiz.querySelector<HTMLInputElement>('#d-tema')!, 'Autolesiones');
+    const otra = componente.canLeave();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(document.querySelector('ui-consequence-dialog')!.textContent).toContain('el tema «Autolesiones», que no agregaste');
+    [...document.querySelectorAll<HTMLButtonElement>('ui-consequence-dialog button')].find((b) => b.textContent?.includes('Salir sin guardarlo'))!.click();
+    await expect(otra).resolves.toBe(true);
+  });
+
+  it('guardar Datos no borra el error que dejó otra operación (ni lo que se descartó)', async () => {
+    const { servidor, store, contexto, escribir, listo } = await montar();
+    servidor.fallar('updateBrief', 400, 'No.', { campo: 'context' });
+    await escribir(contexto(), 'Este se rechaza.', true);
+    await store.sincronizado();
+    await listo();
+    const error = store.error();
+    const descartado = store.descartado();
+    expect(error).not.toBeNull();
+    await escribir(contexto(), 'Este sí entra.', true);
+    await store.sincronizado();
+    await listo();
+    expect(store.error()).toBe(error);
+    expect(store.descartado()).toBe(descartado);
+  });
+
   it('si otra persona cambió el caso, lo dice sin perder lo escrito', async () => {
     const { servidor, store, contexto, estado, escribir, listo } = await montar();
     servidor.otraSesionEscribe();

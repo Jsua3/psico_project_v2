@@ -24,8 +24,9 @@ import { type CriterioVista, type VistaRubrica, criteriosDe, pesoEnPalabras, tip
  * sus dos acciones), propia (criterios, peso y «Dónde se evidencia»), compartida (una asignada de la biblioteca: se
  * ofrece traer una copia) y predeterminada de la institución (lo mismo).
  *
- * Tras adoptar, el store relee el caso (`adoptarRubrica`: espera lo pendiente, manda con la revisión vigente y vuelve a
- * leer): la faceta «Criterios» de las respuestas ya muestra las competencias, sin conflicto de revisión. No bloquea el
+ * La adopción viaja por la cola del store (`adoptarRubrica`): sale después de lo pendiente, con la revisión vigente, y la
+ * vista que devuelve el servidor pasa a ser el caso: la faceta «Criterios» de las respuestas ya muestra las competencias,
+ * sin conflicto de revisión. No bloquea el
  * envío si falta la rúbrica (el servidor no lo exige).
  *
  * Patrón: contenedor con estados explícitos (State: cargando, error, sin rúbrica, propia, compartida, predeterminada);
@@ -54,6 +55,12 @@ export class RubricaDelCasoComponent {
   protected readonly cargandoOpciones = signal(false);
   protected readonly errorElector = signal('');
   protected readonly perdidas = signal<string[]>([]);
+  /**
+   * Se está averiguando qué criterios marcados no tiene la rúbrica elegida. Mientras tanto no se confirma: el aviso de lo
+   * que se pierde tiene que llegar antes del cambio, no después. Si la consulta falla, se dice y se ofrece volver a mirar.
+   */
+  protected readonly comprobando = signal(false);
+  protected readonly errorComprobacion = signal('');
   protected readonly ocupado = signal(false);
   /** Lo que falló al adoptar sin el elector («Usar las competencias del programa», «Traer una copia»). */
   protected readonly errorAdopcion = signal('');
@@ -153,6 +160,8 @@ export class RubricaDelCasoComponent {
     this.eligiendo.set(true);
     this.elegida.set(null);
     this.perdidas.set([]);
+    this.comprobando.set(false);
+    this.errorComprobacion.set('');
     this.errorElector.set('');
     const programa: OpcionDeRubrica = {
       id: 'programa', nombre: 'Las competencias del programa', motivo: '',
@@ -184,8 +193,13 @@ export class RubricaDelCasoComponent {
     this.elegida.set(id);
     this.perdidas.set([]);
     this.perdidasCodigos.set([]);
+    this.errorComprobacion.set('');
     const marcadas = this.codigosMarcados();
-    if (!marcadas.size) return;
+    if (!marcadas.size) {
+      this.comprobando.set(false);
+      return;
+    }
+    this.comprobando.set(true);
     try {
       const codigos = id === 'programa' ? await this.codigosDelPrograma() : await this.codigosDe(id);
       if (this.elegida() !== id) return;
@@ -194,13 +208,23 @@ export class RubricaDelCasoComponent {
       this.perdidasCodigos.set(perdidos);
       this.perdidas.set(perdidos.map((c) => nombres.get(c) ?? c));
     } catch {
-      // Sin la lista no se puede avisar con nombres; el cambio sigue siendo posible.
+      if (this.elegida() !== id) return;
+      // BORRADOR: texto nuevo, pendiente de la aprobación de Psicología
+      this.errorComprobacion.set('No pudimos comprobar qué criterios marcados se conservan con esta rúbrica. Vuelve a intentarlo antes de usarla.');
+    } finally {
+      if (this.elegida() === id) this.comprobando.set(false);
     }
+  }
+
+  /** «Volver a comprobar» tras un fallo de la consulta. */
+  protected recomprobar(): void {
+    const id = this.elegida();
+    if (id !== null) void this.elegir(id);
   }
 
   protected confirmar(): void {
     const id = this.elegida();
-    if (id === null) return;
+    if (id === null || this.comprobando() || this.errorComprobacion()) return;
     const opcion = this.opciones().find((o) => o.id === id);
     void this.adoptar(id === 'programa' ? { fromCompetencies: true } : { rubricId: id }, opcion?.nombre ?? 'la rúbrica elegida');
   }

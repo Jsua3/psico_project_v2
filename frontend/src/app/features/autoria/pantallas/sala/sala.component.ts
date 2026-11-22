@@ -115,13 +115,14 @@ const CONSULTA_ESTRECHA = '(max-width: 63.999rem)';
         <div class="sala__cuerpo">
           <section aria-labelledby="en-sala" class="tarjeta columna-lista">
             <h2 id="en-sala">En esta sala</h2>
-            <ul role="listbox" aria-label="Cosas en la sala" class="lista">
+            <!-- Lista con foco itinerante (patrón listbox de ARIA): Tab entra y sale de una vez; las flechas, Inicio y Fin recorren y eligen. -->
+            <ul role="listbox" aria-label="Cosas en la sala" class="lista" (keydown)="recorrerLista($event)">
               @for (g of grupos(); track g.titulo) {
                 <li role="group" [attr.aria-label]="g.titulo" [attr.data-accion]="g.titulo === 'Personajes' ? 'cambiar-expresion como-se-mueve persona-a-atender' : null">
                   <span class="grupo" aria-hidden="true">{{ g.titulo }}</span>
                   <ul role="none">
                     @for (p of g.piezas; track p.clave) {
-                      <li role="option" tabindex="0" [attr.aria-selected]="elegida() === p.clave"
+                      <li role="option" [attr.tabindex]="itinerante() === p.clave ? 0 : -1" [attr.aria-selected]="elegida() === p.clave" [attr.data-clave]="p.clave"
                           (mouseenter)="atencion.set(p.clave)" (mouseleave)="soltarAtencion(p.clave)"
                           (focus)="atencion.set(p.clave)" (blur)="soltarAtencion(p.clave)" (click)="elegir(p.clave)" (keydown.enter)="elegir(p.clave)" (keydown.space)="elegir(p.clave); $event.preventDefault()">
                         <span class="opcion__nombre">{{ p.nombre }}</span>
@@ -765,6 +766,30 @@ export class SalaComponent {
   protected posicion(p: Pieza): { x: number; y: number } {
     const a = this.arrastre();
     return a && a.clave === p.clave ? { x: a.x, y: a.y } : { x: p.x, y: p.y };
+  }
+
+  /** La opción de la lista que recibe el Tab: la elegida si está en la lista, o la primera. */
+  protected readonly itinerante = computed(() => {
+    const claves = this.grupos().flatMap((g) => g.piezas.map((p) => p.clave));
+    const elegida = this.elegida();
+    return elegida !== null && claves.includes(elegida) ? elegida : (claves[0] ?? null);
+  });
+
+  /** Flechas, Inicio y Fin en la lista «En esta sala»: mueven el foco a otra opción y la eligen (la selección sigue al foco). */
+  protected recorrerLista(evento: KeyboardEvent): void {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(evento.key)) return;
+    const lista = evento.currentTarget as HTMLElement;
+    const opciones = [...lista.querySelectorAll<HTMLElement>('[role="option"]')];
+    if (!opciones.length) return;
+    evento.preventDefault();
+    const actual = opciones.indexOf(document.activeElement as HTMLElement);
+    const destino = evento.key === 'Home' ? 0
+      : evento.key === 'End' ? opciones.length - 1
+        : Math.min(opciones.length - 1, Math.max(0, actual + (evento.key === 'ArrowDown' ? 1 : -1)));
+    const opcion = opciones[destino];
+    const clave = opcion.dataset['clave'];
+    if (clave) this.elegir(clave);
+    opcion.focus();
   }
 
   protected elegir(clave: string): void {

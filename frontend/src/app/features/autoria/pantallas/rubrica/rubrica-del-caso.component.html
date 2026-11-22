@@ -87,6 +87,7 @@
     @if (eligiendo()) {
       <app-elector-de-rubrica [titulo]="vista().tipo === 'propia' ? 'Cambiar la rúbrica del caso' : 'Elegir la rúbrica del caso'"
                               [opciones]="opciones()" [elegida]="elegida()" [cargando]="cargandoOpciones()" [ocupado]="ocupado()"
+                              [comprobando]="comprobando()" [errorComprobacion]="errorComprobacion()" (recomprobar)="recomprobar()"
                               [error]="errorElector()" [perdidas]="perdidas()" [respuestasAfectadas]="respuestasAfectadas()"
                               (elegir)="elegir($event)" (confirmar)="confirmar()" (cancelar)="cerrarElector()" />
     }

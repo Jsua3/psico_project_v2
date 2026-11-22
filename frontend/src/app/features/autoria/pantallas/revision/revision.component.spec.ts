@@ -124,7 +124,7 @@ describe('RevisionComponent · la compuerta de publicación en lenguaje del doce
     raiz.querySelector<HTMLButtonElement>('section.por-resolver li.falta button')!.click();
     await new Promise((r) => setTimeout(r, 120));
     await listo();
-    expect(navegar).toHaveBeenCalledWith(`/portal/casos/${store.caso()!.id}/editor`);
+    expect(navegar).toHaveBeenCalledWith(`/portal/casos/${store.caso()!.id}/editor/evaluacion`); // los hitos viven en Evaluación (E5)
     expect(document.activeElement).toBe(destino);
     destino.remove();
   });

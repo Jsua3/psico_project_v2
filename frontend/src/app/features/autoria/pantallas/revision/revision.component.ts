@@ -114,7 +114,7 @@ const NO_SE_PUDO_ENVIAR = 'No se pudo enviar el caso. No se cambió nada: vuelve
                 <div class="probado" data-probado [attr.data-listo]="!!caso.probadoHastaElFinal">
                   <span class="marca" aria-hidden="true">{{ caso.probadoHastaElFinal ? '✓' : '○' }}</span>
                   <span class="probado__texto">{{ caso.probadoHastaElFinal ? 'Lo probaste hasta un final.' : 'Aún no lo has probado hasta un final.' }}</span>
-                  <a class="boton boton-texto" [attr.href]="rutaEnsayo()" target="_blank" rel="noopener" data-accion="probar" (click)="probar($event)">Probar</a>
+                  <a class="boton boton-texto" [attr.href]="rutaEnsayo()" target="_blank" rel="noopener" data-accion="probar" (click)="probar($event)" (auxclick)="probar($event)">Probar</a>
                 </div>
                 @if (faltasDelServidor().length) {
                   <p class="texto-secundario sub">Además, Psicología pide:</p>
@@ -490,7 +490,10 @@ export class RevisionComponent {
     const caso = this.store.caso();
     return !caso ? 0 : caso.modoFinales === 'automatico' ? 4 : caso.finales.length;
   });
-  /** «Probar» abre el borrador en el juego real: con clic normal en esta pestaña; con Ctrl o clic central, en otra (como la barra). */
+  /**
+   * «Probar» abre el borrador en el juego real: con clic normal en esta pestaña; con Ctrl o clic central, en otra ya al día
+   * (`alPulsarProbar`). El clic central no llega como `click` sino como `auxclick`: por eso se escuchan los dos.
+   */
   protected readonly rutaEnsayo = computed(() => RUTA_ENSAYO(this.store.caso()?.id ?? ''));
   protected probar(evento: MouseEvent): void {
     void alPulsarProbar(evento, this.store);

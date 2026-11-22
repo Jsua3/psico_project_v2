@@ -79,6 +79,33 @@ describe('E4 · la sala: el lienzo manda', () => {
     expect(cabecera.textContent).toContain('Los cambios valen para todas las escenas que pasan en esta sala.');
   });
 
+  it('la lista «En esta sala» tiene una sola parada de Tab y las flechas, Inicio y Fin la recorren eligiendo', async () => {
+    const { fixture, raiz } = await montar();
+    document.body.appendChild(raiz); // el foco solo existe en un documento
+    const opciones = () => [...raiz.querySelectorAll<HTMLElement>('ul[role="listbox"] [role="option"]')];
+    expect(opciones().length).toBeGreaterThan(1);
+    expect(opciones().filter((o) => o.getAttribute('tabindex') === '0')).toHaveLength(1);
+    expect(opciones()[0].getAttribute('tabindex')).toBe('0');
+    const tecla = async (key: string) => {
+      (document.activeElement as HTMLElement).dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
+    opciones()[0].focus();
+    await tecla('ArrowDown');
+    expect(document.activeElement).toBe(opciones()[1]);
+    expect(opciones()[1].getAttribute('aria-selected')).toBe('true');
+    expect(opciones()[1].getAttribute('tabindex')).toBe('0');
+    expect(opciones()[0].getAttribute('tabindex')).toBe('-1');
+    await tecla('End');
+    expect(document.activeElement).toBe(opciones().at(-1));
+    await tecla('Home');
+    expect(document.activeElement).toBe(opciones()[0]);
+    await tecla('ArrowUp'); // en la primera se queda
+    expect(document.activeElement).toBe(opciones()[0]);
+    raiz.remove();
+  });
+
   it('las flechas recorren las pestañas del panel y el foco las acompaña', async () => {
     const { fixture, raiz } = await montar();
     document.body.appendChild(raiz);
