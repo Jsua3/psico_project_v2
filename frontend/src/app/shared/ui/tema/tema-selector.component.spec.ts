@@ -15,6 +15,7 @@ describe('TemaSelectorComponent', () => {
   const host = () => fixture.nativeElement as HTMLElement;
   const radios = () => [...host().querySelectorAll<HTMLButtonElement>('[role="radio"]')];
   const marcadas = () => radios().map(r => r.getAttribute('aria-checked'));
+  const comp = () => fixture.componentInstance;
 
   beforeEach(async () => {
     TestBed.configureTestingModule({ providers: [provideZonelessChangeDetection()] });
@@ -31,7 +32,7 @@ describe('TemaSelectorComponent', () => {
     expect(radios().map(r => r.getAttribute('aria-label'))).toEqual(['Claro', 'Oscuro', 'Automático']);
     expect(marcadas()).toEqual(['false', 'false', 'true']);
     expect(radios().map(r => r.tabIndex)).toEqual([-1, -1, 0]);
-    expect(host().getAttribute('data-indice')).toBe('2');
+    expect(host().getAttribute('data-fijo')).toBe('2');
   });
 
   it('plegado, el primer toque abre; abierto, el toque elige y la cápsula se recoloca sobre la elegida', async () => {
@@ -43,15 +44,19 @@ describe('TemaSelectorComponent', () => {
     await fixture.whenStable();
     expect(tema.preferencia()).toBe('oscuro');
     expect(marcadas()).toEqual(['false', 'true', 'false']);
-    expect(host().getAttribute('data-indice')).toBe('1');
+    expect(host().getAttribute('data-fijo')).toBe('2'); // abierto, el orden sigue fijado
   });
 
-  it('con el teclado: las flechas cambian la elección (y abren) y Escape pliega', async () => {
+  it('con el teclado: las flechas siguen el orden que se VE (fijado al abrir) y Escape pliega', async () => {
+    // Elegido «Automático» en un módulo centrado: se ve Claro · Automático · Oscuro (la elegida en medio).
+    expect(comp().ordenVisual()).toEqual([0, 2, 1]);
     radios()[2].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     await fixture.whenStable();
-    expect(tema.preferencia()).toBe('claro');
+    expect(tema.preferencia()).toBe('oscuro');
     expect(host().classList.contains('abierto')).toBe(true);
-    radios()[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    // El orden no salta mientras está abierto.
+    expect(host().getAttribute('data-fijo')).toBe('2');
+    radios()[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
     await fixture.whenStable();
     expect(tema.preferencia()).toBe('sistema');
     radios()[2].dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
@@ -68,10 +73,23 @@ describe('TemaSelectorComponent', () => {
     expect(host().classList.contains('abierto')).toBe(false);
   });
 
-  it('el rótulo dice la opción elegida y no escribe estilos en línea (la portada exige cero [style])', () => {
-    expect(host().querySelector('.rotulo')!.textContent!.trim()).toBe('Automático');
-    expect(host().querySelector('.rotulo')!.getAttribute('aria-hidden')).toBe('true');
+  it('sin recuadro propio ni rótulo con caja: cada opción tiene nombre accesible y un title corto; sin estilos en línea', () => {
+    expect(host().querySelector('.rotulo')).toBeNull();
+    expect(radios().map(r => r.getAttribute('title'))).toEqual(['Claro', 'Oscuro', 'Automático (como tu sistema)']);
     expect(host().hasAttribute('style')).toBe(false);
     expect(host().querySelectorAll('[style]')).toHaveLength(0);
+  });
+
+  it('al cerrar, el orden se fija sobre la nueva elegida (en medio en un módulo centrado)', async () => {
+    radios()[0].click();
+    await fixture.whenStable();
+    radios()[0].click();
+    await fixture.whenStable();
+    expect(host().getAttribute('data-fijo')).toBe('2');
+    document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    await fixture.whenStable();
+    expect(host().getAttribute('data-fijo')).toBe('0');
+    expect(comp().ordenVisual()).toEqual([1, 0, 2]);
+    expect(host().getAttribute('data-ancla')).toBe('centro');
   });
 });
