@@ -146,3 +146,9 @@
     font-size: var(--ds-type-h3-size);
   }
 }
+
+// La pieza de valoración docente en tres estados (con datos, en columna estrecha y sin valoración), separados.
+.ui-gallery__valoraciones {
+  display: grid;
+  gap: var(--ds-space-6);
+}

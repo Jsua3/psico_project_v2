@@ -1,4 +1,6 @@
 import { NgTemplateOutlet } from '@angular/common';
+import { ValoracionDocenteComponent } from '../../features/simulator/valoracion-docente.component';
+import { OwnerEvaluation } from '../../core/models/simulation.model';
 import { DialogRef } from '@angular/cdk/dialog';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 
@@ -73,7 +75,7 @@ export class UiGalleryDialog {
   // Servicio de avisos propio: el anfitrión heredado de la app no repite los avisos de la galería.
   providers: [NotificationService],
   imports: [
-    NgTemplateOutlet, UiBadge, UiButton, UiCard, UiCheck, UiControl, UiEmptyState, UiErrorState, UiField, UiIconButton, UiLink,
+    ValoracionDocenteComponent, NgTemplateOutlet, UiBadge, UiButton, UiCard, UiCheck, UiControl, UiEmptyState, UiErrorState, UiField, UiIconButton, UiLink,
     UiMenu, UiPageHeader, UiProgress, UiScopeNotice, UiSection, UiSkeleton, UiSpinner, UiStat, UiSwitch, UiTab, UiTable, UiTableEmpty, UiTableError, UiTableRow,
     UiTableTable, UiTabs, UiToastHost, UiTooltip,
     DoodlesComponent, UiArchivo, UiBarraAcciones, UiBarras, UiCelda, UiCeldaAcciones, UiCeldaPrincipal, UiFiguraPixel, UiFiltros,
@@ -96,6 +98,13 @@ export class UiGalleryDialog {
     <ui-toast-host />
 
     <ng-template #matrix let-skin>
+      <ui-section title="Valoración docente" [level]="3">
+        <div class="ui-gallery__valoraciones">
+          <app-valoracion-docente [valoracion]="valoracionEjemplo" />
+          <div class="ui-gallery__estrecha"><app-valoracion-docente [valoracion]="valoracionEjemplo" /></div>
+          <app-valoracion-docente [valoracion]="null" />
+        </div>
+      </ui-section>
       <ui-section title="Botones" [level]="3">
         <div class="ui-gallery__row">
           @for (variant of variants; track variant.id) {
@@ -477,6 +486,14 @@ export class UiGalleryComponent {
     { value: 'personaje', label: 'Mi personaje', icon: 'face' },
     { value: 'salir', label: 'Cerrar sesión', icon: 'logout', tone: 'danger' },
   ];
+  protected readonly valoracionEjemplo: OwnerEvaluation['evaluations'][number] = {
+    rubricName: 'Rúbrica formativa', origin: 'DOCENTE', evaluatedAt: null,
+    comment: 'Escuchaste con atención y explicaste tus decisiones.', overallLevel: 'LOGRADO',
+    criteria: [
+      { criterionId: 1, title: 'Escucha y acompañamiento', level: 'LOGRADO', descriptor: 'Escucha y responde con atención.', comment: 'Diste espacio para expresar sus inquietudes.' },
+      { criterionId: 2, title: 'Reflexión profesional', level: 'EN_PROCESO', comment: 'Puedes profundizar en las alternativas.' },
+    ],
+  };
   protected readonly skins = [
     { id: 'portal', label: 'portal' },
     { id: 'game', label: 'juego' },
