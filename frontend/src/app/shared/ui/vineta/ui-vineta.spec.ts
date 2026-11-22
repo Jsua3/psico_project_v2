@@ -89,9 +89,9 @@ describe('UiVineta', () => {
     it('lleva la escala entera y el tamaño del escenario como variables, sin style en la plantilla', async () => {
       const host = await crear('archivo', { escala: 3 });
       expect(host.style.getPropertyValue('--vineta-e')).toBe('3');
-      expect(host.style.getPropertyValue('--vw')).toBe('236');
+      expect(host.style.getPropertyValue('--vw')).toBe('206');
       const pieza = host.querySelector<HTMLElement>('ui-pieza-pixel.ui-pieza-pixel--hoja')!;
-      expect(pieza.style.getPropertyValue('--pimg')).toContain('/assets/biblioteca/piezas/muebles/comisaria/estante-expedientes.png');
+      expect(pieza.style.getPropertyValue('--pimg')).toContain('/assets/biblioteca/piezas/muebles/universidad/estante-libros.png');
       expect(host.querySelector('ui-figura-pixel')?.classList).toContain('ui-figura-pixel--x3');
     });
 

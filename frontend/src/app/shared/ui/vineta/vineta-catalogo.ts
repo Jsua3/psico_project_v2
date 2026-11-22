@@ -99,24 +99,25 @@ export const ESCENAS = {
   },
   // Docente: el escritorio de la orientadora y tres herramientas del simulador suspendidas, como en el inventario.
   orientadora: {
-    ancho: 210, alto: 112,
+    ancho: 210, alto: 100,
     capas: [
       { pieza: 'universidad/planta', x: 0 },
       { pieza: 'universidad/escritorio', x: 34 },
       { kit: 'orientadora-juridica', x: 160, protagonista: true },
-      { pieza: 'herramienta/pap', x: 44, y: 76, flota: true },
-      { pieza: 'herramienta/risk-meter', x: 86, y: 82, flota: true },
-      { pieza: 'herramienta/safety-route', x: 128, y: 76, flota: true },
+      { pieza: 'herramienta/pap', x: 44, y: 68, flota: true },
+      { pieza: 'herramienta/risk-meter', x: 86, y: 73, flota: true },
+      { pieza: 'herramienta/safety-route', x: 128, y: 68, flota: true },
     ],
   },
-  // Administración: el archivo de expedientes, el archivador y la caja; quien lleva las cuentas del lugar.
+  // Administración: el estante, el archivador y la caja de archivo; quien lleva las cuentas del lugar. A la altura de
+  // una persona (80 px del arte), para que la cabecera no crezca más que el saludo.
   archivo: {
-    ancho: 236, alto: 100,
+    ancho: 206, alto: 80,
     capas: [
-      { pieza: 'comisaria/estante-expedientes', x: 0 },
-      { pieza: 'universidad/archivador', x: 100 },
-      { kit: 'funcionaria-recepcion', x: 146, protagonista: true },
-      { pieza: 'comisaria/caja-archivo', x: 196 },
+      { pieza: 'universidad/estante-libros', x: 0 },
+      { pieza: 'universidad/archivador', x: 68 },
+      { kit: 'funcionaria-recepcion', x: 114, protagonista: true },
+      { pieza: 'comisaria/caja-archivo', x: 164 },
     ],
   },
   // Catálogo de casos: la cartelera de avisos del campus, donde se anuncia lo que hay para practicar.

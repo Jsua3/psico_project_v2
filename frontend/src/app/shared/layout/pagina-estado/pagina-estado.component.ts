@@ -21,8 +21,8 @@ import { UiVineta } from '../../ui/vineta/ui-vineta';
            Detrás, los doodles suaves de la portada, solo en esta zona y sin luz del cursor. «Sin conexión» no descarga
            nada (no hay red): ni viñeta ni doodles, su firma es solo CSS. -->
       @switch (tipo()) {
-        @case ('no-encontrada') { <ui-vineta class="estado__vineta" escena="perdido" [escala]="3" /> }
-        @case ('sin-permiso') { <ui-vineta class="estado__vineta" escena="restringido" [escala]="3" /> }
+        @case ('no-encontrada') { <ui-vineta class="estado__vineta" escena="perdido" /> }
+        @case ('sin-permiso') { <ui-vineta class="estado__vineta" escena="restringido" /> }
         @default { <div class="estado__arte" aria-hidden="true"><span></span><span></span><span></span></div> }
       }
       <h1>{{ titulo() }}</h1>
