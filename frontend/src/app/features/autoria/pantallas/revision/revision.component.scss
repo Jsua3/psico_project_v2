@@ -26,7 +26,7 @@
   position: absolute; inset-inline-start: 0; inset-block-start: -1px; block-size: 2px; inline-size: 100%; background: var(--ds-primary);
   transform-origin: left; animation: barra-avanza var(--ds-dur-slow) var(--ds-ease-out) both;
 }
-@keyframes barra-avanza { from { scale: 0 1; } to { scale: 0.85 1; } }
+@keyframes barra-avanza { from { scale: 0.05 1; } to { scale: 0.85 1; } }
 
 // ── Grupos por etapa ──
 .etapas, .problemas, .lista, .hechos { list-style: none; margin: 0; padding: 0; }
