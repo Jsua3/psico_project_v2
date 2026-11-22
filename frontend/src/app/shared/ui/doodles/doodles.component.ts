@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy, Component, DestroyRef, ElementRef, ViewEncapsulation, afterNextRender, booleanAttribute, inject,
   input,
 } from '@angular/core';
+import { NavigationEnd, Router } from '@angular/router';
 
 /** Lado del mosaico en px: el SVG mide 520 × 520 y la máscara lo repite a ese tamaño desde la esquina de la vista. */
 export const TESELA = 520;
@@ -62,6 +63,75 @@ export function figurasCercanas(figuras: readonly Figura[], px: number, py: numb
 }
 
 const numero = (el: Element, nombre: string): number => Number(el.getAttribute(nombre) ?? 0);
+
+/** Modo «márgenes»: px de blanco que necesita un lado para llevar doodles, distancia que guardan del contenido y px
+ *  libres bajo el contenido para pintar también ahí. Prudente a propósito: a 1440 px solo las páginas de lectura los
+ *  muestran a los lados; a 1920, todas las de ancho normal. */
+export const MARGEN_MINIMO = 200;
+export const DISTANCIA_AL_CONTENIDO = 64;
+export const LIBRE_MINIMO = 240;
+
+/** Lo que ocupa el contenido que se ve: x en px de la vista, y en px del documento (el inicio, bajo la cabecera). */
+export interface ExtensionContenido {
+  izq: number;
+  der: number;
+  inicio: number;
+  fin: number;
+}
+
+/**
+ * Las variables de la máscara del modo «márgenes» para una extensión dada, la vista y el desplazamiento. Un lado se
+ * apaga (−9999 / 99999) si su margen no llega al mínimo; lo de debajo, si no quedan `LIBRE_MINIMO` px libres en pantalla.
+ */
+export function zonasDeMargen(ext: ExtensionContenido | null, ancho: number, alto: number, desplazamiento: number): Record<string, string> {
+  if (!ext) return { '--g-izq': '-9999px', '--g-der': '99999px', '--a': '0px', '--fin': '99999px' };
+  const fin = ext.fin - desplazamiento;
+  return {
+    '--g-izq': ext.izq >= MARGEN_MINIMO ? `${Math.round(ext.izq - DISTANCIA_AL_CONTENIDO)}px` : '-9999px',
+    '--g-der': ancho - ext.der >= MARGEN_MINIMO ? `${Math.round(ext.der + DISTANCIA_AL_CONTENIDO)}px` : '99999px',
+    '--a': `${Math.round(ext.inicio - desplazamiento)}px`,
+    '--fin': alto - fin >= LIBRE_MINIMO ? `${Math.round(fin + DISTANCIA_AL_CONTENIDO)}px` : '99999px',
+  };
+}
+
+/**
+ * Mide el contenido que de verdad se ve dentro de `raiz`: la unión de las cajas con fondo, borde, sombra, imagen,
+ * control o texto propio, bajando por los envoltorios transparentes (que suelen ocupar todo el ancho sin pintar nada).
+ * Lo oculto, lo que está fuera de la vista (los enlaces de salto) y los textos solo para lectores no cuentan. El inicio
+ * es el pie de la cabecera ilustrada, que ya lleva sus propios doodles.
+ */
+export function extensionDelContenido(raiz: Element, ancho: number, desplazamiento: number): ExtensionContenido | null {
+  let izq = Infinity;
+  let der = -Infinity;
+  let fin = -Infinity;
+  const pinta = (el: Element, cs: CSSStyleDeclaration): boolean => {
+    if (['IMG', 'SVG', 'CANVAS', 'VIDEO', 'INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(el.tagName.toUpperCase())) return true;
+    if (cs.backgroundImage !== 'none' || cs.boxShadow !== 'none') return true;
+    if (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && cs.backgroundColor !== 'transparent') return true;
+    if (parseFloat(cs.borderTopWidth) > 0 || parseFloat(cs.borderLeftWidth) > 0) return true;
+    return Array.from(el.childNodes).some(n => n.nodeType === 3 && !!n.textContent?.trim());
+  };
+  const recorrer = (el: Element, profundidad: number): void => {
+    if (el.localName === 'app-doodles') return;
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.position === 'fixed') return;
+    const r = el.getBoundingClientRect();
+    const sinCaja = r.width <= 1 || r.height <= 1;
+    if (!sinCaja && (r.right <= 0 || r.left >= ancho)) return;
+    if (!sinCaja && (profundidad > 14 || pinta(el, cs))) {
+      izq = Math.min(izq, r.left);
+      der = Math.max(der, r.right);
+      fin = Math.max(fin, r.bottom + desplazamiento);
+      return;
+    }
+    for (const hijo of Array.from(el.children)) recorrer(hijo, profundidad + 1);
+  };
+  for (const hijo of Array.from(raiz.children)) recorrer(hijo, 0);
+  if (!Number.isFinite(izq)) return null;
+  const cabecera = raiz.querySelector('ui-cabecera-ilustrada');
+  const inicio = (cabecera ?? raiz).getBoundingClientRect()[cabecera ? 'bottom' : 'top'] + desplazamiento;
+  return { izq, der, inicio, fin };
+}
 
 /**
  * Centro y radio de cada hijo del grupo de trazos del mosaico, leídos de sus atributos (sin medir el DOM). Los <use>
@@ -126,6 +196,7 @@ const RETIRO_MS = 300;
     '[class.doodles--suave]': "intensidad() === 'suave'",
     '[class.doodles--borde-corto]': "borde() === 'corto'",
     '[class.doodles--hacia-fin]': "hacia() === 'fin'",
+    '[class.doodles--margenes]': "modo() === 'margenes'",
   },
   template: `<div class="capa"></div><div class="capa acento"></div><svg class="luz" focusable="false"><defs></defs><g class="figuras"></g></svg>`,
   styles: `
@@ -233,7 +304,47 @@ const RETIRO_MS = 300;
       transition-duration: max(var(--ds-dur-base, 200ms), var(--ds-dur-fade, 160ms));
     }
 
-    @media (forced-colors: active) {
+    /* Márgenes (el portal): el mosaico solo en el blanco que deja el contenido, a cada lado con margen de sobra y debajo
+       cuando sobra alto, a 64 px del contenido y con 120 px de difuminado; desde el pie de la cabecera ilustrada (que
+       lleva los suyos). Va un nivel por debajo de la base, como la luz ambiental: detrás de todo lo que pinta la
+       página. Las cuatro capas: mosaico ∩ (debajo ∪ (lados ∩ desde arriba)). Las posiciones las pone el JS. */
+    app-doodles.doodles--margenes {
+      z-index: calc(var(--ds-z-base, 1) - 1);
+      --g-izq: -9999px;
+      --g-der: 99999px;
+      --fin: 99999px;
+      --a: 0px;
+      --lados: linear-gradient(to right, #000 calc(var(--g-izq) - 120px), transparent var(--g-izq), transparent var(--g-der), #000 calc(var(--g-der) + 120px));
+      --desde-arriba: linear-gradient(to bottom, transparent var(--a), #000 calc(var(--a) + 64px));
+      --debajo: linear-gradient(to bottom, transparent var(--fin), #000 calc(var(--fin) + 120px));
+    }
+
+    app-doodles.doodles--margenes .capa {
+      -webkit-mask-image: var(--mosaico), var(--debajo), var(--lados), var(--desde-arriba);
+      mask-image: var(--mosaico), var(--debajo), var(--lados), var(--desde-arriba);
+      -webkit-mask-size: var(--lado) var(--lado), 100% 100%, 100% 100%, 100% 100%;
+      mask-size: var(--lado) var(--lado), 100% 100%, 100% 100%, 100% 100%;
+      -webkit-mask-repeat: repeat, no-repeat, no-repeat, no-repeat;
+      mask-repeat: repeat, no-repeat, no-repeat, no-repeat;
+      -webkit-mask-composite: source-in, source-over, source-in;
+      mask-composite: intersect, add, intersect;
+    }
+
+    app-doodles.doodles--margenes .capa.acento {
+      -webkit-mask-image: var(--mosaico-acento), var(--debajo), var(--lados), var(--desde-arriba);
+      mask-image: var(--mosaico-acento), var(--debajo), var(--lados), var(--desde-arriba);
+    }
+
+    app-doodles.doodles--margenes .luz {
+      display: none;
+    }
+
+    /* En el teléfono y la tableta el margen no existe: nada que llenar. */
+    @media (max-width: 63.999rem) {
+      app-doodles.doodles--margenes { display: none; }
+    }
+
+    @media (forced-colors: active), print {
       app-doodles { display: none; }
     }
   `,
@@ -249,12 +360,21 @@ export class DoodlesComponent {
   readonly borde = input<'amplio' | 'corto'>('amplio');
   /** `todo`: la misma tinta de lado a lado; `fin`: se desvanece hacia el inicio, donde suele ir el título. */
   readonly hacia = input<'todo' | 'fin'>('todo');
+  /** `zona`: entre `desde` y `hasta` (la portada, las cabeceras); `margenes`: solo en el blanco alrededor del contenido
+   *  de `columna`, sin luz. Se apaga solo si la página ya trae sus propios doodles (las páginas de estado). */
+  readonly modo = input<'zona' | 'margenes'>('zona');
+  readonly columna = input('main');
 
   constructor() {
     const destroyRef = inject(DestroyRef);
     const host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+    const router = inject(Router, { optional: true });
     afterNextRender(() => {
       if (typeof matchMedia !== 'function' || typeof requestAnimationFrame !== 'function') return;
+      if (this.modo() === 'margenes') {
+        this.vigilarMargenes(host, destroyRef, router);
+        return;
+      }
       const defs = host.querySelector('defs');
       const capaLuz = host.querySelector<SVGGElement>('g.figuras');
       if (!defs || !capaLuz) return;
@@ -440,6 +560,47 @@ export class DoodlesComponent {
         fino.removeEventListener('change', pedir);
         forzado.removeEventListener('change', pedir);
       });
+    });
+  }
+
+  /**
+   * Modo «márgenes»: mide el contenido (al cargar, al cambiar de tamaño la página o la ventana y al navegar) y, en cada
+   * desplazamiento, solo traslada la zona: medir recorre el DOM; desplazar no.
+   */
+  private vigilarMargenes(host: HTMLElement, destroyRef: DestroyRef, router: Router | null): void {
+    let extension: ExtensionContenido | null = null;
+    let pedidoMedir = 0;
+    let pedidoAplicar = 0;
+    const aplicar = () => {
+      pedidoAplicar = 0;
+      const vars = zonasDeMargen(extension, document.documentElement.clientWidth, innerHeight, scrollY);
+      for (const [nombre, valor] of Object.entries(vars)) host.style.setProperty(nombre, valor);
+    };
+    const medir = () => {
+      pedidoMedir = 0;
+      const raiz = document.querySelector(this.columna());
+      // Las páginas de estado (sin permiso, 404) ya llevan doodles en su zona: no se duplican.
+      const propios = Array.from(raiz?.querySelectorAll('app-doodles') ?? []).some(d => !d.closest('ui-cabecera-ilustrada'));
+      extension = raiz && !propios ? extensionDelContenido(raiz, document.documentElement.clientWidth, scrollY) : null;
+      aplicar();
+    };
+    const pedirMedir = () => { if (!pedidoMedir) pedidoMedir = requestAnimationFrame(medir); };
+    const pedirAplicar = () => { if (!pedidoAplicar) pedidoAplicar = requestAnimationFrame(aplicar); };
+
+    const raiz = document.querySelector(this.columna());
+    const observador = typeof ResizeObserver === 'function' ? new ResizeObserver(pedirMedir) : null;
+    if (raiz) observador?.observe(raiz);
+    const navegacion = router?.events.subscribe(evento => { if (evento instanceof NavigationEnd) pedirMedir(); });
+    addEventListener('scroll', pedirAplicar, { passive: true });
+    addEventListener('resize', pedirMedir);
+    pedirMedir();
+    destroyRef.onDestroy(() => {
+      if (pedidoMedir) cancelAnimationFrame(pedidoMedir);
+      if (pedidoAplicar) cancelAnimationFrame(pedidoAplicar);
+      observador?.disconnect();
+      navegacion?.unsubscribe();
+      removeEventListener('scroll', pedirAplicar);
+      removeEventListener('resize', pedirMedir);
     });
   }
 }

@@ -4,6 +4,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter, map } from 'rxjs/operators';
 
 import { AuthService } from '../../core/auth/auth.service';
+import { DoodlesComponent } from '../ui/doodles/doodles.component';
 import { TemaService } from '../../core/tema/tema.service';
 import { UiGlassBar } from '../ui/glass-bar/ui-glass-bar';
 import { roleLabel } from '../ui/labels';
@@ -33,8 +34,8 @@ export const RUTA_CAMBIAR_CONTRASENA = '/portal/cuenta/contrasena';
 @Component({
   selector: 'app-shell',
   imports: [
-    RouterOutlet, RouterLink, RouterLinkActive, BottomTabsComponent, MarcaComponent, TemaSelectorComponent, UiGlassBar, UiMenu,
-    UiRouteProgress,
+    RouterOutlet, RouterLink, RouterLinkActive, BottomTabsComponent, DoodlesComponent, MarcaComponent, TemaSelectorComponent,
+    UiGlassBar, UiMenu, UiRouteProgress,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   // DP-02: la piel del portal va en ESTE contenedor (`app-shell`), nunca en body ni en :root (REGLA-010). `.portal` trae
@@ -68,6 +69,12 @@ export const RUTA_CAMBIAR_CONTRASENA = '/portal/cuenta/contrasena';
         <nav app-bottom-tabs [tabs]="tabs()" [more]="moreTabs()"></nav>
         <ui-route-progress />
       </header>
+    }
+
+    <!-- Los doodles de la portada en el blanco que deja cada pantalla (a los lados y debajo del contenido), nunca detrás
+         de él; ni en el juego ni en el editor, que llenan la vista. Decorativo: aria-hidden. -->
+    @if (!inGame() && !propio()) {
+      <app-doodles modo="margenes" columna="main.portal-main" intensidad="suave" [interactivo]="false" />
     }
 
     <!-- Destino de «Saltar al contenido principal». En el juego lo es su contenedor (simulation-play): un solo id. -->

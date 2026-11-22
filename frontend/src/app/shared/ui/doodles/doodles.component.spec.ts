@@ -4,7 +4,9 @@ import { join } from 'path';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
-import { DoodlesComponent, type Figura, TESELA, figurasCercanas, figurasDelMosaico } from './doodles.component';
+import {
+  DISTANCIA_AL_CONTENIDO, DoodlesComponent, type Figura, MARGEN_MINIMO, TESELA, figurasCercanas, figurasDelMosaico, zonasDeMargen,
+} from './doodles.component';
 
 /**
  * Fondo de doodles de la portada (rediseño Metafrónesis, 2026-11-20). La luz del cursor enciende figuras ENTERAS, no
@@ -230,5 +232,45 @@ describe('DoodlesComponent', () => {
       expect(proporcion).toBeGreaterThan(0.05);
       expect(proporcion).toBeLessThan(0.15);
     });
+  });
+});
+
+// req: pedido del usuario del 2026-11-22: doodles prudentes en el blanco de las pantallas, nunca detrás del contenido.
+describe('doodles en los márgenes del portal (zonasDeMargen)', () => {
+  const ext = { izq: 384, der: 1056, inicio: 500, fin: 700 };
+
+  it('con márgenes anchos pinta los dos lados a 64 px del contenido', () => {
+    const vars = zonasDeMargen(ext, 1440, 900, 0);
+    expect(vars['--g-izq']).toBe(`${384 - DISTANCIA_AL_CONTENIDO}px`);
+    expect(vars['--g-der']).toBe(`${1056 + DISTANCIA_AL_CONTENIDO}px`);
+    expect(vars['--a']).toBe('500px');
+  });
+
+  it('un lado con menos de 200 px de blanco no lleva doodles; cada lado se decide solo', () => {
+    const vars = zonasDeMargen({ ...ext, izq: MARGEN_MINIMO - 1, der: 1440 - 432 }, 1440, 900, 0);
+    expect(vars['--g-izq']).toBe('-9999px');
+    expect(vars['--g-der']).toBe(`${1440 - 432 + DISTANCIA_AL_CONTENIDO}px`);
+  });
+
+  it('debajo solo si quedan al menos 240 px libres en pantalla, y se mueve con el desplazamiento', () => {
+    expect(zonasDeMargen(ext, 1440, 900, 0)['--fin']).toBe('99999px');
+    expect(zonasDeMargen({ ...ext, fin: 600 }, 1440, 900, 0)['--fin']).toBe(`${600 + DISTANCIA_AL_CONTENIDO}px`);
+    expect(zonasDeMargen({ ...ext, fin: 900 }, 1440, 900, 400)['--fin']).toBe(`${500 + DISTANCIA_AL_CONTENIDO}px`);
+    expect(zonasDeMargen(ext, 1440, 900, 100)['--a']).toBe('400px');
+  });
+
+  it('sin contenido medido (o con doodles propios en la página) no pinta nada', () => {
+    expect(zonasDeMargen(null, 1440, 900, 0)).toEqual({ '--g-izq': '-9999px', '--g-der': '99999px', '--a': '0px', '--fin': '99999px' });
+  });
+
+  it('el componente en modo márgenes se marca para su capa propia y no trae luz', async () => {
+    await TestBed.configureTestingModule({ imports: [DoodlesComponent], providers: [provideZonelessChangeDetection()] }).compileComponents();
+    const fixture = TestBed.createComponent(DoodlesComponent);
+    fixture.componentRef.setInput('modo', 'margenes');
+    fixture.componentRef.setInput('interactivo', false);
+    await fixture.whenStable();
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.classList).toContain('doodles--margenes');
+    expect(host.getAttribute('aria-hidden')).toBe('true');
   });
 });
