@@ -28,12 +28,12 @@ interface Pieza { id: string; nombre: string; detalle: string; arte: string; ret
     @if (piezas().length) {
       <ul class="rejilla" [attr.aria-label]="nombreEstante()">
         @for (p of piezas(); track p.id) {
-          <li class="pieza" [attr.title]="p.nombre + (p.detalle ? ' · ' + p.detalle : '')">
-            <span class="pieza__marco" [class.pieza__marco--retrato]="p.retrato">
-              <img class="pieza__arte" [src]="p.arte" alt="" loading="lazy" decoding="async" />
+          <li class="bib-pieza" [attr.title]="p.nombre + (p.detalle ? ' · ' + p.detalle : '')">
+            <span class="bib-pieza__marco" [class.bib-pieza__marco--retrato]="p.retrato">
+              <img class="bib-pieza__arte" [src]="p.arte" alt="" loading="lazy" decoding="async" />
             </span>
-            <span class="pieza__nombre">{{ p.nombre }}</span>
-            @if (p.detalle) { <span class="pieza__detalle">{{ p.detalle }}</span> }
+            <span class="bib-pieza__nombre">{{ p.nombre }}</span>
+            @if (p.detalle) { <span class="bib-pieza__detalle">{{ p.detalle }}</span> }
           </li>
         }
       </ul>
@@ -54,8 +54,8 @@ interface Pieza { id: string; nombre: string; detalle: string; arte: string; ret
     .estante[aria-checked='true'] { background: var(--l-superficie); color: var(--ds-text-1); box-shadow: 0 0 0 1px var(--l-filo-fuerte); }
     .cuenta { color: var(--ds-text-2); font-variant-numeric: tabular-nums; font-weight: 500; }
     .rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr)); gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
-    .pieza { display: flex; flex-direction: column; gap: 0.125rem; min-inline-size: 0; animation: entra var(--ds-dur-base) var(--ds-ease-out) both; }
-    .pieza__marco {
+    .bib-pieza { display: flex; flex-direction: column; gap: 0.125rem; min-inline-size: 0; animation: entra var(--ds-dur-base) var(--ds-ease-out) both; }
+    .bib-pieza__marco {
       display: grid; place-items: center; aspect-ratio: 1; border-radius: var(--l-radio-chico, 0.5rem); background-color: var(--l-superficie-hundida);
       background-image: linear-gradient(45deg, var(--l-filo) 25%, transparent 25% 75%, var(--l-filo) 75%),
         linear-gradient(45deg, var(--l-filo) 25%, transparent 25% 75%, var(--l-filo) 75%);
@@ -63,13 +63,13 @@ interface Pieza { id: string; nombre: string; detalle: string; arte: string; ret
       overflow: hidden;
     }
     /* Pixel art: nítido y a escala entera (el arte del catálogo mide 32–110 px; ×1 en su caja, nunca suavizado). */
-    .pieza__arte { max-inline-size: 100%; max-block-size: 100%; image-rendering: pixelated; }
-    .pieza__marco--retrato .pieza__arte { inline-size: 100%; block-size: 100%; object-fit: cover; }
-    .pieza__nombre { overflow: hidden; font-size: var(--autoria-texto-14); font-weight: 600; line-height: 1.125rem; text-overflow: ellipsis; white-space: nowrap; }
-    .pieza__detalle { overflow: hidden; color: var(--ds-text-2); font-size: var(--autoria-texto-14); line-height: 1.125rem; text-overflow: ellipsis; white-space: nowrap; }
+    .bib-pieza__arte { max-inline-size: 100%; max-block-size: 100%; image-rendering: pixelated; }
+    .bib-pieza__marco--retrato .bib-pieza__arte { inline-size: 100%; block-size: 100%; object-fit: cover; }
+    .bib-pieza__nombre { overflow: hidden; font-size: var(--autoria-texto-14); font-weight: 600; line-height: 1.125rem; text-overflow: ellipsis; white-space: nowrap; }
+    .bib-pieza__detalle { overflow: hidden; color: var(--ds-text-2); font-size: var(--autoria-texto-14); line-height: 1.125rem; text-overflow: ellipsis; white-space: nowrap; }
     .vacio { margin: 0; color: var(--ds-text-2); font-size: var(--autoria-texto-14); line-height: 1.25rem; }
     @keyframes entra { from { opacity: 0; translate: 0 0.25rem; } }
-    @media (prefers-reduced-motion: reduce) { .pieza { animation: none; } .estante { transition: none; } }
+    @media (prefers-reduced-motion: reduce) { .bib-pieza { animation: none; } .estante { transition: none; } }
   `,
 })
 export class ExploradorBibliotecaComponent {
