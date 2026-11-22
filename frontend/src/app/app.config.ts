@@ -2,7 +2,6 @@ import { ApplicationConfig, ErrorHandler, inject, provideAppInitializer, provide
 import { TitleStrategy, provideRouter, withComponentInputBinding, withNavigationErrorHandler, withPreloading, withViewTransitions } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { MAT_CARD_CONFIG } from '@angular/material/card';
-import { MatIconRegistry } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 import { routes } from './app.routes';
 import { CachedSimulationService } from './core/api/cached-simulation.service';
@@ -48,8 +47,10 @@ export const appConfig: ApplicationConfig = {
     provideAppInitializer(initializeAuthSession),
     // El aviso de conexión se retira solo al volver la red (evento `online`) o con la primera respuesta correcta.
     provideAppInitializer(() => { watchConnectionRecovery(inject(NotificationService)); }),
-    // Material Symbols (subconjunto autoalojado) como fuente de los <mat-icon>, sin `font-family !important` (F1-3).
-    provideAppInitializer(() => { inject(MatIconRegistry).setDefaultFontSetClass('material-symbols-rounded'); }),
+    // Material Symbols (subconjunto autoalojado): la fuente la pone la regla `.mat-icon` de styles.scss, que todo
+    // <mat-icon> lleva. Antes se fijaba también la clase por defecto del registro, pero ninguna regla la usa y tocar
+    // `@angular/material/icon` desde aquí (registro o ficha de opciones: esbuild parte por módulo) metía <mat-icon> y
+    // su registro (~19 kB) en el paquete inicial, que la portada y el login no usan hasta cargar su ruta (pasada final).
     // Tarjetas con borde fino por token y elevación suave (F1-4): la apariencia «elevated» fija border-width 0.
     { provide: MAT_CARD_CONFIG, useValue: { appearance: 'outlined' } },
   ]

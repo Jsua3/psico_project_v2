@@ -120,8 +120,9 @@ code {
 }
 
 /* Both the Angular Material host (.mat-icon) and the bare utility class render
-   ligatures. MatIconRegistry usa 'material-symbols-rounded' como clase por defecto
-   (app.config.ts), así que no hace falta !important. Size comes from font-size;
+   ligatures. La fuente la fija esta regla sobre `.mat-icon` (no la clase del registro: fijarla desde app.config.ts
+   metía el registro de iconos en el paquete inicial), y ninguna hoja define `.material-icons`, así que no hace falta
+   !important. Size comes from font-size;
    width/height use 1em so per-component font-size overrides scale the icon box too. */
 .mat-icon,
 .material-symbols-rounded {

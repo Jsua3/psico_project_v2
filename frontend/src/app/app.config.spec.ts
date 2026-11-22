@@ -1,8 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { ANIMATION_MODULE_TYPE, ApplicationInitStatus } from '@angular/core';
+import { ANIMATION_MODULE_TYPE } from '@angular/core';
 import { MAT_CARD_CONFIG } from '@angular/material/card';
-import { MatIconRegistry } from '@angular/material/icon';
 import { TestBed } from '@angular/core/testing';
 import { NEVER, of } from 'rxjs';
 
@@ -32,12 +31,14 @@ describe('app.config: arranque', () => {
     expect(TestBed.inject(ANIMATION_MODULE_TYPE, null)).toBeNull();
   });
 
-  it('los iconos usan la clase de Material Symbols por defecto (sin font-family !important, F1-3)', () => {
-    TestBed.configureTestingModule({
-      providers: [...appConfig.providers, { provide: AuthService, useValue: { syncCurrentUser: () => of(null) } }],
-    });
-    TestBed.inject(ApplicationInitStatus);
-    expect(TestBed.inject(MatIconRegistry).getDefaultFontSetClass()).toEqual(['material-symbols-rounded']);
+  it('los iconos usan Material Symbols por la regla de `.mat-icon`, sin font-family !important (F1-3)', () => {
+    const estilos = readFileSync(join(__dirname, '..', 'styles', 'styles.scss'), 'utf-8');
+    expect(estilos).toMatch(/\.mat-icon,\s*\.material-symbols-rounded \{\s*font-family: 'Material Symbols Rounded';/);
+    expect(estilos).not.toMatch(/font-family: 'Material Symbols Rounded' !important/);
+  });
+
+  it('el arranque no toca @angular/material/icon: <mat-icon> y su registro (~19 kB) quedan fuera del paquete inicial', () => {
+    expect(source).not.toContain("from '@angular/material/icon'");
   });
 
   it('las tarjetas de Material son «outlined»: borde fino por token en vez de border-width 0 (F1-4)', () => {
