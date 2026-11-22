@@ -612,8 +612,9 @@
 // Desde 1440 px: tres columnas; la bandeja deja de ser un selector y siempre está.
 @media (min-width: 90rem) {
   .tr-layout {
-    // 20rem y no los 18 de DISENO §5.3: con 18 el segmentado «Por revisar · Todos · En curso» se recortaba (D-B5b-1).
-    grid-template-columns: 20rem minmax(0, 1fr);
+    // 21rem y no los 18 de DISENO §5.3: con menos, el segmentado «Por revisar · Todos · En curso» se recortaba
+    // (D-B5b-1); con el relleno lateral más justo de la bandeja (abajo) cabe entero.
+    grid-template-columns: 21rem minmax(0, 1fr);
     gap: var(--ds-space-5);
   }
 
@@ -623,6 +624,7 @@
 
   // Pegajosa solo aquí: bajo 1440 px está en el flujo de una columna y, pegada, taparía la evidencia.
   .tr-bandeja {
+    padding-inline: var(--ds-space-3);
     position: sticky;
     top: calc(var(--l-alto-barra) + var(--ds-space-4));
     display: grid;

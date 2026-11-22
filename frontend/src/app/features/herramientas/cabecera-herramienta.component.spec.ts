@@ -28,11 +28,11 @@ describe('RNF-04 · cabecera de herramienta (Composite: cabecera de página + vi
     return fixture.nativeElement as HTMLElement;
   };
 
-  it('un solo h1 con el título y la acción proyectada en la ranura de acciones de la cabecera', async () => {
+  it('un solo h1 con el título y la acción proyectada en la columna de acciones de la cabecera', async () => {
     const host = await crear('reportes');
     expect(host.querySelectorAll('h1')).toHaveLength(1);
     expect(host.querySelector('h1')?.textContent?.trim()).toBe('Reportes');
-    const accion = host.querySelector('.ui-page-header__actions button');
+    const accion = host.querySelector('.cabecera-herramienta__acciones button');
     expect(accion?.textContent?.trim()).toBe('Exportar');
   });
 

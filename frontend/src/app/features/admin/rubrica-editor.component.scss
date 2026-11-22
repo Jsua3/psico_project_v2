@@ -574,19 +574,19 @@
 
 .re-nivel[data-nivel='EN_INICIO'],
 .re-matriz__nivel[data-nivel='EN_INICIO'] {
-  --re-intensidad: 30%;
+  --re-intensidad: 40%;
   --re-tinte: 4%;
 }
 
 .re-nivel[data-nivel='EN_PROCESO'],
 .re-matriz__nivel[data-nivel='EN_PROCESO'] {
-  --re-intensidad: 50%;
+  --re-intensidad: 60%;
   --re-tinte: 7%;
 }
 
 .re-nivel[data-nivel='LOGRADO'],
 .re-matriz__nivel[data-nivel='LOGRADO'] {
-  --re-intensidad: 75%;
+  --re-intensidad: 80%;
   --re-tinte: 10%;
 }
 

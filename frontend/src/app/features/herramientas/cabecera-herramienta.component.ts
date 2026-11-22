@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
-import { DoodlesComponent, UiPageActions, UiPageHeader, UiVineta, type EscalaVineta, type NombreEscena } from '../../shared/ui';
+import { DoodlesComponent, UiPageHeader, UiVineta, type EscalaVineta, type NombreEscena } from '../../shared/ui';
 
 let siguiente = 0;
 
@@ -9,30 +9,30 @@ let siguiente = 0;
  * único h1 y las acciones), una viñeta del simulador a la derecha y, detrás, los doodles suaves de la portada solo en
  * esta banda. Es más baja que la de los inicios: en una herramienta los datos mandan y el arte acompaña.
  *
- * Las acciones de la pantalla se proyectan con `uiHerramientaAcciones` y caen en la ranura de acciones de la cabecera.
+ * Las acciones de la pantalla se proyectan con `uiHerramientaAcciones` y van en la última columna, a la derecha de la
+ * viñeta (como la barra de una herramienta: título · arte · acción), alineadas con la última línea del texto.
  * Bajo 1024 px la viñeta se quita: es decorativa y el título y las acciones necesitan el ancho.
  */
 @Component({
   selector: 'app-cabecera-herramienta',
-  imports: [DoodlesComponent, UiPageActions, UiPageHeader, UiVineta],
+  imports: [DoodlesComponent, UiPageHeader, UiVineta],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'cabecera-herramienta', '[id]': 'id', '[attr.title]': 'null' },
   template: `
     <app-doodles [desde]="'#' + id" [hasta]="'#' + id" intensidad="suave" [interactivo]="false" />
     <ui-page-header class="cabecera-herramienta__texto" [eyebrow]="eyebrow()" [title]="title()"
-      [description]="description()" [volverA]="volverA()" [volverEtiqueta]="volverEtiqueta()">
-      <div uiPageActions class="cabecera-herramienta__acciones"><ng-content select="[uiHerramientaAcciones]" /></div>
-    </ui-page-header>
+      [description]="description()" [volverA]="volverA()" [volverEtiqueta]="volverEtiqueta()" />
     @if (escena(); as nombre) {
       <ui-vineta class="cabecera-herramienta__vineta" [escena]="nombre" [escala]="escala()" marco="ninguno" alinear="fin" />
     }
+    <div class="cabecera-herramienta__acciones"><ng-content select="[uiHerramientaAcciones]" /></div>
   `,
   styles: `
     :host {
       position: relative;
       z-index: var(--ds-z-base);
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr) auto auto;
       align-items: end;
       gap: var(--ds-space-5);
       margin-block-end: var(--ds-space-5);
@@ -52,8 +52,16 @@ let siguiente = 0;
       display: none;
     }
 
+    /* Sin viñeta (o sin acciones) la rejilla no deja una columna vacía con su hueco. */
+    :host:not(:has(.cabecera-herramienta__vineta)),
+    :host:has(.cabecera-herramienta__acciones:empty) {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
     @media (max-width: 63.999rem) {
-      :host {
+      :host,
+      :host:not(:has(.cabecera-herramienta__vineta)),
+      :host:has(.cabecera-herramienta__acciones:empty) {
         grid-template-columns: minmax(0, 1fr);
       }
 
