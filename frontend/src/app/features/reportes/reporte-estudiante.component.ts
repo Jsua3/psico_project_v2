@@ -15,7 +15,7 @@ import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiCard } from '../../shared/ui/card/ui-card';
 import { UiLink } from '../../shared/ui/link/ui-link';
 import { statusLabel } from '../../shared/ui/labels';
-import { CabeceraHerramientaComponent } from '../herramientas/cabecera-herramienta.component';
+import { UiCabeceraIlustrada } from '../../shared/ui/cabecera-ilustrada/ui-cabecera-ilustrada';
 import { UiSection } from '../../shared/ui/section/ui-section';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { errorKindFromStatus, uiDataState } from '../../shared/ui/state/ui-data-state';
@@ -47,7 +47,7 @@ function positiveInt(value: string | null | undefined): number | null {
 @Component({
   selector: 'app-reporte-estudiante',
   imports: [
-    RouterLink, UiBadge, UiButton, UiCard, UiEmptyState, UiErrorState, UiLink, CabeceraHerramientaComponent, UiSection, UiSkeleton,
+    RouterLink, UiBadge, UiButton, UiCard, UiEmptyState, UiErrorState, UiLink, UiCabeceraIlustrada, UiSection, UiSkeleton,
     UiTable, UiTableRow, UiTableTable, UiTooltip,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,

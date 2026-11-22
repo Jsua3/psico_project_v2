@@ -2,15 +2,15 @@ import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { describe, expect, it } from 'vitest';
-import { CabeceraHerramientaComponent } from './cabecera-herramienta.component';
-import type { NombreEscena } from '../../shared/ui';
+import { UiCabeceraIlustrada } from './ui-cabecera-ilustrada';
+import type { NombreEscena } from '..';
 
 @Component({
-  imports: [CabeceraHerramientaComponent],
+  imports: [UiCabeceraIlustrada],
   template: `
-    <app-cabecera-herramienta [escena]="escena" eyebrow="Docente" title="Reportes" description="Cómo le fue al grupo.">
+    <ui-cabecera-ilustrada [herramienta]="true" [escena]="escena" eyebrow="Docente" title="Reportes" description="Cómo le fue al grupo.">
       <button uiHerramientaAcciones type="button">Exportar</button>
-    </app-cabecera-herramienta>
+    </ui-cabecera-ilustrada>
   `,
 })
 class Anfitrion {
@@ -38,8 +38,8 @@ describe('RNF-04 · cabecera de herramienta (Composite: cabecera de página + vi
 
   it('la viñeta del simulador es decorativa y los doodles van detrás, limitados a la banda', async () => {
     const host = await crear('reportes');
-    const banda = host.querySelector('app-cabecera-herramienta')!;
-    expect(banda.id).toMatch(/^cabecera-herramienta-\d+$/);
+    const banda = host.querySelector('ui-cabecera-ilustrada')!;
+    expect(banda.id).toMatch(/^cabecera-ilustrada-\d+$/);
     expect(host.querySelector('ui-vineta')?.getAttribute('aria-hidden')).toBe('true');
     expect(host.querySelector('app-doodles')).not.toBeNull();
   });

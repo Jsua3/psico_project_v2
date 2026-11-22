@@ -29,6 +29,7 @@ import { NOMBRE_MOVIMIENTO, TEXTO_PERSONA_A_ATENDER, revisarPuntoDeIda, tipoDeMo
 import { respuestasSinForma } from '../../modelo/revision';
 import { ENCUADRE_LEGIBLE, NOMBRE_EXPRESION } from '../../modelo/textos';
 import { RutasAutoria } from '../../rutas';
+import { EstudioRanuraDirective, EstudioHerramientaComponent } from '../../marco/estudio';
 
 interface Pieza {
   clave: string; // «mueble-2»
@@ -76,7 +77,7 @@ const CONSULTA_ESTRECHA = '(max-width: 63.999rem)';
  */
 @Component({
   selector: 'app-sala',
-  imports: [RouterLink, UiMenu, CatalogoDelLugarComponent, LienzoDeSalaComponent, PiezasDelMuroComponent, ManijaDeAnchoComponent,
+  imports: [EstudioRanuraDirective, EstudioHerramientaComponent, RouterLink, UiMenu, CatalogoDelLugarComponent, LienzoDeSalaComponent, PiezasDelMuroComponent, ManijaDeAnchoComponent,
     PanelDeEstructuraComponent, TrayectoDePersonaComponent, BarraDelLienzoComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '(document:keydown.escape)': 'atencion.set(null)' },
@@ -95,16 +96,18 @@ const CONSULTA_ESTRECHA = '(max-width: 63.999rem)';
             <p class="sala__nota"><span class="sala__encuadre">{{ encuadre(s) }}</span>
               <span class="sala__aviso">Los cambios valen para todas las escenas que pasan en esta sala.</span></p>
           </div>
+          <ng-template estudioRanura="herramientas">
           @if (!estrecha()) {
             <!-- Dos botones y un menú, como mucho (EDITOR.md §4.2, regla 4). -->
             <div class="sala__acciones">
-              <button type="button" class="boton" data-accion="deshacer" [attr.aria-disabled]="!store.puedeDeshacer()" (click)="store.deshacer()">Deshacer</button>
-              <button type="button" class="boton" [attr.aria-disabled]="!store.puedeRehacer()" (click)="store.rehacer()">Rehacer</button>
+              <button type="button" estudioHerramienta="Deshacer" data-accion="deshacer" [attr.aria-disabled]="!store.puedeDeshacer()" (click)="store.deshacer()"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5 3 9l4 4M3 9h8a5 5 0 0 1 5 5" /></svg></button>
+              <button type="button" estudioHerramienta="Rehacer" [attr.aria-disabled]="!store.puedeRehacer()" (click)="store.rehacer()"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m13 5 4 4-4 4m4-4H9a5 5 0 0 0-5 5" /></svg></button>
               <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
               <ui-menu class="sala__mas" data-accion="volver-sala-original" label="Más" variant="secondary" [items]="masAcciones"
                 (itemSelected)="alElegirMas($event)" />
             </div>
           }
+          </ng-template>
         </header>
         @if (estrecha()) {
           <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
@@ -113,6 +116,7 @@ const CONSULTA_ESTRECHA = '(max-width: 63.999rem)';
         <p role="status" class="solo-lector">{{ anuncio() }}</p>
 
         <div class="sala__cuerpo">
+          <ng-template estudioRanura="explorador">
           <section aria-labelledby="en-sala" class="tarjeta columna-lista">
             <h2 id="en-sala">En esta sala</h2>
             <!-- Lista con foco itinerante (patrón listbox de ARIA): Tab entra y sale de una vez; las flechas, Inicio y Fin recorren y eligen. -->
@@ -145,6 +149,8 @@ const CONSULTA_ESTRECHA = '(max-width: 63.999rem)';
               </li>
             </ul>
           </section>
+
+          </ng-template>
 
           <!-- El lienzo manda (EDITOR.md §4.4): una tarjeta con su barra fina y la sala encajada en todo el alto y el ancho que quedan. -->
           <section aria-labelledby="la-sala" class="columna-sala">
@@ -241,6 +247,7 @@ const CONSULTA_ESTRECHA = '(max-width: 63.999rem)';
           </section>
 
           <!-- El panel de la derecha (EDITOR.md §4.4): «Agregar», «Detalles» y, en la sala por piezas, «Apariencia». -->
+          <ng-template estudioRanura="inspector">
           <aside class="tarjeta panel" aria-label="Panel de la sala">
             @if (pestanasPanel().length > 1) {
               <div role="tablist" aria-label="Qué hacer en la sala" class="panel__pestanas" (keydown)="teclaPestanas($event)">
@@ -401,6 +408,7 @@ const CONSULTA_ESTRECHA = '(max-width: 63.999rem)';
               </div>
             }
           </aside>
+          </ng-template>
         </div>
       </div>
 

@@ -16,7 +16,7 @@ import { UiControl, UiField } from '../../shared/ui/field/ui-field';
 import { UiFiltros } from '../../shared/ui/filtros/ui-filtros';
 import { UiMenu, UiMenuItem } from '../../shared/ui/menu/ui-menu';
 import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
-import { CabeceraHerramientaComponent } from '../herramientas/cabecera-herramienta.component';
+import { UiCabeceraIlustrada } from '../../shared/ui/cabecera-ilustrada/ui-cabecera-ilustrada';
 import { UiSection } from '../../shared/ui/section/ui-section';
 import { UiSegmentado, UiSegmento } from '../../shared/ui/segmentado/ui-segmentado';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
@@ -124,7 +124,7 @@ type Grupo = { id: 'mias' | 'otras' | 'casos'; titulo: string; descripcion: stri
   selector: 'app-rubrics',
   imports: [
     MatIconModule, RouterLink,
-    UiBadge, UiButton, UiFiltros, UiMenu, CabeceraHerramientaComponent, UiPageHeader, UiSection, UiSegmentado, UiSkeleton,
+    UiBadge, UiButton, UiFiltros, UiMenu, UiCabeceraIlustrada, UiPageHeader, UiSection, UiSegmentado, UiSkeleton,
     UiEmptyState, UiErrorState, RubricaEditorComponent,
   ],
   templateUrl: './rubrics.component.html',

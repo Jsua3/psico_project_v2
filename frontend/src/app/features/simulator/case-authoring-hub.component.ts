@@ -8,7 +8,7 @@ import { UiBadge, UiBadgeTone } from '../../shared/ui/badge/ui-badge';
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiCard } from '../../shared/ui/card/ui-card';
 import { statusLabel } from '../../shared/ui/labels';
-import { CabeceraHerramientaComponent } from '../herramientas/cabecera-herramienta.component';
+import { UiCabeceraIlustrada } from '../../shared/ui/cabecera-ilustrada/ui-cabecera-ilustrada';
 import { UiFiltros } from '../../shared/ui/filtros/ui-filtros';
 import { UiSegmentado } from '../../shared/ui/segmentado/ui-segmentado';
 import { UiPortadaCaso } from '../../shared/ui/portada-caso/ui-portada-caso';
@@ -28,7 +28,7 @@ import { UiErrorState } from '../../shared/ui/state/ui-error-state';
   standalone: true,
   imports: [
     RouterLink, NgTemplateOutlet, UiFiltros, UiSegmentado, UiPortadaCaso,
-    UiBadge, UiButton, UiCard, CabeceraHerramientaComponent, UiSection, UiSkeleton,
+    UiBadge, UiButton, UiCard, UiCabeceraIlustrada, UiSection, UiSkeleton,
     UiVacioIlustrado, UiErrorState,
   ],
   templateUrl: './case-authoring-hub.component.html',

@@ -40,3 +40,22 @@
     display: none;
   }
 }
+
+// Variante compacta para las herramientas de docente y administraci?n.
+:host(.ui-cabecera-ilustrada--herramienta) {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: end;
+  gap: var(--ds-space-5);
+  margin-block-end: var(--ds-space-5);
+  padding-block-end: 0;
+}
+.cabecera-herramienta__acciones { display: flex; flex-wrap: wrap; gap: var(--ds-space-2); }
+.cabecera-herramienta__acciones:empty { display: none; }
+:host(.ui-cabecera-ilustrada--herramienta:not(:has(.ui-cabecera-ilustrada__vineta))),
+:host(.ui-cabecera-ilustrada--herramienta:has(.cabecera-herramienta__acciones:empty)) { grid-template-columns: minmax(0, 1fr) auto; }
+@media (max-width: 63.999rem) {
+  :host(.ui-cabecera-ilustrada--herramienta),
+  :host(.ui-cabecera-ilustrada--herramienta:not(:has(.ui-cabecera-ilustrada__vineta))),
+  :host(.ui-cabecera-ilustrada--herramienta:has(.cabecera-herramienta__acciones:empty)) { grid-template-columns: minmax(0, 1fr); }
+  :host(.ui-cabecera-ilustrada--herramienta) .ui-cabecera-ilustrada__vineta { display: none; }
+}

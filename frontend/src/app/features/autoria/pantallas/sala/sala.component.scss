@@ -5,10 +5,14 @@
 :host {
   display: block;
   min-inline-size: 0;
+  block-size: 100%;
+  min-block-size: 0;
 }
 
 .sala {
   --sala-hueco: var(--ds-space-3);
+  box-sizing: border-box;
+  min-block-size: 0;
   // Columna flexible: la nota de solo mirar aparece o no, y el cuerpo toma todo lo que queda.
   display: flex;
   flex-direction: column;
@@ -105,6 +109,18 @@
 
 .sala__acciones .boton {
   min-block-size: var(--ds-target-min);
+}
+
+// Deshacer y Rehacer viajan a la barra del estudio como botones de icono: el dibujo se pinta aquí porque la plantilla
+// vive en la vista de la sala (sin esto el SVG salía de 0 px y el botón quedaba vacío, medido el 2026-11-22).
+.sala__acciones svg {
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .sala__solo-mirar {
@@ -697,13 +713,13 @@ kbd {
 
 @media (min-width: 64rem) {
   .sala {
-    block-size: calc(100dvh - var(--alto-barra, 4.5rem));
+    block-size: 100%;
     overflow: hidden;
   }
 
   .sala__cuerpo {
     flex: 1;
-    grid-template-columns: clamp(10.5rem, 11.5vw, 15rem) minmax(0, 1fr) clamp(17.5rem, 19vw, 24rem);
+    grid-template-columns: minmax(0, 1fr);
     min-block-size: 0;
   }
 

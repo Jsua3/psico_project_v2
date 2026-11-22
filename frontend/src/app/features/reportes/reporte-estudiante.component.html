@@ -1,7 +1,7 @@
-<app-cabecera-herramienta escena="cierre" eyebrow="Reportes académicos" [title]="titleText()"
+<ui-cabecera-ilustrada [herramienta]="true" escena="cierre" eyebrow="Reportes académicos" [title]="titleText()"
   description="Los intentos de este estudiante, con su tiempo activo y el de reloj. Sin puntajes: lo que hizo, en palabras.">
   <a ui-button uiHerramientaAcciones variant="secondary" icon="arrow_back" routerLink="/portal/reportes" [queryParams]="backParams()">Volver a los reportes</a>
-</app-cabecera-herramienta>
+</ui-cabecera-ilustrada>
 
 <p class="ds-sr-only" role="status">{{ statusText() }}</p>
 

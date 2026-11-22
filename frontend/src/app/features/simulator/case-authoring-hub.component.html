@@ -1,8 +1,8 @@
 <!-- Una viñeta por pantalla: si no hay casos, el arte lo lleva el vacío y la cabecera se queda solo con el texto. -->
-<app-cabecera-herramienta [escena]="listState() === 'empty' ? null : 'casos-docente'" eyebrow="Autoría" title="Casos"
+<ui-cabecera-ilustrada [herramienta]="true" [escena]="listState() === 'empty' ? null : 'casos-docente'" eyebrow="Autoría" title="Casos"
   description="Crea y acompaña los casos de aprendizaje de tus estudiantes.">
   <a ui-button uiHerramientaAcciones variant="primary" icon="add_circle" routerLink="/portal/casos/nuevo">Crear un caso</a>
-</app-cabecera-herramienta>
+</ui-cabecera-ilustrada>
 <p class="ds-sr-only" role="status">{{ statusText() }}</p>
 <ui-section class="hub-cases" title="Tus casos">
   @switch (listState()) {

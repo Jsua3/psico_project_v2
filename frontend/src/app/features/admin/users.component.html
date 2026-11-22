@@ -1,7 +1,7 @@
-<app-cabecera-herramienta escena="usuarios" eyebrow="Administración" title="Usuarios"
+<ui-cabecera-ilustrada [herramienta]="true" escena="usuarios" eyebrow="Administración" title="Usuarios"
   description="Crea, edita y activa las cuentas de docentes, estudiantes y administradores.">
   <button ui-button uiHerramientaAcciones type="button" icon="person_add" (click)="newUser()">Nuevo usuario</button>
-</app-cabecera-herramienta>
+</ui-cabecera-ilustrada>
 
 <p class="ds-sr-only" role="status">{{ statusText() }}</p>
 

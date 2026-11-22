@@ -20,7 +20,7 @@ import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiCard } from '../../shared/ui/card/ui-card';
 import { UiControl, UiField } from '../../shared/ui/field/ui-field';
 import { UiVacioIlustrado } from '../../shared/ui/vacio-ilustrado/ui-vacio-ilustrado';
-import { CabeceraHerramientaComponent } from '../herramientas/cabecera-herramienta.component';
+import { UiCabeceraIlustrada } from '../../shared/ui/cabecera-ilustrada/ui-cabecera-ilustrada';
 import { UiProgress } from '../../shared/ui/progress/ui-progress';
 import { UiSection } from '../../shared/ui/section/ui-section';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
@@ -54,7 +54,7 @@ const COBERTURA_SIN_DATOS = 'Aún no hay datos suficientes para mostrarlo';
   standalone: true,
   imports: [
     ReactiveFormsModule, RouterLink,
-    UiBarras, UiBadge, UiButton, UiCard, UiControl, UiField, UiLink, CabeceraHerramientaComponent, UiVacioIlustrado, UiProgress, UiSection, UiSkeleton, UiStat,
+    UiBarras, UiBadge, UiButton, UiCard, UiControl, UiField, UiLink, UiCabeceraIlustrada, UiVacioIlustrado, UiProgress, UiSection, UiSkeleton, UiStat,
     UiErrorState, UiTable, UiTableRow, UiTableTable,
   ],
   templateUrl: './reporte-grupo.component.html',

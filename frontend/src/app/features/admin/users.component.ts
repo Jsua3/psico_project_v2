@@ -21,7 +21,7 @@ import { UiCard } from '../../shared/ui/card/ui-card';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { roleLabel } from '../../shared/ui/labels';
 import { UiMenu, UiMenuItem } from '../../shared/ui/menu/ui-menu';
-import { CabeceraHerramientaComponent } from '../herramientas/cabecera-herramienta.component';
+import { UiCabeceraIlustrada } from '../../shared/ui/cabecera-ilustrada/ui-cabecera-ilustrada';
 import { UiSection } from '../../shared/ui/section/ui-section';
 import { uiDataState } from '../../shared/ui/state/ui-data-state';
 import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
@@ -67,7 +67,7 @@ interface UserFormValue {
   standalone: true,
   imports: [
     ReactiveFormsModule, UiSegmentado, UiFiltros,
-    UiBadge, UiButton, UiCard, UiIconButton, UiMenu, CabeceraHerramientaComponent, UiSection,
+    UiBadge, UiButton, UiCard, UiIconButton, UiMenu, UiCabeceraIlustrada, UiSection,
     UiEmptyState, UiErrorState, UiTable, UiTableEmpty, UiTableError, UiTableRow, UiTableTable,
   ],
   templateUrl: './users.component.html',
