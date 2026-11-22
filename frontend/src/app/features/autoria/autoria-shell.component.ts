@@ -64,23 +64,22 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
   template: `
     <a class="saltar" href="#main-content" (click)="saltar($event)">Saltar al contenido</a>
     <header ui-glass-bar label="Editor de casos" compactLabel="Editor de casos" [congelada]="ayudaAbierta()" #cabecera>
-      <a class="modulo modulo-logo pulsable ds-motion" [routerLink]="rutas.a('/')" aria-label="Metafrónesis · SIEP: volver a Casos">
-        <app-marca class="barra-marca" />
+      <!-- El logo es la salida del editor: «‹» delante y, al pasar el cursor o con el foco, la palabra se funde en «Volver a
+           casos» (pedido del usuario, 2026-11-22; antes había un botón aparte que desordenaba la barra). -->
+      <a class="modulo modulo-logo pulsable ds-motion" [routerLink]="rutas.a('/')" aria-label="Volver a Casos" title="Volver a Casos">
+        <svg class="logo-volver__flecha" viewBox="0 0 20 20" aria-hidden="true"><path d="m12 4-6 6 6 6" /></svg>
+        <span class="logo-volver">
+          <app-marca class="barra-marca" />
+          <span class="logo-volver__texto" aria-hidden="true">Volver a casos</span>
+        </span>
       </a>
       <!-- El módulo central es el «dónde estoy» del editor: el caso y su hilo de etapas. Nada de él se pliega al desplazarse
            (DG-6); lo que no cabe cede por ancho, con su nombre completo para el lector. -->
       <div class="modulo modulo-principal ds-motion">
         @if (store.caso(); as caso) {
-          <!-- Volver es un botón explícito (pedido del usuario, 2026-11-22): antes era un «‹ Casos» de texto que se perdía. -->
-          <a class="boton-barra boton-volver enlace-casos" [routerLink]="rutas.a('/')">
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10H4m5-5-5 5 5 5" /></svg><span><span class="boton-volver__texto">Volver a </span>Casos</span>
-          </a>
           <p class="caso-actual" [attr.title]="caso.titulo"><span class="solo-lector">Caso: </span>{{ caso.titulo }}</p>
           <app-hilo-del-caso />
         } @else {
-          <a class="boton-barra boton-volver" [routerLink]="rutas.a('/')">
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10H4m5-5-5 5 5 5" /></svg><span><span class="boton-volver__texto">Volver a </span>Casos</span>
-          </a>
           <span class="contexto-editor">Editor de casos</span>
         }
       </div>
@@ -88,7 +87,6 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
         <!-- Las herramientas del caso, juntas: en el teléfono bajan a su propia fila sin separarse. -->
         <div class="herramientas">
           @if (store.caso()) {
-            <app-avisos-guardado class="guardado" parte="estado" />
             <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
             <a class="boton-barra enlace-probar" [attr.href]="rutaEnsayo()" target="_blank" rel="noopener" data-accion="probar"
                aria-label="Probar el caso en el juego (con Ctrl o clic central se abre en otra pestaña)" (click)="probar($event)">Probar <span aria-hidden="true">↗</span></a>
@@ -164,6 +162,11 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
       <app-panel-ia id="panel-ia" class="columna-ia" [hidden]="!iaAbierta() || store.soloLectura()" (cerrar)="cerrarIa()" />
 
       <span estudioEstadoInicio class="est-dato estado-donde">{{ dondeEstoy() }}</span>
+      <!-- El guardado informa, no se usa: va con «Pendientes» en la barra de estado (pedido del usuario, 2026-11-22). Cada
+           @if lleva UNA raíz: con dos, Angular proyecta el bloque al hueco por defecto y no a la barra de estado. -->
+      @if (store.caso()) {
+        <app-avisos-guardado estudioEstadoInicio class="est-dato guardado-estado" parte="estado" />
+      }
       @if (store.caso()) {
         <button estudioEstadoInicio type="button" class="est-dato-boton" [class.estado-pendientes]="progreso.porCorregir().length"
                 aria-haspopup="dialog" (click)="abrirPendientes($event)">
@@ -207,10 +210,9 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
     /*
      * Orden de cesión por ANCHO (EDITOR.md §4.1; nada se pliega al desplazarse): el chip de la cuenta (< 120rem, en
      * _autoria.scss); los nombres de las etapas quedan en su número con el estado (< 120rem, en el hilo); el atajo
-     * Ctrl+K (< 120rem); «‹ Casos» (< 90rem: la marca también vuelve a Casos); el nombre del caso (< 80rem: queda en el
+     * Ctrl+K (< 120rem); la palabra del logo (< 100rem: queda el isotipo con su «‹», que sigue volviendo a Casos); el nombre del caso (< 80rem: queda en el
      * título de la pestaña). Por debajo de 64rem la barra es una banda de varias filas y el hilo, un menú.
      */
-    .enlace-casos { white-space: nowrap; font-size: var(--autoria-texto-16); }
     /* El nombre del caso y el hilo se separan con un filo: son «qué caso» y «en qué parte», dos cosas distintas. */
     .caso-actual {
       margin: 0; padding: 0 0.625rem 0 0.25rem; max-inline-size: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -222,25 +224,17 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
     .contexto-editor { padding: 0 0.75rem; font-weight: 700; color: var(--asb-cromo-tinta); white-space: nowrap; }
     /* A 390 px el rótulo no cabe junto a «‹ Casos» y la cuenta (se pisaba con el menú): el título de la página ya lo dice. */
     @media (max-width: 29.999rem) { .contexto-editor { display: none; } }
-    .barra-ayuda { display: flex; flex-wrap: nowrap; gap: 0.375rem; }
-    /* «Volver a Casos»: una píldora como «Probar» y «Pendientes», con su flecha. Entre 64 y 90 rem no se esconde: queda
-       «← Casos» y «Volver a» pasa a ser solo para el lector, así su nombre no cambia con el ancho. */
-    .boton-volver { flex: none; padding-inline: 0.75rem 0.875rem; }
-    .boton-volver svg {
-      inline-size: 1.125rem; block-size: 1.125rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
-    }
-    @media (max-width: 89.999rem) and (min-width: 64rem) {
-      .boton-volver__texto { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-    }
+    .barra-ayuda { display: flex; flex-wrap: nowrap; gap: 0.125rem; }
     @media (max-width: 79.999rem) and (min-width: 64rem) { .caso-actual { display: none; } }
 
-    /* Lo que informa (el guardado) se separa con un filo de lo que se hace. «Probar» lleva el tinte de acción: es lo que se
-       usa en cualquier momento; el botón sólido de cada pantalla sigue siendo uno solo. */
-    .guardado { padding-inline-end: 0.375rem; border-inline-end: 1px solid var(--l-filo-fuerte); }
-    .enlace-probar { border-color: var(--l-tinte-filo); background: var(--l-tinte); color: var(--ds-primary); }
+    /* «Probar» es la acción de la barra: lleva el tinte de marca sobre el vidrio (sin filo), como la acción de una barra
+       de iOS; el botón sólido de cada pantalla sigue siendo uno solo. */
+    .enlace-probar { background: color-mix(in oklab, var(--asb-acento) 16%, transparent); color: var(--ds-primary); }
     @media (hover: hover) and (pointer: fine) {
-      .enlace-probar:hover { background: color-mix(in oklab, var(--l-acento) 18%, transparent); color: var(--ds-primary); }
+      .enlace-probar:hover { background: color-mix(in oklab, var(--asb-acento) 24%, transparent); color: var(--ds-primary); }
     }
+    /* El guardado, en la barra de estado: el punto y su palabra, sin el relleno de la barra de arriba. */
+    .guardado-estado { padding-inline: 0.5rem; }
     .insignia {
       display: inline-grid; place-items: center; min-inline-size: 1.375rem; block-size: 1.375rem; padding-inline: 0.375rem;
       border-radius: 999px; background: var(--ds-warning-text); color: var(--ds-surface-1); font-size: var(--autoria-texto-14);
