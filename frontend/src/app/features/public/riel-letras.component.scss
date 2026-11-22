@@ -30,6 +30,7 @@
   }
 
   .riel__lista a {
+    display: inline-flex; align-items: center; min-block-size: 24px;
     border-radius: 0.375rem;
     color: var(--ds-text-2);
     font-size: var(--ds-type-caption-size);

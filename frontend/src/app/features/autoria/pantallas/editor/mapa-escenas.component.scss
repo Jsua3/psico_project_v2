@@ -26,6 +26,7 @@ $alto-miniatura: 64px;
   &::after { content: ''; position: absolute; inset: -0.25rem 0; }
 }
 @media (hover: hover) and (pointer: fine) { .zoom:hover { background: var(--l-superficie-hundida); color: var(--ds-text-1); } }
+@media (pointer: coarse) { .acciones-boton, .zoom { min-block-size: 2.75rem; } }
 .teclas-ancla { position: relative; }
 .globo-teclas {
   position: absolute; z-index: var(--autoria-capa-10); inset-block-start: calc(100% + 0.5rem); inset-inline-end: 0;

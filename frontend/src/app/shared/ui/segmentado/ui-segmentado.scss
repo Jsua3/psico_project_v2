@@ -142,3 +142,5 @@
     outline-offset: -2px;
   }
 }
+
+@media (pointer: coarse) { .ui-segmentado__opcion { min-block-size: 2.75rem; min-inline-size: 2.75rem; } }

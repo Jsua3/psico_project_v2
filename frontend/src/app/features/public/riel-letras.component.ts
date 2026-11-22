@@ -245,7 +245,7 @@ export class RielLetrasComponent {
       } else if (sube) {
         e.left = `${xEje - 14}px`; e.width = '28px'; e.top = `${arriba + 8}px`; e.height = `${p.ancho * E_VERTICAL + 12}px`;
       } else {
-        e.left = '14px'; e.width = `${xDerecha - 8}px`; e.top = `${(leida ? p.yLeida : p.yProxima) - FILA / 2}px`; e.height = `${FILA}px`;
+        e.left = '14px'; e.width = `${xDerecha - 8}px`; e.top = `${(leida ? p.yLeida : p.yProxima) - 12}px`; e.height = '24px';
       }
       if (esActual) p.enlace.setAttribute('aria-current', 'true'); else p.enlace.removeAttribute('aria-current');
     };

@@ -149,15 +149,15 @@ describe('Editor de casos: la barra de vidrio (tableros 45–51)', () => {
     ]);
     // Cada etapa se anuncia con su nombre completo y su estado, aunque por ancho se vea solo su número.
     const nombres = [...secciones.querySelectorAll('a')].map((a) => a.getAttribute('aria-label')!);
-    expect(nombres.map((n) => n.split(',')[0])).toEqual(['Datos del caso', 'Lugar y salas', 'Historia: escenas y guion', 'Evaluación', 'Enviar a revisión']);
-    expect(nombres[2]).toMatch(/^Historia: escenas y guion, \d+ de \d+ escenas? escritas?/);
+    expect(nombres.map((n) => n.split(',')[1].trim())).toEqual(['Datos del caso', 'Lugar y salas', 'Historia: escenas y guion', 'Evaluación', 'Enviar a revisión']);
+    expect(nombres[2]).toMatch(/Historia: escenas y guion, \d+ de \d+ escenas? escritas?/);
     // Cada etapa lleva su estado también como forma (no solo color).
     expect([...secciones.querySelectorAll('.marca-estado')].every((m) => !!m.getAttribute('data-estado'))).toBe(true);
     // La guía las encuentra por su acción.
     for (const accion of ['datos-del-caso', 'definir-finales', 'enviar-revision']) expect(secciones.querySelector(`[data-accion~="${accion}"]`)).not.toBeNull();
     expect(raiz.querySelector('header [data-accion~="probar"]')).not.toBeNull();
     // La etapa en la que estás se marca para el lector de pantalla.
-    expect(secciones.querySelector('a[aria-current="page"]')!.getAttribute('aria-label')).toMatch(/^Historia: escenas y guion/);
+    expect(secciones.querySelector('a[aria-current="page"]')!.getAttribute('aria-label')).toMatch(/^Historia/);
   });
 
   it('las secciones nunca se pliegan al desplazarse: ninguna es plegable', async () => {

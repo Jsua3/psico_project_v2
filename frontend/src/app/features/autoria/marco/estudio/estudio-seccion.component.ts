@@ -40,6 +40,7 @@ let siguiente = 0;
       padding: 0 0.75rem; border: 0; background: transparent; color: var(--ds-text-2); font: inherit; font-size: var(--autoria-texto-14);
       font-weight: 700; font-variant-caps: all-small-caps; letter-spacing: 0.06em; text-align: start; cursor: pointer;
     }
+    @media (pointer: coarse) { .cab__boton { min-block-size: 2.75rem; } }
     .cab__boton::after { content: ''; position: absolute; inset: -0.25rem 0; }
     @media (hover: hover) and (pointer: fine) { .cab__boton:hover { color: var(--ds-text-1); } }
     .chevron {

@@ -43,6 +43,10 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
       :host ::ng-deep .est-dato-boton:hover { background: var(--l-superficie-hundida); color: var(--ds-text-1); }
     }
     :host ::ng-deep .est-herramienta { inline-size: 1.75rem; block-size: 1.75rem; }
+    @media (pointer: coarse) {
+      :host ::ng-deep .est-herramienta { min-inline-size: 2.75rem; min-block-size: 2.75rem; }
+      :host ::ng-deep .est-dato-boton { min-block-size: 2.75rem; }
+    }
   `,
 })
 export class EstudioBarraEstadoComponent {}

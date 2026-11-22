@@ -104,7 +104,7 @@ import { PintorDeVistas } from './pintor-de-vistas.service';
         </section>
 
         @if (elegido(); as l) {
-          <aside class="inspector" aria-labelledby="detalle-nombre">
+          <aside class="inspector" role="region" tabindex="0" aria-label="Detalle del lugar elegido">
             @if (erroresDetalle().has(l.id) && !escenarios()[l.id]) {
               <div class="tarjeta error" role="alert"><p>No pudimos cargar el detalle de este lugar.</p><button type="button" class="boton" (click)="elegir(l.id)">Reintentar</button></div>
             }

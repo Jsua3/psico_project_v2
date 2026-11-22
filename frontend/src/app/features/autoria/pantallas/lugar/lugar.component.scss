@@ -47,6 +47,7 @@
   background: var(--l-superficie, var(--superficie)); border: 1px solid var(--borde-control);
   transition: background-color var(--ds-dur-fast) var(--ds-ease-out), border-color var(--ds-dur-fast) var(--ds-ease-out);
 }
+@media (pointer: coarse) { .ficha { min-block-size: 2.75rem; } }
 .ficha::after { content: ''; position: absolute; inset: -0.25rem 0; }
 .ficha[aria-pressed='true'] { background: var(--primario-tinte); border-color: var(--primario); color: var(--primario-oscuro); }
 .ficha:focus-visible { outline: 3px solid var(--foco); outline-offset: 2px; }
@@ -117,6 +118,7 @@
 .raya { display: block; block-size: 1rem; inline-size: 60%; margin: 0.25rem; border-radius: var(--l-pixel, 2px); background: var(--fondo-hundido); }
 
 // ── Inspector de la plantilla elegida: panel con superficie sutil, fijo mientras se recorre la rejilla.
+.inspector:focus-visible { outline: 3px solid var(--foco); outline-offset: -3px; }
 .inspector {
   min-inline-size: 0; padding: 1rem; border-radius: var(--l-radio-tarjeta, var(--radio-tarjeta));
   border: 1px solid var(--linea); background: var(--l-superficie-hundida, var(--fondo-hundido));

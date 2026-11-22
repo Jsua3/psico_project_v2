@@ -73,6 +73,10 @@ describe('LugarComponent · RF-05 · CU-04 crear un caso: paso 1, elegir el luga
     raiz.querySelector<HTMLInputElement>('input[type="radio"][value="hospital"]')!.click();
     await listo();
     expect(raiz.querySelector('#detalle-nombre')!.textContent).toContain('Hospital');
+    const inspector = raiz.querySelector('.inspector')!;
+    expect(inspector.getAttribute('role')).toBe('region');
+    expect(inspector.getAttribute('tabindex')).toBe('0');
+    expect(inspector.getAttribute('aria-label')).toBeTruthy();
     expect(raiz.querySelector('.cifras')!.textContent).toContain('Personajes');
     expect(continuar(raiz)!.getAttribute('aria-label')).toBe('Elegir este lugar: Hospital y continuar');
   });

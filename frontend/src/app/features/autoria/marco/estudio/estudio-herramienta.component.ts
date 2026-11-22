@@ -40,6 +40,7 @@ export function atajoAria(atajo: string): string {
         scale var(--ds-dur-press) var(--ds-ease-out);
     }
     /* El área de toque llega a 44 px sin agrandar la tecla (densidad profesional con AA). */
+    @media (pointer: coarse) { :host { min-inline-size: 2.75rem; min-block-size: 2.75rem; } }
     :host::after { content: ''; position: absolute; inset: -0.25rem; }
     :host ::ng-deep svg { inline-size: 1.125rem; block-size: 1.125rem; fill: none; stroke: currentColor; stroke-width: 1.6;
       stroke-linecap: round; stroke-linejoin: round; }
