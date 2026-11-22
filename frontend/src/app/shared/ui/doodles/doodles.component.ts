@@ -64,10 +64,9 @@ export function figurasCercanas(figuras: readonly Figura[], px: number, py: numb
 
 const numero = (el: Element, nombre: string): number => Number(el.getAttribute(nombre) ?? 0);
 
-/** Modo «márgenes»: px de blanco que necesita un lado para llevar doodles, distancia que guardan del contenido y px
- *  libres bajo el contenido para pintar también ahí. Prudente a propósito: a 1440 px solo las páginas de lectura los
- *  muestran a los lados; a 1920, todas las de ancho normal. */
-export const MARGEN_MINIMO = 200;
+/** Modo «márgenes»: el mosaico cubre toda la pantalla (sin recuadros vacíos entre zonas), con la tinta entera en los
+ *  márgenes y debajo del contenido, y más tenue en la franja del contenido para no molestar a la lectura. La tinta
+ *  plena empieza a `DISTANCIA_AL_CONTENIDO` px del contenido; debajo, solo si quedan `LIBRE_MINIMO` px libres. */
 export const DISTANCIA_AL_CONTENIDO = 64;
 export const LIBRE_MINIMO = 240;
 
@@ -80,16 +79,16 @@ export interface ExtensionContenido {
 }
 
 /**
- * Las variables de la máscara del modo «márgenes» para una extensión dada, la vista y el desplazamiento. Un lado se
- * apaga (−9999 / 99999) si su margen no llega al mínimo; lo de debajo, si no quedan `LIBRE_MINIMO` px libres en pantalla.
+ * Las variables de la máscara del modo «márgenes» para una extensión dada, la vista y el desplazamiento: dónde empieza
+ * la tinta plena a cada lado (a 64 px del contenido; con poco margen queda fuera de la vista y ese lado se ve tenue) y
+ * debajo (solo si quedan `LIBRE_MINIMO` px libres en pantalla). Sin contenido medido, todo tenue.
  */
 export function zonasDeMargen(ext: ExtensionContenido | null, ancho: number, alto: number, desplazamiento: number): Record<string, string> {
-  if (!ext) return { '--g-izq': '-9999px', '--g-der': '99999px', '--a': '0px', '--fin': '99999px' };
+  if (!ext) return { '--g-izq': '-9999px', '--g-der': '99999px', '--fin': '99999px' };
   const fin = ext.fin - desplazamiento;
   return {
-    '--g-izq': ext.izq >= MARGEN_MINIMO ? `${Math.round(ext.izq - DISTANCIA_AL_CONTENIDO)}px` : '-9999px',
-    '--g-der': ancho - ext.der >= MARGEN_MINIMO ? `${Math.round(ext.der + DISTANCIA_AL_CONTENIDO)}px` : '99999px',
-    '--a': `${Math.round(ext.inicio - desplazamiento)}px`,
+    '--g-izq': `${Math.round(ext.izq - DISTANCIA_AL_CONTENIDO)}px`,
+    '--g-der': `${Math.round(Math.min(ext.der, ancho) + DISTANCIA_AL_CONTENIDO)}px`,
     '--fin': alto - fin >= LIBRE_MINIMO ? `${Math.round(fin + DISTANCIA_AL_CONTENIDO)}px` : '99999px',
   };
 }
@@ -304,42 +303,53 @@ const RETIRO_MS = 300;
       transition-duration: max(var(--ds-dur-base, 200ms), var(--ds-dur-fade, 160ms));
     }
 
-    /* Márgenes (el portal): el mosaico solo en el blanco que deja el contenido, a cada lado con margen de sobra y debajo
-       cuando sobra alto, a 64 px del contenido y con 120 px de difuminado; desde el pie de la cabecera ilustrada (que
-       lleva los suyos). Va un nivel por debajo de la base, como la luz ambiental: detrás de todo lo que pinta la
-       página. Las cuatro capas: mosaico ∩ (debajo ∪ (lados ∩ desde arriba)). Las posiciones las pone el JS. */
+    /* Márgenes (el portal): el mosaico cubre TODA la pantalla, sin recuadros vacíos entre zonas. Con la tinta entera en
+       los márgenes y debajo del contenido (cuando sobra alto), y al 35 % en la franja del contenido, donde se lee; el
+       paso de una a otra es un difuminado de 120 px que termina a 64 px del contenido. Va un nivel por debajo de la base,
+       como la luz ambiental: detrás de todo lo que pinta la página (las tarjetas lo tapan). Tres capas:
+       mosaico ∩ (debajo ∪ lados). Las posiciones las pone el JS; sin ellas, todo tenue. */
     app-doodles.doodles--margenes {
       z-index: calc(var(--ds-z-base, 1) - 1);
       --g-izq: -9999px;
       --g-der: 99999px;
       --fin: 99999px;
-      --a: 0px;
-      --lados: linear-gradient(to right, #000 calc(var(--g-izq) - 120px), transparent var(--g-izq), transparent var(--g-der), #000 calc(var(--g-der) + 120px));
-      --desde-arriba: linear-gradient(to bottom, transparent var(--a), #000 calc(var(--a) + 64px));
+      --tenue: color-mix(in srgb, currentColor 35%, transparent);
+      --lados: linear-gradient(to right, #000 calc(var(--g-izq) - 120px), var(--tenue) var(--g-izq), var(--tenue) var(--g-der), #000 calc(var(--g-der) + 120px));
       --debajo: linear-gradient(to bottom, transparent var(--fin), #000 calc(var(--fin) + 120px));
     }
 
+    app-doodles.doodles--margenes[data-apagado] {
+      display: none;
+    }
+
     app-doodles.doodles--margenes .capa {
-      -webkit-mask-image: var(--mosaico), var(--debajo), var(--lados), var(--desde-arriba);
-      mask-image: var(--mosaico), var(--debajo), var(--lados), var(--desde-arriba);
-      -webkit-mask-size: var(--lado) var(--lado), 100% 100%, 100% 100%, 100% 100%;
-      mask-size: var(--lado) var(--lado), 100% 100%, 100% 100%, 100% 100%;
-      -webkit-mask-repeat: repeat, no-repeat, no-repeat, no-repeat;
-      mask-repeat: repeat, no-repeat, no-repeat, no-repeat;
-      -webkit-mask-composite: source-in, source-over, source-in;
-      mask-composite: intersect, add, intersect;
+      -webkit-mask-image: var(--mosaico), var(--debajo), var(--lados);
+      mask-image: var(--mosaico), var(--debajo), var(--lados);
+      -webkit-mask-size: var(--lado) var(--lado), 100% 100%, 100% 100%;
+      mask-size: var(--lado) var(--lado), 100% 100%, 100% 100%;
+      -webkit-mask-repeat: repeat, no-repeat, no-repeat;
+      mask-repeat: repeat, no-repeat, no-repeat;
+      -webkit-mask-composite: source-in, source-over;
+      mask-composite: intersect, add;
     }
 
     app-doodles.doodles--margenes .capa.acento {
-      -webkit-mask-image: var(--mosaico-acento), var(--debajo), var(--lados), var(--desde-arriba);
-      mask-image: var(--mosaico-acento), var(--debajo), var(--lados), var(--desde-arriba);
+      -webkit-mask-image: var(--mosaico-acento), var(--debajo), var(--lados);
+      mask-image: var(--mosaico-acento), var(--debajo), var(--lados);
     }
 
     app-doodles.doodles--margenes .luz {
       display: none;
     }
 
-    /* En el teléfono y la tableta el margen no existe: nada que llenar. */
+    /* Con la capa de toda la pantalla, la cabecera ilustrada no pinta los suyos: serían doble tinta en su banda. */
+    @media (min-width: 64rem) {
+      .portal:has(> app-doodles.doodles--margenes:not([data-apagado])) ui-cabecera-ilustrada app-doodles {
+        display: none;
+      }
+    }
+
+    /* En el teléfono y la tableta no hay márgenes que llenar: quedan los doodles de la cabecera. */
     @media (max-width: 63.999rem) {
       app-doodles.doodles--margenes { display: none; }
     }
@@ -581,6 +591,7 @@ export class DoodlesComponent {
       const raiz = document.querySelector(this.columna());
       // Las páginas de estado (sin permiso, 404) ya llevan doodles en su zona: no se duplican.
       const propios = Array.from(raiz?.querySelectorAll('app-doodles') ?? []).some(d => !d.closest('ui-cabecera-ilustrada'));
+      host.toggleAttribute('data-apagado', propios);
       extension = raiz && !propios ? extensionDelContenido(raiz, document.documentElement.clientWidth, scrollY) : null;
       aplicar();
     };
