@@ -29,4 +29,22 @@ describe('EDITOR-PRO · cámara de la escena', () => {
     fixture.detectChanges();
     expect(mundo.style.transform).toContain('scale(1)');
   });
+  it('RF-05 ? sit?a actores sobre la composici?n completa de una sala estrecha', async () => {
+    const caso = copiarEscenarioAlCaso(universidad, ['sala-espera'], 'Caso');
+    const sala = caso.salas[0];
+    sala.fondo = '';
+    sala.estructura = { ancho: 640 } as typeof sala.estructura;
+    sala.personajes = [{ ...sala.personajes[0], x: 320, y: 264 }];
+    await TestBed.configureTestingModule({ imports: [CamaraEscenaComponent] }).compileComponents();
+    const fixture = TestBed.createComponent(CamaraEscenaComponent);
+    fixture.componentRef.setInput('caso', caso);
+    fixture.componentRef.setInput('escena', caso.escenas[0]);
+    fixture.componentRef.setInput('miniatura', 'blob:completa');
+    fixture.detectChanges();
+    const cuadro = fixture.nativeElement.querySelector('.camara__cuadro') as HTMLElement;
+    const actor = fixture.nativeElement.querySelector('.actor') as HTMLElement;
+    expect(cuadro.style.aspectRatio).toBe('640 / 528');
+    expect(actor.style.left).toBe('50%');
+    expect(actor.style.top).toBe('50%');
+  });
 });

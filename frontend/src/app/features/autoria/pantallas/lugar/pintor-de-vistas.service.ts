@@ -30,13 +30,13 @@ export class PintorDeVistas {
   private readonly imagenes = new Map<string, Promise<HTMLImageElement>>();
 
   /** La imagen de una sala: su fondo, o el cuarto compuesto por piezas. Una por sala y por sesión. */
-  vista(lugarId: string, sala: SalaDeBiblioteca): Promise<string | null> {
+  vista(lugarId: string, sala: SalaDeBiblioteca, completa = false): Promise<string | null> {
     if (sala.fondo) return Promise.resolve(rutaArte(lugarId, sala.fondo) || null);
     if (!sala.estructura) return Promise.resolve(null);
-    const clave = JSON.stringify([lugarId, sala]);
+    const clave = JSON.stringify([lugarId, sala, completa]);
     let vista = this.vistas.get(clave);
     if (!vista) {
-      vista = this.componer(lugarId, sala).catch(() => null).then((resultado) => {
+      vista = this.componer(lugarId, sala, completa).catch(() => null).then((resultado) => {
         if (!resultado) this.vistas.delete(clave);
         return resultado;
       });
@@ -45,7 +45,7 @@ export class PintorDeVistas {
     return vista;
   }
 
-  private async componer(lugarId: string, sala: SalaDeBiblioteca): Promise<string | null> {
+  private async componer(lugarId: string, sala: SalaDeBiblioteca, completa: boolean): Promise<string | null> {
     const lienzo = typeof document === 'undefined' ? null : document.createElement('canvas');
     const ctx = lienzo?.getContext('2d', { willReadFrequently: true }) ?? null;
     if (!lienzo || !ctx || !sala.estructura) return null;
@@ -61,6 +61,7 @@ export class PintorDeVistas {
     lienzo.height = plan.alto;
     ctx.putImageData(new ImageData(new Uint8ClampedArray(cuarto.rgba), plan.ancho, plan.alto), 0, 0);
     await this.ponerMuebles(ctx, lugarId, sala, manifiesto);
+    if (completa) return await new Promise<string | null>((listo) => lienzo.toBlob((b) => listo(b ? URL.createObjectURL(b) : null), 'image/png'));
     // El techo vacío (la franja oscura sobre el muro) se leía como una banda negra en la tarjeta y en el panel: se busca
     // dónde empieza el cuarto de verdad y se encuadra desde ahí, ya en 16:9.
     const { x, y, ancho, alto } = encuadre(ctx, plan.ancho, plan.alto);

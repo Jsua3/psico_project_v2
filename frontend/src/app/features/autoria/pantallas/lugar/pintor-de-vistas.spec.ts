@@ -48,3 +48,15 @@ describe('PintorDeVistas · RF-05 · recuperación de miniaturas', () => {
     expect(componer).toHaveBeenCalledTimes(3);
   });
 });
+
+describe('RF-05 ? composici?n para la c?mara', () => {
+  it('separa en cach? la vista completa de la miniatura recortada', async () => {
+    TestBed.resetTestingModule();
+    const pintor = TestBed.inject(PintorDeVistas);
+    const componer = vi.spyOn(pintor as any, 'componer').mockResolvedValueOnce('recortada').mockResolvedValueOnce('completa');
+    const sala = { id: '1', estructura: { ancho: 960 } } as unknown as SalaDeBiblioteca;
+    expect(await pintor.vista('hospital', sala)).toBe('recortada');
+    expect(await pintor.vista('hospital', sala, true)).toBe('completa');
+    expect(componer).toHaveBeenLastCalledWith('hospital', sala, true);
+  });
+});

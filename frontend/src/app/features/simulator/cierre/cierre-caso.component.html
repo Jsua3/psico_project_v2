@@ -49,6 +49,10 @@
         <ui-error-state [kind]="tipoError(estadoReporte())" [status]="estadoReporte()" [message]="copy.recorridoError" (retry)="reintentarRecorrido()" />
       } @else if (r(); as reporte) {
         <div class="cierre__recorrido">
+          @if (!reporte.ending && !reporte.persona?.label && !reporte.milestones && !escenas().length && !competencias().length) {
+            <p class="cierre__tenue">Este recorrido no tiene informaci?n disponible para mostrar.</p>
+          }
+          @if (!reporte.ending) { @if (persona(); as label) { <p class="cierre__persona"><span class="cierre__rotulo">{{ copy.personaTitulo }}</span> {{ label }}</p> } }
           @if (reporte.ending; as final) {
             <!-- Sin tono semáforo: el final se lee igual para todos (R-18); `tone` es del docente. -->
             <ui-card superficie="tinte" class="cierre__final">

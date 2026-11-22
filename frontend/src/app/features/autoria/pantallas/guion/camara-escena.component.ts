@@ -24,7 +24,7 @@ interface Actor { clave: string; nombre: string; x: number; y: number; fila: num
     <figure class="camara" [attr.aria-label]="'Vista de la sala ' + (sala()?.nombre ?? '') + ' con ' + actores().length + ' personajes'">
       <div class="camara__visor">
         @if (sala(); as s) {
-          <div class="camara__cuadro">
+          <div class="camara__cuadro" [style.--ancho-sala]="anchoSala()" [style.aspect-ratio]="anchoSala() + ' / 528'">
             <div class="camara__mundo" [style.transform]="transformacion()">
             @if (s.fondo) {
               <app-sala-vista class="camara__sala" [caso]="caso()" [salaId]="s.id" />
@@ -35,14 +35,14 @@ interface Actor { clave: string; nombre: string; x: number; y: number; fila: num
                 <span class="camara__vacia"></span>
               }
               @for (a of actores(); track a.clave) {
-                <span class="actor" [style.left.%]="a.x / 480 * 100" [style.top.%]="a.y / 264 * 100">
+                <span class="actor" [style.left.%]="a.x / anchoMedio() * 100" [style.top.%]="a.y / 264 * 100">
                   <span class="actor__sprite" [style.background-image]="'url(' + a.sprite + ')'" [style.background-position-y.%]="a.fila / 7 * 100"></span>
                 </span>
               }
             }
             @if (hablante(); as h) {
               <!-- Quien habla: un aro de píxeles a sus pies (se acerca con la sala). -->
-              <span class="aro" [style.left.%]="h.x / 480 * 100" [style.top.%]="h.pies / 264 * 100" aria-hidden="true"></span>
+              <span class="aro" [style.left.%]="h.x / anchoMedio() * 100" [style.top.%]="h.pies / 264 * 100" aria-hidden="true"></span>
             }
             </div>
             <!-- El globo va FUERA del mundo que se escala: conserva su tamaño de letra y se acota al cuadro (antes, con la
@@ -94,7 +94,7 @@ interface Actor { clave: string; nombre: string; x: number; y: number; fila: num
     .actor { position: absolute; translate: -50% -100%; line-height: 0; pointer-events: none; }
     /* La hoja del kit (192 × 576) tiene cuadros de 48 × 72; a la mitad, 24 × 36 (el mismo factor que el cuarto). */
     .actor__sprite {
-      display: block; inline-size: 5cqw; block-size: 7.5cqw; background-repeat: no-repeat; background-size: 400% 800%;
+      display: block; inline-size: calc(4800cqw / var(--ancho-sala, 960)); block-size: calc(7200cqw / var(--ancho-sala, 960)); background-repeat: no-repeat; background-size: 400% 800%;
       background-position-x: 0; image-rendering: pixelated;
     }
     .aro {
@@ -143,7 +143,7 @@ export class CamaraEscenaComponent {
     const h = this.hablante();
     if (this.salaEntera() || !h) return { ox: 0, oy: 0, escala: 1 };
     const limitar = (n: number) => Math.max(0, Math.min(50, n));
-    return { ox: limitar(h.x / 480 * 100 - 25), oy: limitar(h.pies / 264 * 100 - 25), escala: 2 };
+    return { ox: limitar(h.x / this.anchoMedio() * 100 - 25), oy: limitar(h.pies / 264 * 100 - 25), escala: 2 };
   });
   protected readonly transformacion = computed(() => {
     const { ox, oy, escala } = this.encuadre();
@@ -154,11 +154,13 @@ export class CamaraEscenaComponent {
     const h = this.hablante();
     if (!h) return null;
     const { ox, oy, escala } = this.encuadre();
-    const x = Math.max(6, Math.min(94, escala * (h.x / 480 * 100 - ox)));
+    const x = Math.max(6, Math.min(94, escala * (h.x / this.anchoMedio() * 100 - ox)));
     const y = Math.max(24, Math.min(100, escala * ((h.cabeza - 4) / 264 * 100 - oy)));
     return { nombre: h.nombre, x, y, izquierda: x > 60 };
   });
 
+  protected readonly anchoSala = computed(() => this.sala()?.estructura?.ancho ?? 960);
+  protected readonly anchoMedio = computed(() => this.anchoSala() / 2);
   protected readonly sala = computed(() => this.caso().salas.find((s) => s.id === this.escena().salaId) ?? null);
 
   protected readonly actores = computed<Actor[]>(() => {

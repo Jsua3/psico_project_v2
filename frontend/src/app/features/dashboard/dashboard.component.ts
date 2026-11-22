@@ -117,7 +117,8 @@ export class DashboardComponent implements OnInit {
   nombreCaso(id: number): string {
     // Publicados, luego los del docente y, por último, la bandeja (una versión retirada sigue nombrada en sus intentos).
     return this.publicados().find(c => c.caseVersionId === id)?.title ?? this.casos().find(c => c.caseVersionId === id)?.title
-      ?? this.revision()?.items.find(item => item.caseVersionId === id)?.caseTitle ?? `Caso ${id}`;
+      ?? this.revision()?.items.find(item => item.caseVersionId === id)?.caseTitle
+      ?? this.grupos().flatMap(g => g.asignaciones ?? []).find(a => a.caseVersionId === id)?.caseTitle ?? `Caso ${id}`;
   }
   /**
    * Varios intentos de la misma persona en el mismo caso se veían como filas idénticas: cada uno dice cuál es

@@ -66,7 +66,7 @@ export class GuionComponent {
   protected readonly anuncio = signal('');
   protected readonly lineaVista = signal<string | null>(null);
   /** La imagen de cada sala (las por piezas, compuestas con el pintor del juego), para la cámara. */
-  private readonly miniaturas = injectMiniaturasDeSalas();
+  private readonly miniaturas = injectMiniaturasDeSalas(true);
   protected miniaturaDe(e: { salaId: string | null }): string | null {
     return e.salaId ? this.miniaturas().get(e.salaId) ?? null : null;
   }

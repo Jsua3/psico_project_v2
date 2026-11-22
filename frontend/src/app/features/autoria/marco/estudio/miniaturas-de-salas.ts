@@ -13,7 +13,7 @@ import { PintorDeVistas, type SalaDeBiblioteca } from '../../pantallas/lugar/pin
  *
  * La clave refleja el contenido de la sala y evita que una respuesta antigua reemplace la vista actual.
  */
-export function injectMiniaturasDeSalas(): Signal<ReadonlyMap<string, string | null>> {
+export function injectMiniaturasDeSalas(completa = false): Signal<ReadonlyMap<string, string | null>> {
   const store = inject(CasoStore);
   const pintor = inject(PintorDeVistas);
   const mapa = signal<ReadonlyMap<string, string | null>>(new Map());
@@ -31,7 +31,7 @@ export function injectMiniaturasDeSalas(): Signal<ReadonlyMap<string, string | n
         const solicitud = { clave };
         solicitudes.set(sala.id, solicitud);
         cambiadas.add(sala.id);
-        void pintor.vista(caso.lugarId, sala as unknown as SalaDeBiblioteca).then((src) => {
+        void pintor.vista(caso.lugarId, sala as unknown as SalaDeBiblioteca, completa).then((src) => {
           if (solicitudes.get(sala.id) !== solicitud) return;
           if (!src) solicitudes.delete(sala.id);
           mapa.update((m) => new Map(m).set(sala.id, src));
