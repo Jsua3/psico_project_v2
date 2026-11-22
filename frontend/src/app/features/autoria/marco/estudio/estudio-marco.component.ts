@@ -115,9 +115,15 @@ const ATAJOS_GENERALES: GrupoAtajos[] = [
     /* La pantalla de la ruta se desplaza sola dentro de esta caja (que no se desplaza): lo que flota encima, como el
        asistente de IA, se ancla aquí y no viaja con el contenido. */
     .centro__contenido { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); flex: 1; min-inline-size: 0; min-block-size: 0; }
+    /* La barra no se encoge (flex: none): encogida a 44 px con botones de 44 más su relleno, el overflow-x: auto la volvía
+       desplazable también en vertical (aparecía una barra ▲●▼, «Acciones» quedaba cortado y los globos de ayuda, recortados;
+       lo vio el usuario el 2026-11-22). En escritorio nada se recorta; en pantallas estrechas se desplaza solo a lo ancho. */
     .herramientas {
-      display: flex; align-items: center; gap: 0.25rem; min-block-size: 2.75rem; padding: 0.25rem 0.5rem; overflow-x: auto;
+      display: flex; flex: none; align-items: center; gap: 0.25rem; min-block-size: 2.75rem; padding: 0.25rem 0.5rem; overflow: visible;
       border-block-end: 1px solid var(--l-filo); background: var(--l-superficie);
+    }
+    @media (max-width: 63.999rem) {
+      .herramientas { overflow-x: auto; overflow-y: hidden; }
     }
     .paneles-movil { display: flex; gap: 0.5rem; padding: 0.25rem; background: var(--l-superficie); }
     .paneles-movil button { min-block-size: 44px; padding-inline: 0.75rem; color: var(--ds-text-1); background: var(--l-superficie); border: 1px solid var(--l-filo-fuerte); border-radius: var(--l-radio-control); }

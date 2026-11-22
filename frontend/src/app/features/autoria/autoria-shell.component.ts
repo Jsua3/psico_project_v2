@@ -71,11 +71,16 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
            (DG-6); lo que no cabe cede por ancho, con su nombre completo para el lector. -->
       <div class="modulo modulo-principal ds-motion">
         @if (store.caso(); as caso) {
-          <a class="nav-enlace enlace-casos" [routerLink]="rutas.a('/')"><span aria-hidden="true">‹</span> Casos</a>
+          <!-- Volver es un botón explícito (pedido del usuario, 2026-11-22): antes era un «‹ Casos» de texto que se perdía. -->
+          <a class="boton-barra boton-volver enlace-casos" [routerLink]="rutas.a('/')">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10H4m5-5-5 5 5 5" /></svg><span><span class="boton-volver__texto">Volver a </span>Casos</span>
+          </a>
           <p class="caso-actual" [attr.title]="caso.titulo"><span class="solo-lector">Caso: </span>{{ caso.titulo }}</p>
           <app-hilo-del-caso />
         } @else {
-          <a class="nav-enlace" [routerLink]="rutas.a('/')"><span aria-hidden="true">‹</span> Casos</a>
+          <a class="boton-barra boton-volver" [routerLink]="rutas.a('/')">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10H4m5-5-5 5 5 5" /></svg><span><span class="boton-volver__texto">Volver a </span>Casos</span>
+          </a>
           <span class="contexto-editor">Editor de casos</span>
         }
       </div>
@@ -218,7 +223,15 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
     /* A 390 px el rótulo no cabe junto a «‹ Casos» y la cuenta (se pisaba con el menú): el título de la página ya lo dice. */
     @media (max-width: 29.999rem) { .contexto-editor { display: none; } }
     .barra-ayuda { display: flex; flex-wrap: nowrap; gap: 0.375rem; }
-    @media (max-width: 89.999rem) and (min-width: 64rem) { .enlace-casos { display: none; } }
+    /* «Volver a Casos»: una píldora como «Probar» y «Pendientes», con su flecha. Entre 64 y 90 rem no se esconde: queda
+       «← Casos» y «Volver a» pasa a ser solo para el lector, así su nombre no cambia con el ancho. */
+    .boton-volver { flex: none; padding-inline: 0.75rem 0.875rem; }
+    .boton-volver svg {
+      inline-size: 1.125rem; block-size: 1.125rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+    }
+    @media (max-width: 89.999rem) and (min-width: 64rem) {
+      .boton-volver__texto { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    }
     @media (max-width: 79.999rem) and (min-width: 64rem) { .caso-actual { display: none; } }
 
     /* Lo que informa (el guardado) se separa con un filo de lo que se hace. «Probar» lleva el tinte de acción: es lo que se
