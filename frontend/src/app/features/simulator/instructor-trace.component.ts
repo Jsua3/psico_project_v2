@@ -1,64 +1,61 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import {
+  ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal, viewChild,
+} from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { take } from 'rxjs/operators';
-import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { apiErrorMessage } from '../../core/api/api-error.util';
 import { InstructorApi } from '../../core/api/instructor.api';
+import { CanLeave } from '../../core/navigation/can-leave.guard';
 import { NotificationService } from '../../core/notifications/notification.service';
 import {
   AttemptTimelineEntry, AttemptTrace, CompetencyLevelEntry, FormativeLevel, RecentAttempt, ReflectionTrace,
-  ResponseClass, RubricCriterionView, RubricEvaluationView, RubricLevelOption, RubricSummary, TraceEvent,
+  ResponseClass, RubricEvaluationView, RubricSummary, TraceEvent,
 } from '../../core/models/simulation.model';
 import { UiBadge, UiBadgeTone } from '../../shared/ui/badge/ui-badge';
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiCard } from '../../shared/ui/card/ui-card';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
+import { UiCheck, UiSwitch } from '../../shared/ui/field/ui-check';
 import { UiControl, UiField } from '../../shared/ui/field/ui-field';
 import { statusLabel } from '../../shared/ui/labels';
+import { UiMenu, UiMenuItem } from '../../shared/ui/menu/ui-menu';
 import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
 import { UiSection } from '../../shared/ui/section/ui-section';
+import { UiSegmentado, UiSegmento } from '../../shared/ui/segmentado/ui-segmentado';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { UiStat } from '../../shared/ui/stat/ui-stat';
 import { errorKindFromStatus, uiDataState } from '../../shared/ui/state/ui-data-state';
 import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
+import { UiTab, UiTabs } from '../../shared/ui/tabs/ui-tabs';
 import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
 import { DRAFT_COPY } from './draft-copy';
 import { milestoneMark } from './outcome-text.util';
 import { ReplaceAttemptDialogComponent, ReplaceAttemptDialogData } from './replace-attempt-dialog.component';
+import { RubricaIntentoComponent } from './revision/rubrica-intento.component';
 import {
   FeedbackPanelView, SummaryFeedbackKey, TraceFeedbackDialogComponent, TraceFeedbackDialogData,
 } from './trace-feedback-dialog.component';
 import {
-  TraceAccent, cleanText, formatTraceDate, formatTraceDuration, formativeLevelLabel, formativeLevelTone,
-  timelineEntryAccent, timelineEntryLabel, timelineEntryTone, timelineFeedback,
+  TraceAccent, cleanText, esDecisionRegistrada, esFilaDeDecision, formatTraceDate, formatTraceDuration,
+  formativeLevelLabel, formativeLevelTone, haceCuanto, nombreDeCompetencia, textoDeFila, timelineEntryAccent,
+  timelineEntryLabel, timelineEntryTone, timelineFeedback,
 } from './trace-labels.util';
-
-/** Los cuatro niveles con su nombre, para cuando el servidor no manda los descriptores. */
-const DEFAULT_LEVELS: RubricLevelOption[] = [
-  { value: 'EN_INICIO', label: DRAFT_COPY.levelEnInicio.text, descriptor: '' },
-  { value: 'EN_PROCESO', label: DRAFT_COPY.levelEnProceso.text, descriptor: '' },
-  { value: 'LOGRADO', label: DRAFT_COPY.levelLogrado.text, descriptor: '' },
-  { value: 'DESTACADO', label: DRAFT_COPY.levelDestacado.text, descriptor: '' },
-];
 
 /**
  * BORRADOR (VD-23): textos nuevos de la traza docente, pendientes de la aprobación de Psicología. Sin cifras de
  * desempeño: la traza dice qué hizo la persona y en qué clase cae cada respuesta.
  */
 const TRACE_COPY = {
-  levelHint: 'Elige el nivel que mejor describe la evidencia de este criterio.',
-  levelRequired: 'Elige un nivel para este criterio.',
-  levelsMissing: 'Elige un nivel en cada criterio para guardar la valoración.',
-  levelOrComment: 'Elige un nivel o escribe una retroalimentación para guardar.',
   noTeacherLevel: 'Sin criterio equivalente',
   systemFolded: 'La valoración del sistema se mostrará cuando registres tu propia valoración.',
   // V5 (borrador, a validar con Psicología): el caso no declara competencias en sus respuestas.
   notDeclared: 'Este caso todavía no declara qué competencia evidencia cada respuesta; por eso el resultado no muestra niveles.',
   openEditor: 'Abrir el caso en el editor',
+  // Sin BK-3 en el servidor no se sabe qué intento ya se valoró: «Por revisar» muestra todos los terminados.
+  sinEstadoDeValoracion: 'Se muestran todos los intentos terminados: el servidor no dice cuáles ya valoraste.',
   classPanels: {
     RECOMMENDED: {
       title: 'Decisiones recomendadas',
@@ -79,35 +76,57 @@ const TRACE_COPY = {
   },
 } as const;
 
+/** Los filtros de la bandeja (DISENO §5.3). */
+export type FiltroBandeja = 'por-revisar' | 'todos' | 'en-curso';
+/** Las dos mitades de la pantalla en el teléfono: una a la vez. */
+export type VistaRevision = 'evidencia' | 'valoracion';
+export type PestanaEvidencia = 'recorrido' | 'decisiones' | 'reflexiones';
+
+/** Una fila de la línea de tiempo con su número de decisión (estable: el mismo con o sin eventos del sistema). */
+export interface FilaLinea {
+  entry: AttemptTimelineEntry;
+  /** Orden de la decisión registrada (1, 2, 3…); nulo en un reintento o un evento del sistema. */
+  orden: number | null;
+  decision: boolean;
+  texto: string;
+}
+
+const ACCION_REEMPLAZAR = 'reemplazar';
+
 /**
- * Traza del docente (plan visual F7-4): lista de intentos a la izquierda y, a la derecha, el recorrido, las
- * reflexiones y la rúbrica del elegido. La retroalimentación abre un diálogo de la biblioteca (trampa de foco, foco
- * inicial, Esc). La rúbrica se califica por niveles formativos (uno por criterio, con su descriptor y su observación):
- * no hay campo numérico, y para guardar cada criterio necesita su nivel. La valoración se rotula «Valoración
- * formativa» (RN-09, ED-2). La traza no muestra cifras de desempeño: cuenta hitos, la persona por escena, el final
- * con su razón y las decisiones por clase. El perfil automático del sistema queda plegado hasta que el docente guarda
- * su propia valoración (el servidor lo manda entonces).
+ * Revisión del intento (DISENO §5.3, bloque B5b): la bandeja de intentos, la evidencia y la valoración, a la vez. Desde
+ * 1440 px van en tres columnas; entre 1024 y 1439 la bandeja se abre con un selector y quedan dos; por debajo de 1024,
+ * una columna con el segmentado «Evidencia | Valoración». La valoración es `app-rubrica-intento` (su interior es de R2)
+ * con «Guardar evaluación» siempre a la vista; salir o cambiar de intento con cambios sin guardar pregunta antes.
+ *
+ * La evidencia no muestra cifras de desempeño: cuenta hitos, la persona por escena, el final con su razón y las
+ * decisiones por clase, con la línea de tiempo solo de decisiones por defecto (cada una con su número de orden, para
+ * que la valoración pueda señalarla). El perfil automático del sistema queda plegado hasta que el docente guarda su
+ * propia valoración (el servidor lo manda entonces).
+ *
+ * Patrones: es el contenedor (carga, decide y coordina) y la valoración es una pieza aparte que avisa por salidas
+ * (Observer); los estados de la lista y del detalle son State (`uiDataState`); la API se pide solo por el adaptador
+ * `InstructorApi` (Adapter). Salir con cambios sin guardar pasa por `canLeaveGuard` (la ruta) y `canLeave()` (aquí).
  */
 @Component({
   selector: 'app-instructor-trace',
   standalone: true,
   imports: [
-    FormsModule,
-    UiBadge, UiButton, UiCard, UiControl, UiField, UiPageHeader, UiSection, UiSkeleton, UiStat,
-    UiEmptyState, UiErrorState, UiTable, UiTableRow, UiTableTable,
+    UiBadge, UiButton, UiCard, UiCheck, UiControl, UiField, UiMenu, UiPageHeader, UiSection, UiSegmentado, UiSkeleton,
+    UiStat, UiSwitch, UiTab, UiTabs, UiEmptyState, UiErrorState, UiTable, UiTableRow, UiTableTable,
+    RubricaIntentoComponent,
   ],
   templateUrl: './instructor-trace.component.html',
   styleUrl: './instructor-trace.component.scss',
-  // Eager: los niveles y comentarios del formulario son campos de la clase (ngModel), no señales.
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '(window:beforeunload)': 'onBeforeUnload($event)' },
 })
-export class InstructorTraceComponent implements OnInit {
+export class InstructorTraceComponent implements OnInit, CanLeave {
   private readonly instructorApi = inject(InstructorApi);
   private readonly dialog = inject(UiDialog);
   private readonly notify = inject(NotificationService);
   private readonly route = inject(ActivatedRoute, { optional: true });
   private readonly destroyRef = inject(DestroyRef);
-  private readonly announcer = inject(LiveRegionAnnouncer);
 
   /**
    * Lo que se está pidiendo del intento abierto: su traza, su rúbrica y la traza refrescada tras guardar. Elegir otro
@@ -124,11 +143,22 @@ export class InstructorTraceComponent implements OnInit {
   readonly attemptsError = signal('');
   readonly loadingTrace = signal(false);
   readonly traceError = signal<HttpErrorResponse | null>(null);
+  /** Aviso de la carga de la rúbrica (sin rúbrica, sin permiso); los del guardado los dice la valoración. */
   readonly rubricMessage = signal('');
   readonly rubricMessageIsError = signal(false);
-  readonly savingRubric = signal(false);
-  readonly rubricValidationErrors = signal<Record<number, string>>({});
   readonly selectedAttemptId = signal<string | null>(null);
+
+  // ── Maquetación ──────────────────────────────────────────────────────────────────────────────────────────────
+  readonly filtro = signal<FiltroBandeja>('todos');
+  readonly busqueda = signal('');
+  /** Entre 1024 y 1439 px (y en el teléfono) la bandeja se abre con el selector; desde 1440 siempre está. */
+  readonly bandejaAbierta = signal(false);
+  readonly vista = signal<VistaRevision>('evidencia');
+  readonly pestana = signal<PestanaEvidencia>('decisiones');
+  /** La línea de tiempo muestra solo decisiones; el interruptor suma los eventos del sistema (puertas, recursos). */
+  readonly mostrarEventos = signal(false);
+
+  private readonly rubrica = viewChild(RubricaIntentoComponent);
 
   /** Estado de la lista y del detalle: una sola señal cada una, de a uno. */
   readonly listState = uiDataState({
@@ -148,29 +178,78 @@ export class InstructorTraceComponent implements OnInit {
     if (this.detailState() === 'loading') return 'Cargando la trazabilidad…';
     // El aviso de guardado o de fallo se anuncia aquí: la región existe antes de que cambie su texto. (El resultado del
     // reemplazo docente sale por el aviso del sistema: aquí taparía los de la rúbrica y se repetiría al recargar.)
-    return this.rubricMessage();
+    return this.rubrica()?.mensaje() || this.rubricMessage();
   });
   /** E1-2: hay un reemplazo docente en curso (su resultado se dice con un aviso del sistema). */
   readonly replacing = signal(false);
 
-  /** Rótulo del total de la rúbrica (RN-09): la evaluación es formativa, no una nota oficial. */
-  protected readonly valuationLabel = DRAFT_COPY.formativeValuationLabel.text;
   /** BORRADOR (VD-23): textos nuevos de la traza por hitos, pendientes de la aprobación de Psicología. */
   protected readonly copy = TRACE_COPY;
 
-  /** Los cuatro niveles de la rúbrica con su descriptor; si el servidor no los manda, solo sus nombres. */
-  protected readonly rubricLevels = computed<RubricLevelOption[]>(() => {
-    const served = this.rubric()?.levels;
-    return served?.length ? served : DEFAULT_LEVELS;
+  /** BK-3 en el servidor: cada intento dice si su valoración está pendiente. Sin él, se filtra por «terminado». */
+  protected readonly conEstadoDeValoracion = computed(() => this.attempts().some(attempt => !!attempt.evaluationStatus));
+
+  protected readonly segmentos = computed<UiSegmento[]>(() => {
+    const attempts = this.attempts();
+    return [
+      { valor: 'por-revisar', etiqueta: 'Por revisar', cuenta: attempts.filter(attempt => this.porRevisar(attempt)).length },
+      // Solo «Por revisar» lleva cifra: es la que dice cuánto trabajo queda, y con las tres no caben en la bandeja.
+      { valor: 'todos', etiqueta: 'Todos' },
+      { valor: 'en-curso', etiqueta: 'En curso' },
+    ];
   });
 
-  /** El nivel elegido por criterio (nulo = sin calificar) y su observación; son campos de la clase (ngModel). */
-  rubricLevelsByCriterion: Record<number, FormativeLevel | null> = {};
-  rubricComments: Record<number, string> = {};
-  rubricComment = '';
+  /** La bandeja filtrada por el segmentado y por la búsqueda (caso o alias). */
+  protected readonly bandeja = computed(() => {
+    const filtro = this.filtro();
+    const texto = this.busqueda().trim().toLocaleLowerCase('es');
+    return this.attempts().filter(attempt => {
+      if (filtro === 'por-revisar' && !this.porRevisar(attempt)) return false;
+      if (filtro === 'en-curso' && !this.enCurso(attempt)) return false;
+      if (!texto) return true;
+      return `${attempt.caseTitle ?? ''} ${attempt.studentAlias ?? ''}`.toLocaleLowerCase('es').includes(texto);
+    });
+  });
+
+  /** El intento abierto tal como lo nombra la bandeja (para el selector de 1024-1439). */
+  protected readonly elegido = computed(() => {
+    const id = this.selectedAttemptId();
+    const trace = this.trace();
+    if (trace && trace.attemptId === id) return `${this.clean(trace.studentAlias, 'Estudiante')} · ${this.clean(trace.caseTitle, 'Caso sin título')}`;
+    const attempt = this.attempts().find(item => item.attemptId === id);
+    return attempt ? `${this.clean(attempt.studentAlias, 'Estudiante')} · ${this.clean(attempt.caseTitle, 'Caso sin título')}` : 'Elige un intento';
+  });
+
+  /** Sin intento abierto (lista vacía, con error o aún sin elegir) la bandeja se muestra siempre. */
+  protected readonly bandejaVisible = computed(() => this.bandejaAbierta() || !this.selectedAttemptId());
+
+  /** Las filas de la línea de tiempo: el número de orden se cuenta sobre TODAS, así no cambia con el interruptor. */
+  protected readonly filasLinea = computed<FilaLinea[]>(() => {
+    const item = this.trace();
+    if (!item) return [];
+    let orden = 0;
+    const filas = this.timelineEntries(item).map(entry => ({
+      entry,
+      orden: esDecisionRegistrada(entry) ? ++orden : null,
+      decision: esFilaDeDecision(entry),
+      texto: textoDeFila(entry),
+    }));
+    return this.mostrarEventos() ? filas : filas.filter(fila => fila.decision);
+  });
+
+  protected readonly menuIntento: UiMenuItem[] = [
+    { value: ACCION_REEMPLAZAR, label: 'Reemplazar intento', icon: 'restart_alt', tone: 'danger' },
+  ];
+
+  protected readonly vistas: UiSegmento[] = [
+    { valor: 'evidencia', etiqueta: 'Evidencia' },
+    { valor: 'valoracion', etiqueta: 'Valoración' },
+  ];
 
   ngOnInit() {
     this.destroyRef.onDestroy(() => this.cancelRequests());
+    // «Ver todos» del Inicio docente llega con `?evaluacion=pendiente`: la bandeja abre en «Por revisar».
+    if (this.route?.snapshot.queryParamMap.get('evaluacion') === 'pendiente') this.filtro.set('por-revisar');
     this.loadAttempts();
   }
 
@@ -180,6 +259,58 @@ export class InstructorTraceComponent implements OnInit {
     this.refreshing?.unsubscribe();
   }
 
+  // ── Salir o cambiar de intento con cambios sin guardar ─────────────────────────────────────────────────────────
+  /** Lo que lleva escrito o elegido la docente en la valoración y aún no guardó. */
+  hayCambios(): boolean {
+    return this.rubrica()?.hayCambios() ?? false;
+  }
+
+  /** `canLeaveGuard` de la ruta: con cambios sin guardar, se pregunta nombrando lo que se pierde. */
+  canLeave(): boolean | Promise<boolean> {
+    return this.hayCambios() ? this.confirmarDescarte() : true;
+  }
+
+  /** Cerrar o recargar la pestaña con cambios sin guardar: el navegador pregunta. */
+  onBeforeUnload(event: BeforeUnloadEvent): void {
+    if (this.hayCambios()) event.preventDefault();
+  }
+
+  private async confirmarDescarte(): Promise<boolean> {
+    const answer = await this.dialog.consequence({
+      title: 'Tu valoración no está guardada',
+      consequence: 'Si sigues, se pierden los niveles y las observaciones que escribiste para este intento.',
+      continueLabel: 'Seguir valorando',
+      proceedLabel: 'Descartar cambios',
+    });
+    return answer === 'proceed';
+  }
+
+  /** Elegir un intento en la bandeja: con cambios sin guardar en el abierto, se pregunta antes de cambiar. */
+  elegir(attempt: Pick<RecentAttempt, 'attemptId'>): void {
+    if (attempt.attemptId === this.selectedAttemptId() && this.trace()) {
+      this.bandejaAbierta.set(false);
+      return;
+    }
+    const abrir = () => {
+      this.bandejaAbierta.set(false);
+      this.vista.set('evidencia');
+      this.open(attempt);
+    };
+    if (!this.hayCambios()) {
+      abrir();
+      return;
+    }
+    void this.confirmarDescarte().then(seguir => { if (seguir) abrir(); });
+  }
+
+  /** Para R2 («Siguiente por revisar →»): abre el siguiente pendiente de la bandeja después del abierto. */
+  abrirSiguientePendiente(): void {
+    const pendientes = this.attempts().filter(attempt => this.porRevisar(attempt));
+    const actual = pendientes.findIndex(attempt => attempt.attemptId === this.selectedAttemptId());
+    const siguiente = pendientes[actual + 1] ?? pendientes.find(attempt => attempt.attemptId !== this.selectedAttemptId());
+    if (siguiente) this.elegir(siguiente);
+  }
+
   /** Abre un intento. Basta su id: un intento fuera de la lista reciente (p. ej. de un caso republicado) también se abre. */
   open(attempt: Pick<RecentAttempt, 'attemptId'>) {
     this.cancelRequests();
@@ -187,7 +318,6 @@ export class InstructorTraceComponent implements OnInit {
     this.traceError.set(null);
     this.rubricMessage.set('');
     this.rubricMessageIsError.set(false);
-    this.rubricValidationErrors.set({});
     this.selectedAttemptId.set(attempt.attemptId);
 
     this.opening = this.instructorApi.attemptTrace(attempt.attemptId).subscribe({
@@ -222,8 +352,10 @@ export class InstructorTraceComponent implements OnInit {
           // «Ver detalle» del panel docente llega con `?intento=<id>`: se abre ESE intento aunque ya no esté en la
           // lista reciente (nunca se abre en silencio el de otra persona); sin el parámetro, el más reciente.
           const requested = this.route?.snapshot.queryParamMap.get('intento');
+          // Con la bandeja filtrada («Por revisar» desde el Inicio), el primero de ESA lista.
+          const primero = this.bandeja()[0] ?? attempts[0];
           if (requested) this.open({ attemptId: requested });
-          else if (attempts.length) this.open(attempts[0]);
+          else if (primero) this.open(primero);
         }
       },
       error: () => {
@@ -233,11 +365,49 @@ export class InstructorTraceComponent implements OnInit {
     });
   }
 
+  /** Por revisar: con BK-3, la valoración pendiente; sin él, cualquier intento terminado (se dice con una nota). */
+  porRevisar(attempt: RecentAttempt): boolean {
+    if (attempt.evaluationStatus) return attempt.evaluationStatus === 'PENDIENTE';
+    return (attempt.status ?? '').toUpperCase() === 'COMPLETED';
+  }
+
+  enCurso(attempt: RecentAttempt): boolean {
+    const status = (attempt.status ?? '').toUpperCase();
+    return status === 'IN_PROGRESS' || status === 'PAUSED';
+  }
+
+  protected elegirFiltro(valor: string): void {
+    this.filtro.set(valor as FiltroBandeja);
+  }
+
+  protected elegirVista(valor: string): void {
+    this.vista.set(valor as VistaRevision);
+  }
+
+  protected elegirPestana(valor: string | undefined): void {
+    if (valor) this.pestana.set(valor as PestanaEvidencia);
+  }
+
+  protected buscar(event: Event): void {
+    this.busqueda.set((event.target as HTMLInputElement).value);
+  }
+
+  /** «Terminó hace 2 días» o «Empezó hace 3 horas»: cuándo, en palabras. */
+  protected cuando(attempt: RecentAttempt): string {
+    if (attempt.endedAt) return `Terminó ${haceCuanto(attempt.endedAt)}`;
+    const inicio = haceCuanto(attempt.startedAt);
+    return inicio ? `Empezó ${inicio}` : 'Sin fecha';
+  }
+
   // ── Reemplazo docente (E1-2, RN-07) ────────────────────────────────────────────────────────────────────────────
   /** Solo un intento abierto (en curso o en pausa) se reemplaza; el servidor responde 409 a uno cerrado. */
   canReplace(item: AttemptTrace): boolean {
     const status = this.clean(item.status, '').toUpperCase();
     return status === 'IN_PROGRESS' || status === 'PAUSED';
+  }
+
+  protected accionIntento(valor: string | undefined, item: AttemptTrace): void {
+    if (valor === ACCION_REEMPLAZAR) this.replace(item);
   }
 
   /** Pide el motivo en un diálogo y reemplaza el intento; al terminar recarga la traza y la lista, y lo anuncia. */
@@ -344,12 +514,12 @@ export class InstructorTraceComponent implements OnInit {
         intro: this.evaluationApplied(item)
           ? 'Evaluaciones de rúbrica ya aplicadas a este intento.'
           : item.rubricEvaluations.length
-            ? 'Hay una evaluación a medias: faltan criterios por calificar. Completa la rúbrica al final de esta pantalla.'
-            : 'Aún no hay evaluación guardada. Completa la rúbrica al final de esta pantalla.',
+            ? 'Hay una evaluación a medias: faltan criterios por calificar. Complétala en la columna «Valoración».'
+            : 'Aún no hay evaluación guardada. Complétala en la columna «Valoración».',
         ...empty,
         evaluations: item.rubricEvaluations,
         emptyTitle: 'Evaluación pendiente',
-        emptyMessage: 'Usa la sección de rúbrica más abajo para registrar los niveles y la retroalimentación formativa.',
+        emptyMessage: 'Usa la columna «Valoración» para registrar los niveles y la retroalimentación formativa.',
       };
     }
 
@@ -447,100 +617,16 @@ export class InstructorTraceComponent implements OnInit {
       });
   }
 
-  // ── Rúbrica por niveles ─────────────────────────────────────────────────────────────────────────────────────
-  /** Nivel formativo ya guardado de un criterio, si lo hay. */
-  criterionLevel(criterionId: number): FormativeLevel | null {
-    return this.rubric()?.scores.find(score => score.criterionId === criterionId)?.level ?? null;
-  }
-
-  /** Lo que dice el nivel elegido en un criterio (su descriptor), como ayuda del campo; sin nivel, cómo elegir. */
-  levelHint(criterionId: number): string {
-    const level = this.rubricLevelsByCriterion[criterionId];
-    const descriptor = level ? this.rubricLevels().find(option => option.value === level)?.descriptor : null;
-    return descriptor || this.copy.levelHint;
-  }
-
-  /** El docente eligió (o quitó) el nivel de un criterio: se limpia el error de ESE criterio y se conservan los demás. */
-  onLevelChange(criterion: RubricCriterionView, value: FormativeLevel | '' | null) {
-    this.rubricLevelsByCriterion[criterion.id] = value || null;
-    const next = { ...this.rubricValidationErrors() };
-    delete next[criterion.id];
-    this.rubricValidationErrors.set(next);
-    if (!Object.keys(next).length && this.rubricMessageIsError()) {
-      this.rubricMessage.set('');
-      this.rubricMessageIsError.set(false);
-    }
-  }
-
-  saveRubric() {
-    const trace = this.trace();
-    const rubric = this.rubric();
-    if (!trace || !rubric || this.savingRubric()) return;
-
-    // Cada criterio necesita su nivel: la valoración formativa se guarda completa (un nivel por criterio).
-    if (!this.validateRubricLevels(rubric)) {
-      this.rubricMessage.set(this.copy.levelsMissing);
-      this.rubricMessageIsError.set(true);
-      this.announcer.announce(this.copy.levelsMissing, 'polite');
-      return;
-    }
-
-    const scores = rubric.criteria.map(criterion => ({
-      criterionId: criterion.id,
-      level: this.rubricLevelsByCriterion[criterion.id] as FormativeLevel,
-      comment: this.clean(this.rubricComments[criterion.id], ''),
-    }));
-
-    // Una rúbrica sin criterios no tiene niveles que enviar: sin ellos hace falta al menos la retroalimentación.
-    if (!scores.length && !this.clean(this.rubricComment, '')) {
-      this.rubricMessage.set(this.copy.levelOrComment);
-      this.rubricMessageIsError.set(true);
-      this.announcer.announce(this.copy.levelOrComment, 'assertive');
-      return;
-    }
-
-    this.savingRubric.set(true);
-    this.rubricMessage.set('');
-    this.rubricMessageIsError.set(false);
-
-    this.instructorApi.saveRubric(trace.attemptId, rubric.rubricId, this.rubricComment, scores).subscribe({
-      next: saved => {
-        this.savingRubric.set(false);
-        this.notify.success('Evaluación guardada correctamente.');
-        // Si en el entretanto se abrió otro intento, el resultado no se pinta sobre él.
-        if (this.selectedAttemptId() !== trace.attemptId) return;
-        const normalized = this.normalizeRubric(saved);
-        this.rubric.set(normalized);
-        this.seedRubricForm(normalized);
-        // Al guardar su valoración, el servidor entrega también el perfil automático: se vuelve a pedir la traza.
-        this.refreshTrace(trace.attemptId);
-      },
-      error: () => {
-        const fallo = 'No fue posible guardar la evaluación. Intenta nuevamente o verifica tus permisos.';
-        this.rubricMessage.set(fallo);
-        this.rubricMessageIsError.set(true);
-        this.savingRubric.set(false);
-        // Es el único rastro del fallo (no hay aviso emergente): se anuncia como los demás errores de la pantalla (F6-12).
-        this.announcer.announce(fallo, 'assertive');
-      }
-    });
-  }
-
-  rubricFieldError(criterionId: number): string | null {
-    return this.rubricValidationErrors()[criterionId] ?? null;
-  }
-
-  hasRubricErrors(): boolean {
-    return Object.keys(this.rubricValidationErrors()).length > 0;
-  }
-
-  private validateRubricLevels(rubric: RubricEvaluationView): boolean {
-    const errors: Record<number, string> = {};
-    for (const criterion of rubric.criteria) {
-      if (!this.rubricLevelsByCriterion[criterion.id]) errors[criterion.id] = this.copy.levelRequired;
-    }
-    this.rubricValidationErrors.set(errors);
-    return Object.keys(errors).length === 0;
+  // ── Valoración ────────────────────────────────────────────────────────────────────────────────────────────────
+  /**
+   * La valoración se guardó: se vuelven a pedir la rúbrica (sus niveles guardados y el nivel global) y la traza (al
+   * guardar su valoración, el servidor entrega también el perfil automático).
+   */
+  onValoracionGuardada(): void {
+    const attemptId = this.selectedAttemptId();
+    if (!attemptId) return;
+    this.loadRubric(attemptId, { silencioso: true });
+    this.refreshTrace(attemptId);
   }
 
   // ── Valoración del sistema (plegada hasta que el docente guarda la suya) ───────────────────────────────────────
@@ -548,7 +634,7 @@ export class InstructorTraceComponent implements OnInit {
    * El perfil automático por competencia junto a lo que el docente dio a los criterios de esa competencia: sus niveles,
    * «Pendiente» si el criterio existe pero aún no lo calificó, o «Sin criterio equivalente» si la rúbrica no tiene uno.
    */
-  systemRows(item: AttemptTrace): { entry: CompetencyLevelEntry; teacher: string }[] {
+  systemRows(item: AttemptTrace): { entry: CompetencyLevelEntry; name: string; teacher: string }[] {
     const criteria = this.rubric()?.criteria ?? [];
     const scores = this.rubric()?.scores ?? [];
     return (item.systemEvaluation?.competencyLevels ?? []).map(entry => {
@@ -559,7 +645,7 @@ export class InstructorTraceComponent implements OnInit {
       const teacher = !matching.length
         ? this.copy.noTeacherLevel
         : levels.length ? levels.map(level => formativeLevelLabel(level)).join(', ') : formativeLevelLabel(null);
-      return { entry, teacher };
+      return { entry, name: nombreDeCompetencia(entry.name, entry.code), teacher };
     });
   }
 
@@ -568,20 +654,21 @@ export class InstructorTraceComponent implements OnInit {
     return item.systemEvaluation === null && item.systemEvaluationAvailable;
   }
 
-  private loadRubric(attemptId: string) {
+  private loadRubric(attemptId: string, { silencioso = false } = {}) {
+    this.rubricRequest?.unsubscribe();
     this.rubricRequest = this.instructorApi.rubric(attemptId).subscribe({
       next: rubric => {
         if (this.selectedAttemptId() !== attemptId) return;
-        const normalized = this.normalizeRubric(rubric);
-        this.rubric.set(normalized);
-        this.seedRubricForm(normalized);
+        this.rubric.set(this.normalizeRubric(rubric));
         this.loadingTrace.set(false);
       },
       error: (err: HttpErrorResponse) => {
         if (this.selectedAttemptId() !== attemptId) return;
+        // Recargar tras guardar no borra lo que ya está en pantalla: un fallo ahí no deja la columna vacía.
+        if (silencioso) return;
         this.rubric.set(null);
         if (err.status === 404) {
-          this.rubricMessage.set('Este caso aún no tiene rúbrica configurada. La trazabilidad sigue disponible abajo.');
+          this.rubricMessage.set('Este caso aún no tiene rúbrica configurada. La trazabilidad sigue disponible.');
           this.rubricMessageIsError.set(false);
         } else if (err.status === 403) {
           this.rubricMessage.set('No tienes permisos para evaluar este intento.');
@@ -603,17 +690,6 @@ export class InstructorTraceComponent implements OnInit {
       },
       error: () => undefined
     });
-  }
-
-  private seedRubricForm(rubric: RubricEvaluationView) {
-    // Sin nivel guardado el selector queda en «Sin calificar» (null).
-    this.rubricLevelsByCriterion = Object.fromEntries(
-      rubric.criteria.map(item => [item.id, rubric.scores.find(score => score.criterionId === item.id)?.level ?? null])
-    );
-    this.rubricComments = Object.fromEntries(
-      rubric.criteria.map(item => [item.id, rubric.scores.find(score => score.criterionId === item.id)?.comment ?? ''])
-    );
-    this.rubricComment = rubric.comment ?? '';
   }
 
   private normalizeTrace(trace: AttemptTrace): AttemptTrace {
@@ -671,6 +747,13 @@ export class InstructorTraceComponent implements OnInit {
 
   formatDuration(seconds: number | null | undefined): string {
     return formatTraceDuration(seconds);
+  }
+
+  /** «21 min»: el tiempo activo en una línea, sin segundos (es una referencia, no una medida). */
+  tiempoActivo(seconds: number | null | undefined): string {
+    if (seconds === null || seconds === undefined) return 'No disponible';
+    const minutes = Math.round(seconds / 60);
+    return minutes < 1 ? 'menos de un minuto' : `${minutes} min`;
   }
 
   clean(value: string | null | undefined, fallback: string): string {

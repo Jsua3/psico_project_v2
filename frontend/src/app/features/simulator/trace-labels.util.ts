@@ -161,3 +161,82 @@ export function timelineEntryAccent(entry: AttemptTimelineEntry): TraceAccent {
   if (entry.prohibited) return 'contraindicated';
   return responseClassAccent(entry.class);
 }
+
+// ── Revisión en columnas (rediseño 2026-11-21, bloque B5b) ────────────────────────────────────────────────────
+
+/**
+ * Una fila de la línea de tiempo que habla de una decisión del estudiante: la registrada y también la reconsiderada
+ * (el reintento), porque la docente necesita ver qué eligió primero. Lo demás (puertas, recursos, reemplazos) son
+ * eventos del sistema y solo se muestran con el interruptor encendido.
+ */
+export function esFilaDeDecision(entry: Pick<AttemptTimelineEntry, 'type'>): boolean {
+  return (entry.type ?? '').toUpperCase().includes('DECISION');
+}
+
+/** Una decisión registrada: la que cuenta en el resumen y la que lleva número de orden. El reintento no lo es. */
+export function esDecisionRegistrada(entry: Pick<AttemptTimelineEntry, 'type'>): boolean {
+  const type = (entry.type ?? '').toUpperCase();
+  return type === 'DECISION_SELECTED' || type === 'PROHIBITED_DECISION_SELECTED';
+}
+
+/** Lugares y salas que el servidor nombra con su clave de mapa («hospital-sala-escucha»): su nombre para una persona. */
+const LUGARES: Record<string, string> = { hospital: 'hospital', comisaria: 'comisaría' };
+const SALAS: Record<string, string> = {
+  recepcion: 'la recepción',
+  consultorio: 'el consultorio',
+  urgencias: 'urgencias',
+  'sala-escucha': 'la sala de escucha',
+  'sala-espera': 'la sala de espera',
+  'sala-entrevista': 'la sala de entrevista',
+  pasillo: 'el pasillo',
+  oficina: 'la oficina',
+};
+
+/** «hospital-sala-escucha» → «la sala de escucha (hospital)»; nulo si la clave no se conoce (no se inventa un nombre). */
+export function nombreDeSala(clave: string | null | undefined): string | null {
+  const limpia = (clave ?? '').trim().toLowerCase();
+  const corte = limpia.indexOf('-');
+  if (corte < 1) return null;
+  const lugar = LUGARES[limpia.slice(0, corte)];
+  const sala = SALAS[limpia.slice(corte + 1)];
+  return lugar && sala ? `${sala} (${lugar})` : null;
+}
+
+/**
+ * El texto de una fila sin jerga del sistema. Las puertas llegan como «Puerta hacia sala hospital-sala-escucha»: se
+ * dicen «Entró en la sala de escucha (hospital)» y, si la clave no se conoce, «Cambió de sala» (nunca la clave).
+ */
+export function textoDeFila(entry: Pick<AttemptTimelineEntry, 'label'>): string {
+  const texto = cleanText(entry.label, 'Evento registrado');
+  const puerta = /^Puerta hacia (?:la )?sala\s+(\S+)$/i.exec(texto);
+  if (!puerta) return texto;
+  const sala = nombreDeSala(puerta[1]);
+  return sala ? `Entró en ${sala}` : 'Cambió de sala';
+}
+
+/**
+ * El nombre de una competencia para la vista: el del catálogo o, si solo llega la clave («MARCO_NORMATIVO»), esa
+ * clave dicha en minúsculas («Marco normativo»). Las claves en mayúsculas no se muestran a la docente.
+ */
+export function nombreDeCompetencia(nombre: string | null | undefined, clave: string | null | undefined): string {
+  const limpio = cleanText(nombre, '');
+  if (limpio && !/^[A-Z0-9_]+$/.test(limpio)) return limpio;
+  const base = (limpio || cleanText(clave, '')).replace(/_+/g, ' ').trim().toLowerCase();
+  return base ? base.charAt(0).toUpperCase() + base.slice(1) : 'Competencia';
+}
+
+const HACE = new Intl.RelativeTimeFormat('es', { numeric: 'always' });
+
+/** «hace 2 días», «hace 3 horas», «hace un momento»: cuándo pasó, en palabras (la bandeja de la revisión). */
+export function haceCuanto(valor: string | null | undefined, ahora: number = Date.now()): string {
+  if (!valor) return '';
+  const fecha = new Date(valor).getTime();
+  if (Number.isNaN(fecha)) return '';
+  const segundos = Math.round((fecha - ahora) / 1000);
+  const abs = Math.abs(segundos);
+  if (abs < 60) return 'hace un momento';
+  if (abs < 3600) return HACE.format(Math.round(segundos / 60), 'minute');
+  if (abs < 86400) return HACE.format(Math.round(segundos / 3600), 'hour');
+  if (abs < 86400 * 30) return HACE.format(Math.round(segundos / 86400), 'day');
+  return formatTraceDate(valor);
+}

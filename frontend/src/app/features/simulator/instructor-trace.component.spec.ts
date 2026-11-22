@@ -98,13 +98,14 @@ interface Api {
 describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
   let fixture: ComponentFixture<InstructorTraceComponent>;
   let api: Record<'recentAttempts' | 'attemptTrace' | 'rubric' | 'saveRubric' | 'replaceAttempt', ReturnType<typeof vi.fn>>;
-  let dialog: { open: ReturnType<typeof vi.fn> };
+  let dialog: { open: ReturnType<typeof vi.fn>; consequence: ReturnType<typeof vi.fn> };
   let notify: Record<'success' | 'error' | 'warning' | 'info', ReturnType<typeof vi.fn>>;
 
   const host = () => fixture.nativeElement as HTMLElement;
   const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
   const status = () => text(host().querySelector('[role="status"].ds-sr-only'));
-  const criteriaCards = () => [...host().querySelectorAll('.tr-criterion')];
+  // La valoración vive en `app-rubrica-intento` (B5b); sus casos propios están en `revision/rubrica-intento.component.spec.ts`.
+  const criteriaCards = () => [...host().querySelectorAll('.ri-criterio')];
   const levelSelect = (index: number) => criteriaCards()[index].querySelector('select') as HTMLSelectElement;
   /** Elige un nivel en el selector de un criterio, como lo haría el docente. */
   const pick = (index: number, level: FormativeLevel | '') => {
@@ -128,7 +129,7 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       saveRubric: vi.fn(overrides.save ?? (() => of(rubricFixture({ overallLevel: 'LOGRADO' })))),
       replaceAttempt: vi.fn(),
     };
-    dialog = { open: vi.fn() };
+    dialog = { open: vi.fn(), consequence: vi.fn() };
     notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() };
     TestBed.configureTestingModule({
       imports: [InstructorTraceComponent],
@@ -142,12 +143,22 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       ],
     });
     fixture = TestBed.createComponent(InstructorTraceComponent);
+    // En el documento: el menú «Más acciones» lleva el foco a sus ítems al abrirse.
+    document.body.appendChild(fixture.nativeElement);
     if (stable) await fixture.whenStable();
     else fixture.detectChanges();
     fixture.detectChanges();
   }
 
+  /** Lleva la evidencia a una pestaña (Recorrido, Decisiones o Reflexiones); el contenido se pinta al abrirla. */
+  const tab = async (name: 'recorrido' | 'decisiones' | 'reflexiones') => {
+    fixture.componentInstance.pestana.set(name);
+    await fixture.whenStable();
+    fixture.detectChanges();
+  };
+
   afterEach(() => {
+    (fixture?.nativeElement as HTMLElement | undefined)?.remove();
     vi.useRealTimers();
     TestBed.resetTestingModule();
   });
@@ -157,16 +168,27 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
   // req: RN-07
   describe('reemplazo docente (E1-2)', () => {
     const openTrace = (status: string) => ({ trace: (id: string) => of(traceFixture(id, { status, endedAt: null })) });
-    const replaceButton = () => [...host().querySelectorAll('button')]
-      .find(button => text(button.querySelector('.ui-button__label')) === 'Reemplazar intento');
+    // B5b: «Reemplazar intento» deja de estar junto al título; va en «Más acciones», en rojo (es una acción de peso).
+    const moreActions = () => host().querySelector<HTMLButtonElement>('.tr-mas .ui-menu__trigger');
+    const replace = async () => {
+      moreActions()!.click();
+      await fixture.whenStable();
+      const item = [...host().querySelectorAll<HTMLElement>('.tr-mas [role="menuitem"]')]
+        .find(element => text(element.querySelector('.ui-menu__label')) === 'Reemplazar intento')!;
+      expect(item.classList).toContain('ui-menu__item--danger');
+      item.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+    };
 
-    it('solo un intento abierto (en curso o en pausa) ofrece «Reemplazar intento»', async () => {
+    it('solo un intento abierto (en curso o en pausa) ofrece «Reemplazar intento», dentro de «Más acciones»', async () => {
       await render();
-      expect(replaceButton()).toBeUndefined();
+      expect(moreActions()).toBeNull();
       for (const state of ['IN_PROGRESS', 'PAUSED']) {
+        fixture.nativeElement.remove();
         TestBed.resetTestingModule();
         await render(openTrace(state));
-        expect(replaceButton(), state).toBeDefined();
+        expect(moreActions(), state).not.toBeNull();
       }
     });
 
@@ -174,9 +196,7 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       await render(openTrace('IN_PROGRESS'));
       api.replaceAttempt.mockReturnValue(of({ attemptId: 'a-1', status: 'REPLACED', reason: 'Se trabó el mundo', replacedAt: '2026-10-14T10:00:00Z' }));
       dialog.open.mockReturnValue({ closed: of('Se trabó el mundo') });
-      replaceButton()!.click();
-      await fixture.whenStable();
-      fixture.detectChanges();
+      await replace();
 
       expect(dialog.open).toHaveBeenCalledWith(ReplaceAttemptDialogComponent, expect.objectContaining({
         data: expect.objectContaining({ studentAlias: 'Estudiante a-1', caseTitle: 'Caso a-1' }),
@@ -191,8 +211,7 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
     it('si se cancela el diálogo no se envía nada', async () => {
       await render(openTrace('PAUSED'));
       dialog.open.mockReturnValue({ closed: of(undefined) });
-      replaceButton()!.click();
-      await fixture.whenStable();
+      await replace();
       expect(api.replaceAttempt).not.toHaveBeenCalled();
     });
 
@@ -202,9 +221,7 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
         status: 409, error: { success: false, code: 'ATTEMPT_NOT_OPEN', message: 'El intento ya está cerrado y no puede reemplazarse.' },
       })));
       dialog.open.mockReturnValue({ closed: of('motivo') });
-      replaceButton()!.click();
-      await fixture.whenStable();
-      fixture.detectChanges();
+      await replace();
       expect(notify.error).toHaveBeenCalledWith('El intento ya está cerrado y no puede reemplazarse.');
     });
 
@@ -214,9 +231,7 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       await render({ ...openTrace('IN_PROGRESS'), save: () => throwError(() => new HttpErrorResponse({ status: 500 })) });
       api.replaceAttempt.mockReturnValue(of({ attemptId: 'a-1', status: 'REPLACED', reason: 'x', replacedAt: '2026-10-14T10:00:00Z' }));
       dialog.open.mockReturnValue({ closed: of('Se trabó el mundo') });
-      replaceButton()!.click();
-      await fixture.whenStable();
-      fixture.detectChanges();
+      await replace();
 
       fillLevels();
       saveButton().click();
@@ -323,14 +338,18 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
 
   // req: RNF-04, BLOQUE-H
   describe('retroalimentación en un diálogo', () => {
-    it('cada tarjeta de resumen es un botón que abre el diálogo de la biblioteca con su panel', async () => {
+    // B5b: las ocho tarjetas pasan a una banda de seis cifras sin los «Ver retroalimentación» repetidos; la evaluación
+    // va como insignia en la cabecera y el tiempo en una línea («Tiempo activo»). Cada cifra sigue abriendo su panel.
+    it('cada cifra de la banda es un botón que abre el diálogo de la biblioteca con su panel', async () => {
       await render();
       const cards = [...host().querySelectorAll('.tr-metric')] as HTMLButtonElement[];
       expect(cards.map(card => text(card.querySelector('.ui-stat__label')))).toEqual([
-        'Total de decisiones', 'Recomendadas', 'Aceptables', 'Con riesgo', 'Contraindicadas', 'Reflexiones', 'Evaluación', 'Tiempo total',
+        'Decisiones', 'Recomendadas', 'Aceptables', 'Con riesgo', 'Contraindicadas', 'Reflexiones',
       ]);
       // Son conteos de hechos por clase de respuesta (3 + 1 + 1 + 0), no una medida.
-      expect(cards.map(card => text(card.querySelector('.ui-stat__value')))).toEqual(['5', '3', '1', '1', '0', '0', 'Pendiente', '25 min 0 s']);
+      expect(cards.map(card => text(card.querySelector('.ui-stat__value')))).toEqual(['5', '3', '1', '1', '0', '0']);
+      expect(text(host().querySelector('.tr-overview'))).toContain('Tiempo activo: 23 min');
+      expect(cards.some(card => text(card).includes('Ver retroalimentación'))).toBe(false);
       expect(cards.every(card => card.getAttribute('aria-haspopup') === 'dialog')).toBe(true);
 
       cards[1].click();
@@ -353,11 +372,13 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
 
     it('«Ver retroalimentación» de la línea de tiempo y de las reflexiones abren su panel', async () => {
       await render();
-      const buttons = [...host().querySelectorAll('button')]
-        .filter(button => text(button.querySelector('.ui-button__label')) === 'Ver retroalimentación');
-      expect(buttons).toHaveLength(2);
-      buttons[0].click();
-      buttons[1].click();
+      // B5b: cada botón vive en su pestaña de la evidencia (Decisiones y Reflexiones).
+      const feedbackButton = (panel: string) => [...host().querySelectorAll<HTMLButtonElement>(panel + ' button')]
+        .find(button => text(button.querySelector('.ui-button__label')) === 'Ver retroalimentación')!;
+      await tab('decisiones');
+      feedbackButton('.tr-events-section').click();
+      await tab('reflexiones');
+      feedbackButton('.tr-reflections').click();
       expect(dialog.open.mock.calls.map(call => call[1].data.panel.key)).toEqual(['RECORRIDO', 'REFLECTIONS']);
     });
   });
@@ -385,11 +406,13 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
   });
 
   // req: RN-09, modelo de métricas
+  // B5b: van en la pestaña «Recorrido» de la evidencia, con títulos de nivel 3 (la columna ya tiene su h2).
   describe('hitos, persona por escena y final', () => {
     it('«Hitos» separa los cumplidos de los que faltaron y marca «clave» el que decide el final', async () => {
       await render();
+      await tab('recorrido');
       const section = host().querySelector('.tr-milestones')!;
-      expect(text(section.querySelector('h2'))).toBe('Hitos');
+      expect(text(section.querySelector('h3'))).toBe('Hitos');
       const groups = [...section.querySelectorAll('.tr-milestone-groups > div')];
       expect(text(groups[0])).toContain('Cumplidos');
       expect(text(groups[0])).toContain('Escuchar sin interrumpir');
@@ -401,17 +424,20 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
 
     it('un caso sin hitos lo dice en vez de dejar el bloque vacío', async () => {
       await render({ trace: id => of(traceFixture(id, { milestones: { done: [], missing: [] } })) });
+      await tab('recorrido');
       expect(text(host().querySelector('.tr-milestones'))).toContain('Este caso no declara hitos.');
     });
 
     it('«La persona por escena» lista cada escena con la frase de cómo se mostró la persona', async () => {
       await render();
+      await tab('recorrido');
       const items = [...host().querySelectorAll('.tr-persona-list li')].map(text);
       expect(items).toEqual(['Recepción → se muestra cautelosa y tensa', 'Cierre → se muestra abierta y serena']);
     });
 
     it('el final lleva su título, su mensaje y la razón en palabras', async () => {
       await render();
+      await tab('recorrido');
       const ending = host().querySelector('.tr-ending')!;
       expect(text(ending)).toContain('Cierre con brechas');
       expect(text(ending)).toContain('El caso se cerró con pasos pendientes.');
@@ -422,6 +448,7 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
 
     it('un intento sin final (no se completó) no inventa uno', async () => {
       await render({ trace: id => of(traceFixture(id, { ending: null, status: 'IN_PROGRESS', endedAt: null })) });
+      await tab('recorrido');
       expect(host().querySelector('.tr-ending')).toBeNull();
     });
   });
@@ -502,174 +529,6 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
     });
   });
 
-  // req: SIEP-CU-04, RNF-04
-  describe('rúbrica por niveles', () => {
-    it('cada criterio pide un nivel con un selector (sin campo numérico) y cada nivel trae su nombre', async () => {
-      await render();
-      expect(criteriaCards()).toHaveLength(2);
-      expect(host().querySelectorAll('input[type="number"], [min], [max], [step]')).toHaveLength(0);
-      for (const index of [0, 1]) {
-        expect([...levelSelect(index).options].map(text)).toEqual(['Sin calificar', 'En inicio', 'En proceso', 'Logrado', 'Destacado']);
-        expect(text(criteriaCards()[index].querySelector('label'))).toBe('Nivel logrado');
-      }
-      expect(text(host().querySelector('.tr-rubric'))).not.toMatch(/total de|Calificación|Rango/);
-    });
-
-    it('el descriptor de cada nivel está a la vista y la ayuda del criterio dice el del nivel elegido', async () => {
-      await render();
-      const descriptors = [...host().querySelectorAll('.tr-levels__list > div')]
-        .map(item => `${text(item.querySelector('dt'))} ${text(item.querySelector('dd'))}`);
-      expect(descriptors).toEqual([
-        'En inicio Aún no muestra la conducta esperada.', 'En proceso La muestra a veces y con apoyo.',
-        'Logrado La muestra de forma sostenida.', 'Destacado La muestra y además la fundamenta.',
-      ]);
-      expect(text(criteriaCards()[0].querySelector('.ui-field__message'))).toBe('Elige el nivel que mejor describe la evidencia de este criterio.');
-
-      pick(0, 'LOGRADO');
-      expect(text(criteriaCards()[0].querySelector('.ui-field__message'))).toBe('La muestra de forma sostenida.');
-    });
-
-    it('guardar sin elegir un nivel en cada criterio no envía nada, lo dice sin la palabra «puntaje» y marca el criterio', async () => {
-      await render();
-      pick(0, 'LOGRADO');
-      saveButton().click();
-      await fixture.whenStable();
-      fixture.detectChanges();
-
-      expect(api.saveRubric).not.toHaveBeenCalled();
-      expect(text(host().querySelector('.tr-rubric__message'))).toBe('Elige un nivel en cada criterio para guardar la valoración.');
-      expect(text(host().querySelector('.tr-rubric__message'))).not.toMatch(/puntaje/i);
-      expect(text(criteriaCards()[1].querySelector('.ui-field__message--error'))).toBe('Elige un nivel para este criterio.');
-      expect(levelSelect(1).getAttribute('aria-invalid')).toBe('true');
-      expect(criteriaCards()[0].querySelector('.ui-field__message--error')).toBeNull();
-    });
-
-    it('elegir el nivel que faltaba quita el error de ESE criterio', async () => {
-      await render();
-      saveButton().click();
-      fixture.detectChanges();
-      expect(host().querySelectorAll('.ui-field__message--error')).toHaveLength(2);
-
-      pick(0, 'EN_INICIO');
-      expect(host().querySelectorAll('.ui-field__message--error')).toHaveLength(1);
-      pick(1, 'DESTACADO');
-      expect(host().querySelectorAll('.ui-field__message--error')).toHaveLength(0);
-      expect(host().querySelector('.tr-rubric__message--error')).toBeNull();
-    });
-
-    it('la falta de un nivel se anuncia a quien usa lector de pantalla', async () => {
-      await render();
-      const announce = vi.spyOn(TestBed.inject(LiveRegionAnnouncer), 'announce');
-      saveButton().click();
-      expect(announce).toHaveBeenCalledWith('Elige un nivel en cada criterio para guardar la valoración.', 'polite');
-    });
-
-    it('guardar envía por cada criterio {criterionId, level, comment}: nunca un número', async () => {
-      await render();
-      fillLevels('DESTACADO', 'EN_INICIO');
-      const comments = host().querySelectorAll<HTMLTextAreaElement>('.tr-criterion textarea');
-      comments[0].value = 'Validó sin juzgar.';
-      comments[0].dispatchEvent(new Event('input'));
-      saveButton().click();
-      await fixture.whenStable();
-
-      expect(api.saveRubric).toHaveBeenCalledTimes(1);
-      const [attemptId, rubricId, , scores] = api.saveRubric.mock.calls[0];
-      expect(attemptId).toBe('a-1');
-      expect(rubricId).toBe(7);
-      expect(scores).toEqual([
-        { criterionId: 1, level: 'DESTACADO', comment: 'Validó sin juzgar.' },
-        { criterionId: 2, level: 'EN_INICIO', comment: '' },
-      ]);
-      for (const score of scores as object[]) expect(score).not.toHaveProperty('score');
-    });
-
-    it('los niveles ya guardados parten elegidos en el formulario', async () => {
-      await render({
-        rubric: () => of(rubricFixture({
-          scores: [
-            { criterionId: 1, level: 'LOGRADO', comment: 'Bien.', evidence: {} },
-            { criterionId: 2, level: 'EN_PROCESO', comment: null, evidence: {} },
-          ],
-          overallLevel: 'EN_PROCESO',
-        })),
-      });
-      expect(levelSelect(0).value).toBe('LOGRADO');
-      expect(levelSelect(1).value).toBe('EN_PROCESO');
-      expect(text(criteriaCards()[0].querySelector('ui-badge'))).toBe('Logrado');
-      expect(text(criteriaCards()[1].querySelector('ui-badge'))).toBe('En proceso');
-      expect((criteriaCards()[0].querySelector('textarea') as HTMLTextAreaElement).value).toBe('Bien.');
-    });
-
-    it('una rúbrica sin criterios no envía una lista vacía: pide un nivel o una retroalimentación', async () => {
-      await render({ rubric: () => of(rubricFixture({ criteria: [] })) });
-      saveButton().click();
-      await fixture.whenStable();
-      fixture.detectChanges();
-      expect(api.saveRubric).not.toHaveBeenCalled();
-      expect(text(host().querySelector('.tr-rubric__message'))).toBe('Elige un nivel o escribe una retroalimentación para guardar.');
-
-      const comment = host().querySelector<HTMLTextAreaElement>('.tr-actions')!.parentElement!.querySelector('textarea')!;
-      comment.value = 'Buen trabajo.';
-      comment.dispatchEvent(new Event('input'));
-      saveButton().click();
-      await fixture.whenStable();
-      expect(api.saveRubric).toHaveBeenCalledTimes(1);
-      expect(api.saveRubric.mock.calls[0][2]).toBe('Buen trabajo.');
-      expect(api.saveRubric.mock.calls[0][3]).toEqual([]);
-    });
-
-    it('si el servidor no manda los niveles con su descriptor, ofrece igual los cuatro nombres', async () => {
-      await render({ rubric: () => of(rubricFixture({ levels: undefined })) });
-      expect([...levelSelect(0).options].map(text)).toEqual(['Sin calificar', 'En inicio', 'En proceso', 'Logrado', 'Destacado']);
-    });
-
-    it('al guardar con éxito avisa con un aviso y refresca la traza', async () => {
-      await render();
-      fillLevels();
-      saveButton().click();
-      await fixture.whenStable();
-
-      expect(notify.success).toHaveBeenCalledWith('Evaluación guardada correctamente.');
-      expect(api.attemptTrace.mock.calls.filter(call => call[0] === 'a-1').length).toBeGreaterThanOrEqual(2);
-    });
-
-    it('si el servidor rechaza el guardado, lo dice en línea junto al botón y no con un aviso de éxito', async () => {
-      await render({ save: () => throwError(() => new HttpErrorResponse({ status: 500 })) });
-      fillLevels();
-      saveButton().click();
-      await fixture.whenStable();
-      fixture.detectChanges();
-
-      expect(text(host().querySelector('.tr-rubric__message'))).toContain('No fue posible guardar la evaluación');
-      expect(notify.success).not.toHaveBeenCalled();
-    });
-  });
-
-  // req: RN-09
-  describe('valoración formativa (RN-09)', () => {
-    it('rotula el total como «Valoración formativa» con el nivel que envía el servidor y ningún número', async () => {
-      await render({
-        rubric: () => of(rubricFixture({
-          overallLevel: 'LOGRADO',
-          scores: [{ criterionId: 1, level: 'LOGRADO', comment: null, evidence: {} }],
-        })),
-      });
-      const valuation = host().querySelector('.tr-valuation')!;
-      expect(text(valuation)).toContain('Valoración formativa');
-      expect(text(valuation)).toContain('Logrado');
-      expect(text(valuation)).not.toMatch(/\d/);
-    });
-
-    it('sin evaluación aún: «Pendiente»; nunca una suma local de lo que se elige', async () => {
-      await render();
-      expect(text(host().querySelector('.tr-valuation'))).toContain('Pendiente');
-      fillLevels('DESTACADO', 'DESTACADO');
-      expect(text(host().querySelector('.tr-valuation'))).toContain('Pendiente');
-      expect(text(host().querySelector('.tr-valuation'))).not.toMatch(/\d/);
-    });
-  });
-
   // req: SIEP-CU-04, RNF-04 (revisión de F7)
   describe('arreglos de la revisión de F7', () => {
     it('un ?intento= fuera de la lista falla en el detalle con «Reintentar» que pide ESE mismo intento', async () => {
@@ -698,21 +557,17 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       expect(host().querySelectorAll('.tr-attempt')).toHaveLength(2);
     });
 
-    it('«Evaluación» solo dice «Aplicada» con una evaluación concluida: una a medias es «Pendiente»', async () => {
+    // B5b: el estado de la evaluación es una insignia de la cabecera del intento (la tarjeta «Evaluación» se fue).
+    it('la cabecera solo dice «Valoración aplicada» con una evaluación concluida: una a medias es «pendiente»', async () => {
       const partial = { id: 1, rubricName: 'Rúbrica', overallLevel: null, comment: null, evaluatedAt: '2026-10-10T11:00:00Z' };
       await render({ trace: id => of(traceFixture(id, { rubricEvaluations: [partial] })) });
-      const card = [...host().querySelectorAll('.tr-metric')].find(el => text(el.querySelector('.ui-stat__label')) === 'Evaluación')!;
-      expect(text(card.querySelector('.ui-stat__value'))).toBe('Pendiente');
-
-      (card as HTMLButtonElement).click();
-      expect(dialog.open.mock.calls.at(-1)![1].data.panel.intro).toContain('a medias');
+      expect(text(host().querySelector('.tr-estado-valoracion'))).toBe('Valoración pendiente');
     });
 
-    it('con una evaluación concluida «Evaluación» dice «Aplicada»', async () => {
+    it('con una evaluación concluida la cabecera dice «Valoración aplicada»', async () => {
       const done = { id: 1, rubricName: 'Rúbrica', overallLevel: 'LOGRADO' as const, comment: null, evaluatedAt: '2026-10-10T11:00:00Z' };
       await render({ trace: id => of(traceFixture(id, { rubricEvaluations: [done] })) });
-      const card = [...host().querySelectorAll('.tr-metric')].find(el => text(el.querySelector('.ui-stat__label')) === 'Evaluación')!;
-      expect(text(card.querySelector('.ui-stat__value'))).toBe('Aplicada');
+      expect(text(host().querySelector('.tr-estado-valoracion'))).toBe('Valoración aplicada');
     });
 
     it('la rúbrica de un intento que se abandonó no pisa la del abierto', async () => {
@@ -735,17 +590,6 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       expect(fixture.componentInstance.selectedAttemptId()).toBe('a-2');
     });
 
-    it('cada criterio es un grupo con nombre: sus campos «Calificación» no quedan sueltos', async () => {
-      await render();
-      const group = criteriaCards()[1];
-      expect(group.getAttribute('role')).toBe('group');
-      const labelledBy = group.getAttribute('aria-labelledby')!;
-      expect(text(host().querySelector('#' + labelledBy))).toBe('Ruta de atención');
-      // `article` no admite role="group" (Axe: aria-allowed-role, 16 nodos en la línea base de F7): el grupo va sobre un
-      // elemento que sí lo admite.
-      expect(group.tagName).not.toBe('ARTICLE');
-    });
-
     it('el mensaje de un fallo al guardar se anuncia en la región de estado de la pantalla', async () => {
       await render({ save: () => throwError(() => new HttpErrorResponse({ status: 500 })) });
       fillLevels();
@@ -757,15 +601,152 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
     });
   });
 
+  // req: SIEP-CU-04, RNF-04 · DISENO §5.3 (bloque B5b): evidencia y valoración a la vez.
+  describe('revisión en tres columnas (B5b)', () => {
+    const timeline = [
+      { atSeconds: 10, time: '00:10', type: 'ROOM_ENTERED', class: null, prohibited: false, label: 'Puerta hacia sala hospital-sala-escucha' },
+      { atSeconds: 30, time: '00:30', type: 'DECISION_SELECTED', class: 'RECOMMENDED', prohibited: false, label: 'Escucha activa' },
+      { atSeconds: 50, time: '00:50', type: 'TOOL_USED', class: null, prohibited: false, label: 'Herramienta aplicada: PAP' },
+      { atSeconds: 70, time: '01:10', type: 'DECISION_RETRY_REQUIRED', class: 'RISKY', prohibited: false, label: 'Primera respuesta' },
+      { atSeconds: 90, time: '01:30', type: 'DECISION_SELECTED', class: 'ACCEPTABLE', prohibited: false, label: 'Aplicar la ruta' },
+    ];
+    const withTimeline = { trace: (id: string) => of(traceFixture(id, { timeline } as Partial<AttemptTrace>)) };
+    const rows = () => [...host().querySelectorAll<HTMLElement>('.tr-event')];
+
+    it('la bandeja, la evidencia y la valoración están en la misma pantalla, con «Guardar evaluación» en la valoración', async () => {
+      await render();
+      expect(host().querySelector('.tr-bandeja .tr-attempt')).not.toBeNull();
+      expect(host().querySelector('.tr-evidencia .tr-overview')).not.toBeNull();
+      expect(host().querySelector('.tr-valoracion app-rubrica-intento')).not.toBeNull();
+      expect(host().querySelector('.tr-valoracion .ri__pie')?.contains(saveButton())).toBe(true);
+    });
+
+    it('la línea de tiempo muestra solo las decisiones; el interruptor suma los eventos del sistema sin claves', async () => {
+      await render(withTimeline);
+      expect(rows().map(row => text(row.querySelector('.tr-event__texto')))).toEqual(['Escucha activa', 'Primera respuesta', 'Aplicar la ruta']);
+
+      const toggle = host().querySelector<HTMLInputElement>('.tr-interruptor input[role="switch"]')!;
+      expect(toggle.checked).toBe(false);
+      toggle.click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      const texts = rows().map(row => text(row.querySelector('.tr-event__texto')));
+      expect(texts).toHaveLength(5);
+      expect(texts[0]).toBe('Entró en la sala de escucha (hospital)');
+      expect(text(host().querySelector('.tr-events'))).not.toContain('hospital-sala-escucha');
+    });
+
+    it('cada decisión registrada lleva su número de orden como id estable, con o sin eventos del sistema', async () => {
+      await render(withTimeline);
+      const ids = () => rows().map(row => row.id || null);
+      expect(ids()).toEqual(['decision-1', null, 'decision-2']);
+      expect(rows()[0].getAttribute('data-decision')).toBe('1');
+      expect(text(rows()[0])).toContain('Decisión 1');
+
+      fixture.componentInstance.mostrarEventos.set(true);
+      fixture.detectChanges();
+      expect(ids()).toEqual([null, 'decision-1', null, null, 'decision-2']);
+    });
+
+    it('la bandeja filtra «Por revisar» (sin BK-3: los terminados, con una nota) y «En curso»', async () => {
+      await render();
+      const items = () => [...host().querySelectorAll('.tr-attempt')].map(text);
+      expect(items()).toHaveLength(2);
+
+      fixture.componentInstance.filtro.set('por-revisar');
+      fixture.detectChanges();
+      expect(items()).toHaveLength(1);
+      expect(items()[0]).toContain('Estudiante a-1');
+      expect(text(host().querySelector('.tr-bandeja'))).toContain('el servidor no dice cuáles ya valoraste');
+
+      fixture.componentInstance.filtro.set('en-curso');
+      fixture.detectChanges();
+      expect(items()).toHaveLength(1);
+      expect(items()[0]).toContain('Estudiante a-2');
+    });
+
+    it('con BK-3, «Por revisar» es la valoración pendiente; «Ver todos» del Inicio abre la bandeja ahí y en el primero', async () => {
+      await render({
+        recent: () => of([
+          attempt('a-1', { evaluationStatus: 'APLICADA' }),
+          attempt('a-2', { evaluationStatus: 'PENDIENTE' }),
+          attempt('a-3', { status: 'IN_PROGRESS', evaluationStatus: 'NO_APLICA' }),
+        ]),
+      }, { query: { evaluacion: 'pendiente' } });
+      expect(fixture.componentInstance.filtro()).toBe('por-revisar');
+      expect([...host().querySelectorAll('.tr-attempt')].map(text).join(' ')).toContain('Estudiante a-2');
+      expect(host().querySelectorAll('.tr-attempt')).toHaveLength(1);
+      expect(api.attemptTrace).toHaveBeenCalledWith('a-2');
+      expect(text(host().querySelector('.tr-bandeja'))).not.toContain('el servidor no dice');
+    });
+
+    it('sin cambios se sale sin preguntar; con cambios sin guardar, se pregunta antes de salir o de cambiar de intento', async () => {
+      await render();
+      const component = fixture.componentInstance;
+      expect(component.canLeave()).toBe(true);
+
+      pick(0, 'LOGRADO');
+      expect(component.hayCambios()).toBe(true);
+      dialog.consequence.mockResolvedValue('continue');
+      expect(await component.canLeave()).toBe(false);
+
+      (host().querySelectorAll('.tr-attempt')[1] as HTMLButtonElement).click();
+      await fixture.whenStable();
+      expect(dialog.consequence).toHaveBeenCalledTimes(2);
+      expect(api.attemptTrace).not.toHaveBeenCalledWith('a-2');
+
+      dialog.consequence.mockResolvedValue('proceed');
+      (host().querySelectorAll('.tr-attempt')[1] as HTMLButtonElement).click();
+      await fixture.whenStable();
+      expect(api.attemptTrace).toHaveBeenLastCalledWith('a-2');
+    });
+
+    it('al guardar con éxito ya no hay cambios que avisar y se recargan la rúbrica y la traza', async () => {
+      await render();
+      fillLevels();
+      expect(fixture.componentInstance.hayCambios()).toBe(true);
+      saveButton().click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.hayCambios()).toBe(false);
+      expect(api.rubric).toHaveBeenCalledTimes(2);
+      expect(api.attemptTrace.mock.calls.filter(call => call[0] === 'a-1').length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('cerrar la pestaña con cambios sin guardar pide confirmación al navegador', async () => {
+      await render();
+      const quiet = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(quiet);
+      expect(quiet.defaultPrevented).toBe(false);
+      pick(1, 'DESTACADO');
+      const dirty = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(dirty);
+      expect(dirty.defaultPrevented).toBe(true);
+    });
+
+    it('no hay claves del sistema en mayúsculas a la vista (ni de competencias en la valoración del sistema)', async () => {
+      await render({
+        trace: id => of(traceFixture(id, {
+          systemEvaluation: { ...SYSTEM_EVALUATION, competencyLevels: [{ ...SYSTEM_EVALUATION.competencyLevels[0], name: '' }] },
+          systemEvaluationAvailable: true,
+        })),
+      });
+      expect(text(host().querySelector('.tr-system tbody th'))).toBe('Etica profesional');
+      expect(text(host())).not.toMatch(/\b[A-Z]{3,}_[A-Z_]+\b/);
+    });
+  });
+
   // req: RN-09
   describe('la valoración formativa no llega al estudiante (RN-09)', () => {
     it('ninguna vista del estudiante lee la evaluación de rúbrica, su nivel ni su total', () => {
       const studentViews = [
         'attempt-outcome.component.ts',
-        'student-report-dialog.component.ts',
         'simulation-catalog.component.ts',
+        'simulation-catalog.component.html',
+        'estado-caso.util.ts',
         '../dashboard/student-dashboard.component.ts',
         '../dashboard/student-dashboard.component.html',
+        '../dashboard/student-dashboard.util.ts',
       ];
       for (const file of studentViews) {
         const source = readFileSync(join(__dirname, file), 'utf-8');

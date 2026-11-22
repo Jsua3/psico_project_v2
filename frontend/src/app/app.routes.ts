@@ -134,6 +134,7 @@ export const routes: Routes = [
         path: 'docente/trazabilidad',
         title: 'Revisión formativa',
         canActivate: [roleGuard(...rolesFor('trazabilidad'))],
+        canDeactivate: [canLeaveGuard],
         loadComponent: () => import('./features/simulator/instructor-trace.component').then(m => m.InstructorTraceComponent)
       },
       {

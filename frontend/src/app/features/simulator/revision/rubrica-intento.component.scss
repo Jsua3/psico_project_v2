@@ -1,0 +1,190 @@
+// Valoración de un intento (bloque B5b): vive en la tercera columna de Revisión (26rem) o sola en el teléfono, así que
+// todo va en una columna. El pie con «Guardar evaluación» se pega al borde inferior del área que se desplaza: la
+// columna en escritorio, la pantalla (sobre las pestañas de la barra) en el teléfono. Solo tokens --ds-* y --l-*.
+:host {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-4);
+  min-inline-size: 0;
+  color: var(--ds-text-1);
+}
+
+.ri__cabecera {
+  display: grid;
+  gap: var(--ds-space-2);
+  min-inline-size: 0;
+}
+
+.ri__epigrafe {
+  margin: 0;
+  color: var(--l-acento-tinta, var(--ds-text-2));
+  font-size: var(--ds-type-caption-size);
+  font-weight: var(--ds-type-h3-weight);
+  line-height: var(--ds-type-caption-line);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ri__titulo {
+  margin: 0;
+  font-size: var(--ds-type-h3-size);
+  font-weight: var(--ds-type-h3-weight);
+  line-height: var(--ds-type-h3-line);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.ri__ayuda,
+.ri__vacio {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+  overflow-wrap: anywhere;
+}
+
+// El total de la valoración (RN-09): una palabra, nunca un número.
+.ri-valoracion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-2);
+  margin: 0;
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border: 1px solid var(--l-filo, var(--ds-border));
+  border-radius: var(--l-radio-control, var(--ds-radius-md));
+  background: var(--l-superficie-hundida, var(--ds-surface-2));
+}
+
+.ri-valoracion__rotulo {
+  font-size: var(--ds-type-body-s-size);
+  font-weight: var(--ds-type-h3-weight);
+}
+
+.ri-niveles {
+  border: 1px solid var(--l-filo, var(--ds-border));
+  border-radius: var(--l-radio-control, var(--ds-radius-md));
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+
+  summary {
+    display: flex;
+    align-items: center;
+    min-block-size: var(--ds-target-min);
+    padding-inline: var(--ds-space-3);
+    font-weight: var(--ds-type-h3-weight);
+    cursor: pointer;
+  }
+}
+
+.ri-niveles__lista {
+  display: grid;
+  gap: var(--ds-space-2);
+  margin: 0;
+  padding: 0 var(--ds-space-3) var(--ds-space-3);
+
+  dt {
+    font-weight: var(--ds-type-h3-weight);
+  }
+
+  dd {
+    margin: 0;
+    color: var(--ds-text-2);
+  }
+}
+
+// ── Criterios: una fila de la matriz por criterio, girada para caber en una columna ───────────────────────────
+.ri-criterios {
+  display: grid;
+  gap: var(--ds-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ri-criterio {
+  display: grid;
+  gap: var(--ds-space-3);
+  min-inline-size: 0;
+  padding: var(--l-relleno-tarjeta, var(--ds-space-4));
+  border: 1px solid var(--l-filo, var(--ds-border));
+  border-radius: var(--l-radio-tarjeta, var(--ds-radius-lg));
+  background: var(--l-superficie, var(--ds-surface-1));
+}
+
+.ri-criterio__copia {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-2);
+  min-inline-size: 0;
+}
+
+.ri-criterio__titulo {
+  flex: 1 1 10rem;
+  margin: 0;
+  min-inline-size: 0;
+  font-size: var(--ds-type-body-size);
+  font-weight: var(--ds-type-h3-weight);
+  line-height: var(--ds-type-body-line);
+  overflow-wrap: anywhere;
+}
+
+// El número del criterio, en la cuadrícula de píxel de la marca: orienta sin pedir lectura (decorativo).
+.ri-criterio__numero {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border-radius: var(--l-radio-chico, var(--ds-radius-md));
+  background: var(--l-tinte, var(--ds-surface-2));
+  color: var(--l-acento-tinta, var(--ds-text-1));
+  font-size: var(--ds-type-caption-size);
+  font-variant-numeric: tabular-nums;
+}
+
+// ── Pie fijo: el aviso de lo que falta y «Guardar evaluación», siempre a la vista ─────────────────────────────
+.ri__pie {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: var(--ds-z-pegajoso);
+  display: grid;
+  gap: var(--ds-space-2);
+  margin-inline: calc(-1 * var(--ds-space-1));
+  padding: var(--ds-space-3) var(--ds-space-1) var(--ds-space-1);
+  border-block-start: 1px solid var(--l-filo, var(--ds-border));
+  background: var(--l-superficie, var(--ds-surface-1));
+}
+
+.ri__mensaje {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-type-body-s-size);
+  line-height: var(--ds-type-body-s-line);
+}
+
+.ri__mensaje--error {
+  color: var(--ds-danger);
+  font-weight: var(--ds-type-h3-weight);
+}
+
+// En el teléfono la página entera se desplaza: el pie se apoya sobre las pestañas de la barra y su zona segura.
+@media (max-width: 63.999rem) {
+  .ri__pie {
+    inset-block-end: calc(var(--asb-alto-modulo-inferior, 0px) + env(safe-area-inset-bottom, 0px) + var(--ds-space-2));
+    padding-inline: var(--ds-space-3);
+    border: 1px solid var(--l-filo-fuerte, var(--ds-border));
+    border-radius: var(--l-radio-tarjeta, var(--ds-radius-lg));
+    box-shadow: var(--l-sombra, var(--ds-shadow-e2));
+  }
+}
+
+@media (forced-colors: active) {
+  .ri__pie,
+  .ri-criterio,
+  .ri-valoracion {
+    border: 1px solid CanvasText;
+  }
+}
