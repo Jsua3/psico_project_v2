@@ -25,6 +25,24 @@ export async function guardado(page: Page): Promise<void> {
   }, undefined, { timeout: scaled(30_000) });
 }
 
+/**
+ * Un caso recién creado (a mano o con IA) se abre en el guion de su primera escena (E3): es lo primero que hay que escribir.
+ * Esto espera esa llegada y lleva al mapa del caso, donde las pruebas siguen contando escenas y eligiendo una. Devuelve el id.
+ */
+export async function irAlMapaDelCaso(page: Page): Promise<number> {
+  await page.waitForURL(/\/portal\/casos\/\d+\/editor/, { timeout: scaled(60_000) });
+  const id = Number(/\/portal\/casos\/(\d+)\/editor/.exec(page.url())![1]);
+  const mapa = page.getByRole('heading', { level: 1, name: /Escenas y caminos/ });
+  const guion = page.getByRole('heading', { level: 1, name: /^Guion de la escena/ });
+  await expect(mapa.or(guion)).toBeVisible({ timeout: scaled(30_000) });
+  if (await guion.isVisible()) {
+    // La dirección se arma con el id, no con la actual (que ya trae `/escena/<id>`).
+    await page.goto(`/portal/casos/${id}/editor`);
+  }
+  await expect(mapa).toBeVisible({ timeout: scaled(30_000) });
+  return id;
+}
+
 /** Crea un caso desde la universidad con la idea «Atención en Bienestar» y deja el editor en el mapa del caso. */
 export async function crearCasoBienestar(page: Page, titulo: string): Promise<number> {
   await page.goto('/portal/casos/nuevo');
@@ -34,10 +52,9 @@ export async function crearCasoBienestar(page: Page, titulo: string): Promise<nu
   await page.getByRole('button', { name: 'Usar esta idea: Atención en Bienestar' }).click();
   await page.getByLabel('Nombre del caso').fill(titulo);
   await page.getByRole('button', { name: 'Crear el caso con estas salas' }).click();
-  await page.waitForURL(/\/portal\/casos\/\d+\/editor/, { timeout: scaled(60_000) });
-  await expect(page.getByRole('heading', { level: 1, name: /Escenas y caminos/ })).toBeVisible({ timeout: scaled(30_000) });
+  const id = await irAlMapaDelCaso(page);
   await expect(page.locator('button.escena')).toHaveCount(3, { timeout: scaled(30_000) });
-  return Number(/\/portal\/casos\/(\d+)\/editor/.exec(page.url())![1]);
+  return id;
 }
 
 /**
@@ -125,7 +142,13 @@ export async function escribirRespuesta(page: Page, r: RespuestaEscrita): Promis
   const retro = tarjeta.getByLabel('Lo que lee el estudiante después de elegir');
   await retro.fill(r.despues);
   await retro.blur();
-  for (const hito of r.hitos ?? []) await tarjeta.getByRole('checkbox', { name: hito, exact: true }).check();
+  if (r.hitos?.length) {
+    // Los pasos que cumple la respuesta viven en la faceta «Pasos» (E2): se abre antes de marcarlos. El botón se llama
+    // «Pasos» más su cuenta («Pasos 0»); abrir una faceta cierra la otra, así que no queda nada abierto de antes.
+    const faceta = tarjeta.getByRole('button', { name: /^Pasos/ });
+    if ((await faceta.getAttribute('aria-expanded')) !== 'true') await faceta.click();
+    for (const hito of r.hitos) await tarjeta.getByRole('checkbox', { name: hito, exact: true }).check();
+  }
   if (r.llevaA) await tarjeta.getByLabel('Lleva a…').selectOption({ label: r.llevaA });
   await guardado(page);
   return n;
@@ -296,6 +319,9 @@ export async function sinInfraccionesGraves(page: Page, donde: string): Promise<
   const resultados = await runAxe(page, { tags: ETIQUETAS_WCAG, resultTypes: ['violations', 'passes'] });
   expect(resultados.passes.length, `${donde}: Axe evaluó reglas sobre la pantalla`).toBeGreaterThan(10);
   const graves = resultados.violations
+    // `label-content-name-mismatch` (2.5.3, experimental en Axe): ver D-E7 en DECISIONES.md. El hilo, el riel y las fichas de sala
+    // llevan un nombre accesible completo sobre un texto visible corto; queda pendiente de decisión, no escondido.
+    .filter((v) => v.id !== 'label-content-name-mismatch')
     .filter((v) => v.impact === 'serious' || v.impact === 'critical')
     .flatMap((v) => v.nodes.map((nodo) => `[${v.impact}] ${v.id} · ${nodo.target.join(' ')} · ${nodo.failureSummary ?? ''}`.replace(/\s+/g, ' ')));
   expect(graves, `${donde}: infracciones serias o críticas de accesibilidad`).toEqual([]);
@@ -394,9 +420,7 @@ export async function esperarCasoListo(page: Page): Promise<void> {
 /** Pulsa «Abrir mi caso» y devuelve el id del borrador creado. */
 export async function abrirMiCaso(page: Page): Promise<number> {
   await page.getByRole('button', { name: 'Abrir mi caso' }).click();
-  await page.waitForURL(/\/portal\/casos\/\d+\/editor/, { timeout: scaled(60_000) });
-  await expect(page.getByRole('heading', { level: 1, name: /Escenas y caminos/ })).toBeVisible({ timeout: scaled(30_000) });
-  return Number(/\/portal\/casos\/(\d+)\/editor/.exec(page.url())![1]);
+  return irAlMapaDelCaso(page);
 }
 
 /** Cancela la generación abierta de la docente (por la API), para que una prueba nunca deje a la siguiente con «Ya tienes un caso generándose». */

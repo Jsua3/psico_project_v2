@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 import { loginAs } from './support/screen-tour';
 import { runAxe } from './support/quality-gates';
@@ -340,6 +340,25 @@ async function openTrace(page: Page, recent: unknown[] = RECENT_ATTEMPTS): Promi
   return { saved };
 }
 
+/**
+ * La revisión del intento va en dos mitades (B5b): la evidencia a la izquierda y «Tu valoración» a la derecha. Desde 1024 px
+ * se ven juntas; por debajo, un control «Qué ver» muestra una a la vez. Estas dos ayudas llevan la mitad pedida a la vista
+ * en cualquier ancho (si el control no se ve, ya están las dos).
+ */
+async function verMitad(page: Page, mitad: 'Evidencia' | 'Valoración'): Promise<void> {
+  const control = page.getByRole('radiogroup', { name: 'Qué ver' });
+  if (await control.isVisible()) await control.getByRole('radio', { name: mitad }).click();
+}
+
+/** Abre una pestaña de la evidencia («Recorrido», «Decisiones» o «Reflexiones»); por defecto abre «Decisiones». */
+async function verPestana(page: Page, nombre: 'Recorrido' | 'Decisiones' | 'Reflexiones'): Promise<void> {
+  await verMitad(page, 'Evidencia');
+  await page.getByRole('tab', { name: nombre }).click();
+}
+
+/** Un nivel de un criterio de la valoración: se pulsa su tarjeta (el botón de opción nativo queda oculto tras ella). */
+const nivel = (criterio: Locator, nombre: string) => criterio.locator('.ri-nivel').filter({ hasText: nombre });
+
 // req: RNF-04, BLOQUE-H, SIEP-CU-04, RN-09 (RN-09 ya no es un conflicto: la rúbrica es solo niveles)
 test.describe('@docencia traza', () => {
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
@@ -347,6 +366,10 @@ test.describe('@docencia traza', () => {
       await page.setViewportSize(viewport);
       await openTrace(page);
       await expect(page.getByRole('heading', { level: 2, name: CASE_TITLE })).toBeVisible();
+      expect(await overflowX(page)).toBeLessThanOrEqual(0);
+      expect(await blockingViolations(page, 'app-instructor-trace')).toEqual([]);
+      // La otra mitad (en el teléfono, tras el control «Qué ver»): la valoración de la rúbrica, también sin desborde.
+      await verMitad(page, 'Valoración');
       await expect(page.getByRole('heading', { level: 2, name: 'Rúbrica básica de desempeño' })).toBeVisible();
       expect(await overflowX(page)).toBeLessThanOrEqual(0);
       expect(await blockingViolations(page, 'app-instructor-trace')).toEqual([]);
@@ -362,20 +385,26 @@ test.describe('@docencia traza', () => {
 
   test('SIEP-CU-04: califica por niveles, exige uno por criterio y no envía nada incompleto', async ({ page }) => {
     const { saved } = await openTrace(page);
-    const first = page.locator('.tr-criterion').nth(0).getByLabel('Nivel logrado');
-    const second = page.locator('.tr-criterion').nth(1).getByLabel('Nivel logrado');
+    await verMitad(page, 'Valoración');
+    // R2: «Nivel logrado» dejó de ser una lista desplegable: es un grupo de cuatro botones de opción por criterio.
+    const first = page.locator('.tr-criterion').nth(0).getByRole('radiogroup', { name: /^Nivel logrado/ });
+    const second = page.locator('.tr-criterion').nth(1).getByRole('radiogroup', { name: /^Nivel logrado/ });
     await expect(first).toBeVisible();
-    // La rúbrica ya no lleva campos numéricos: solo el selector de niveles y la observación.
+    // La rúbrica no lleva campos numéricos: solo los niveles en palabras y la observación. Sin «Sin calificar»: no elegir
+    // ninguno es no haber valorado.
     await expect(page.locator('.tr-criterion input[type="number"]')).toHaveCount(0);
-    await expect(first.locator('option')).toHaveText(['Sin calificar', 'En inicio', 'En proceso', 'Logrado', 'Destacado']);
+    await expect(first.getByRole('radio')).toHaveCount(4);
+    await expect(first.locator('.ri-nivel__nombre')).toHaveText(['En inicio', 'En proceso', 'Logrado', 'Destacado']);
 
     // Con un criterio sin nivel el aviso dice qué falta y no se envía nada.
-    await first.selectOption('EN_INICIO');
+    await nivel(page.locator('.tr-criterion').nth(0), 'En inicio').click();
+    await expect(first.getByRole('radio', { name: 'En inicio' })).toBeChecked();
     await page.getByRole('button', { name: 'Guardar evaluación' }).click({ force: true });
     await expect(page.locator('.tr-criterion').nth(1)).toContainText('Elige un nivel para este criterio.');
     expect(saved).toEqual([]);
 
-    await second.selectOption('DESTACADO');
+    await nivel(page.locator('.tr-criterion').nth(1), 'Destacado').click();
+    await expect(second.getByRole('radio', { name: 'Destacado' })).toBeChecked();
     await expect(page.locator('.tr-criterion .ui-field__message--error')).toHaveCount(0);
     await page.getByRole('button', { name: 'Guardar evaluación' }).click();
     await expect.poll(() => saved.length).toBe(1);
@@ -388,18 +417,21 @@ test.describe('@docencia traza', () => {
 
   test('RN-09: la valoración se rotula «Valoración formativa» con el nivel y sin números', async ({ page }) => {
     await openTrace(page);
-    const valuation = page.locator('.tr-valuation');
+    await verMitad(page, 'Valoración');
+    const valuation = page.locator('.ri-valoracion');
     await expect(valuation).toContainText('Valoración formativa');
     await expect(valuation).toContainText('Pendiente');
     await expect(valuation).not.toContainText(/\d/);
-    // Cada nivel se explica con su descriptor, no con una cifra.
-    await expect(page.locator('.tr-levels')).toContainText('La muestra de forma consistente.');
+    // Cada nivel se explica con su descriptor, no con una cifra: «Qué significa cada nivel» (plegado) los junta.
+    await page.getByText('Qué significa cada nivel').click();
+    await expect(page.locator('.ri-niveles')).toContainText('La muestra de forma consistente.');
     await expect(page.locator('.tr-rubric')).not.toContainText(/\b\d+\s*(?:\/|de)\s*5\b|\b1\s*(?:a|–|-)\s*5\b|%/);
   });
 
   test('la traza cuenta hitos, la persona por escena y el final con su razón, sin puntaje ni estrés', async ({ page }) => {
     await openTrace(page);
     const trace = page.locator('app-instructor-trace');
+    await verPestana(page, 'Recorrido');
     await expect(trace.locator('.tr-milestones')).toContainText('Recomendar medidas de protección');
     await expect(trace.locator('.tr-milestones')).toContainText('Valorar el riesgo de feminicidio');
     await expect(trace.locator('.tr-persona')).toContainText('se muestra abierta y serena');
@@ -444,7 +476,8 @@ const RUBRICS = [
     ] },
 ];
 
-async function openRubrics(page: Page, list: unknown[] = RUBRICS): Promise<void> {
+/** `aQuery`: `?rubrica=<id>` abre el editor de esa rúbrica (R1); sin él se ve la biblioteca. */
+async function openRubrics(page: Page, list: unknown[] = RUBRICS, aQuery = ''): Promise<void> {
   await loginAs(page, 'profesor');
   await page.route('**/api/rubrics/**', route => {
     // `/api/rubrics/` es la lista; `/api/rubrics/<id>` es el detalle.
@@ -453,7 +486,7 @@ async function openRubrics(page: Page, list: unknown[] = RUBRICS): Promise<void>
     return route.fulfill({ json: { success: true, data } });
   });
   await page.route('**/api/simulation/cases', route => route.fulfill({ json: { success: true, data: CASOS } }));
-  await page.goto('/portal/rubricas');
+  await page.goto(`/portal/rubricas${aQuery}`);
 }
 
 // req: RNF-04, BLOQUE-H
@@ -461,10 +494,15 @@ test.describe('@docencia rubricas', () => {
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
     test(`con rúbricas: sin desborde y Axe sin hallazgos serios (${viewport.width})`, async ({ page }) => {
       await page.setViewportSize(viewport);
+      // R1: dos niveles en la misma ruta. La biblioteca, y la matriz de una rúbrica con `?rubrica=<id>`.
       await openRubrics(page);
       await expect(page.getByRole('heading', { level: 1, name: 'Rúbricas' })).toBeVisible();
-      await expect(page.getByRole('heading', { level: 2, name: 'Editar rúbrica' })).toBeVisible();
-      // Los botones pasan de «sin rúbrica abierta» a «abierta» con una transición de color: Axe la mediría a medias.
+      await expect(page.getByRole('heading', { level: 2, name: 'Biblioteca de rúbricas' })).toBeVisible();
+      await settle(page);
+      expect(await overflowX(page)).toBeLessThanOrEqual(0);
+      expect(await blockingViolations(page, 'app-rubrics')).toEqual([]);
+      await page.goto('/portal/rubricas?rubrica=4');
+      await expect(page.getByRole('heading', { level: 2, name: /^Criterios/ })).toBeVisible();
       await settle(page);
       expect(await overflowX(page)).toBeLessThanOrEqual(0);
       expect(await blockingViolations(page, 'app-rubrics')).toEqual([]);
@@ -481,10 +519,11 @@ test.describe('@docencia rubricas', () => {
   });
 
   test('con la ponderación en 90 %: Activar dice por qué no se puede, sin desactivarse en silencio', async ({ page }) => {
-    await openRubrics(page);
-    await page.getByRole('button', { name: /Observación de aula/ }).click();
+    await openRubrics(page, RUBRICS, '?rubrica=7');
     await expect(page.locator('#rubric-weight-hint')).toContainText('la ponderación debe sumar 100 %');
 
+    // «Activar» vive en el menú «Más» del pie (R1): una acción primaria y un menú.
+    await page.getByRole('button', { name: 'Más', exact: true }).click();
     const activate = page.getByRole('button', { name: 'Activar', exact: true });
     await expect(activate).toHaveAttribute('aria-disabled', 'true');
     await activate.focus();

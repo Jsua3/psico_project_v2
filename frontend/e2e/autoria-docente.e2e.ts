@@ -89,26 +89,39 @@ test('un docente crea, prueba y envía un caso; la administradora lo aprueba y u
     const contexto = 'Una estudiante llega a Bienestar Universitario y no sabe si entrar. Tú la recibes.';
     await page.goto(rutaEditor(page, '/datos'));
     await expect(page.getByRole('heading', { level: 1, name: 'Datos del caso' })).toBeVisible({ timeout: scaled(30_000) });
-    await expect(page.getByLabel('Nombre del caso')).toHaveAttribute('readonly', '');
+    // E6: los datos se guardan solos al salir de cada campo (ya no hay botón «Guardar los datos del caso») y cada objetivo
+    // es su propio campo, con «Agregar objetivo».
     await page.getByLabel('Contexto que lee el estudiante').fill(contexto);
-    await page.getByLabel('Objetivos de aprendizaje').fill('Valorar el riesgo.\nInformar sus derechos.');
-    await page.getByRole('button', { name: 'Guardar los datos del caso' }).click();
-    await expect(page.locator('[data-estado-datos]')).toHaveText('Los datos del caso se guardaron.', { timeout: scaled(30_000) });
+    await page.getByLabel('Contexto que lee el estudiante').blur();
+    await expect(page.locator('[data-estado-datos]')).toHaveText('Guardado.', { timeout: scaled(30_000) });
+    for (const [n, objetivo] of ['Valorar el riesgo.', 'Informar sus derechos.'].entries()) {
+      await page.getByRole('button', { name: 'Agregar objetivo' }).click();
+      const campo = page.getByLabel(`Objetivo ${n + 1}`, { exact: true });
+      await expect(campo).toBeFocused();
+      await campo.fill(objetivo);
+      await campo.blur();
+      await guardado(page);
+    }
     await sinInfraccionesGraves(page, 'los datos del caso');
     const conFicha = (await (await request.get(`/api/authoring/cases/${caseVersionId}/editor`, { headers: bearer(docente) })).json()).data as Json;
     expect(conFicha['context'], 'el servidor guardó el contexto').toBe(contexto);
     expect(conFicha['learningObjectives'], 'el servidor guardó los objetivos, uno por renglón').toEqual(['Valorar el riesgo.', 'Informar sus derechos.']);
     // Un contexto con etiquetas no se guarda: el editor lo dice en el campo y el foco va a él.
     await page.getByLabel('Contexto que lee el estudiante').fill('Entra por <b>esta</b> puerta.');
-    await page.getByRole('button', { name: 'Guardar los datos del caso' }).click();
+    await page.getByLabel('Contexto que lee el estudiante').blur();
     await expect(page.getByText('Escribe texto plano, sin etiquetas ni formato.')).toBeVisible();
-    await expect(page.getByLabel('Contexto que lee el estudiante')).toBeFocused();
+    await expect(page.locator('[data-estado-datos]')).toHaveText('Corrige lo marcado para poder guardar.');
+    await expect(page.getByLabel('Contexto que lee el estudiante')).toHaveAttribute('aria-invalid', 'true');
     await sinInfraccionesGraves(page, 'los datos del caso con un error en el contexto');
     await page.getByLabel('Contexto que lee el estudiante').fill(contexto);
+    await page.getByLabel('Contexto que lee el estudiante').blur();
+    await expect(page.locator('[data-estado-datos]')).toHaveText('Guardado.', { timeout: scaled(30_000) });
 
     // ── 3 · Dos hitos decisivos ──────────────────────────────────────────────────────────────────────────────────
     await page.goto(rutaEditor(page, '/finales'));
-    const decisivos = page.getByRole('group', { name: 'Hitos que deciden el final' });
+    // E5: «Pasos que deciden el final» (antes «Hitos…»). Con los finales automáticos las casillas viven aquí; el mismo dato
+    // se marca también con el interruptor «Decide el final» de cada paso en «Pasos profesionales».
+    const decisivos = page.getByRole('group', { name: 'Pasos que deciden el final' });
     await expect(decisivos).toBeVisible({ timeout: scaled(30_000) });
     for (const casilla of await decisivos.getByRole('checkbox').all()) {
       const nombre = ((await casilla.evaluate((el) => el.parentElement?.textContent ?? '')) as string).trim();

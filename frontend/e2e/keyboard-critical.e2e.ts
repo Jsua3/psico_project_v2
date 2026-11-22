@@ -380,18 +380,23 @@ test('[P04] ver reportes y exportar CSV: el grupo se elige con las flechas y «E
 });
 
 // req: SIEP-CU-04, RN-09, RNF-004, WCAG 2.1.1
-test('[P05] revisar la traza y calificar con rúbrica: el intento se elige con Enter, el nivel de cada criterio se elige con las flechas y «Guardar evaluación» guarda', async ({ page, request }) => {
+test('[P05] revisar la traza y calificar con rúbrica: el intento se elige con Enter, el nivel de cada criterio se elige con una tecla de cifra y «Guardar evaluación» guarda', async ({ page, request }) => {
   test.setTimeout(scaled(120_000));
   const { caseTitle } = await seededGroupWithAttempt(request);
   await keyboardLogin(page, PROFESOR);
-  await goTo(page, 'Trazabilidad', /\/portal\/docente\/trazabilidad/);
+  await goTo(page, 'Revisión', /\/portal\/docente\/trazabilidad/);
   const attempt = page.locator('.tr-attempt').filter({ hasText: caseTitle }).first();
   await expect(attempt).toBeVisible({ timeout: scaled(30_000) });
   await pressWithKeyboard(page, attempt);
   const criteria = page.locator('.tr-criterion');
   await expect(criteria.first()).toBeVisible({ timeout: scaled(30_000) });
-  for (let index = 0; index < await criteria.count(); index += 1) {
-    await selectWithKeyboard(page, criteria.nth(index).getByLabel('Nivel logrado'), 'Logrado');
+  // R2: el nivel de cada criterio es un grupo de botones de opción («Nivel logrado: …»), ya no una lista desplegable. Tab
+  // entra al primer criterio y la tecla 3 elige «Logrado» y pasa al siguiente: una pulsación por criterio, sin ratón.
+  const total = await criteria.count();
+  await tabTo(page, criteria.first().getByRole('radiogroup').getByRole('radio').first(), { max: 120 });
+  for (let index = 0; index < total; index += 1) {
+    await page.keyboard.press('3');
+    await expect(criteria.nth(index).getByRole('radio', { name: 'Logrado' })).toBeChecked();
   }
   const saved = page.waitForResponse(response => /\/rubric-evaluation$/.test(new URL(response.url()).pathname) && response.request().method() === 'PUT', { timeout: scaled(30_000) });
   await pressWithKeyboard(page, page.getByRole('button', { name: 'Guardar evaluación' }));
@@ -450,13 +455,13 @@ test('[A01] gestionar usuarios y solicitudes: una solicitud se atiende con «Cre
 });
 
 // req: RF-05, CU-04, RNF-004, WCAG 2.1.1
-test('[A02] crear y editar un caso: desde «Mis casos» se elige el lugar y las salas, se crea el caso y se escribe una línea del guion, todo con teclas', async ({ page, request }) => {
-  test.setTimeout(scaled(180_000));
+test('[A02] crear y editar un caso: se elige el lugar y las salas, se crea el caso, se escribe una escena con dos respuestas, se marca un paso, se adopta la rúbrica y se llega a «Enviar a Psicología», todo con teclas', async ({ page, request }) => {
+  test.setTimeout(scaled(300_000));
   let id = 0;
   try {
     await keyboardLogin(page, ADMIN);
     await page.goto('/portal/casos');
-    await pressWithKeyboard(page, page.getByRole('link', { name: 'Crear un caso nuevo' }), { max: 120 });
+    await pressWithKeyboard(page, page.getByRole('link', { name: 'Crear un caso', exact: true }), { max: 120 });
     await expect(page.getByRole('heading', { level: 1, name: '¿Dónde pasa tu caso?' })).toBeVisible({ timeout: scaled(30_000) });
     await pressWithKeyboard(page, page.getByRole('link', { name: 'Elegir este lugar: Universidad' }), { max: 120 });
     await expect(page.getByRole('heading', { level: 1, name: 'Elige las salas de tu caso' })).toBeVisible({ timeout: scaled(30_000) });
@@ -464,24 +469,80 @@ test('[A02] crear y editar un caso: desde «Mis casos» se elige el lugar y las 
     const title = `Caso teclado ${stamp()}`;
     await typeInto(page, page.getByLabel('Nombre del caso'), title, { max: 160 });
     await pressWithKeyboard(page, page.getByRole('button', { name: 'Crear el caso con estas salas' }), { max: 160 });
-    await page.waitForURL(/\/portal\/casos\/\d+\/editor/, { timeout: scaled(60_000) });
-    await expect(page.getByRole('heading', { level: 1, name: /Escenas y caminos/ })).toBeVisible({ timeout: scaled(30_000) });
+
+    // Un caso nuevo se abre en el guion de su primera escena (E3): ahí empieza a escribirse, sin pasar por el mapa.
+    await page.waitForURL(/\/portal\/casos\/\d+\/editor\/escena\//, { timeout: scaled(60_000) });
+    await expect(page.getByRole('heading', { level: 1, name: /^Guion de la escena/ })).toBeVisible({ timeout: scaled(30_000) });
     id = Number(/\/portal\/casos\/(\d+)\/editor/.exec(page.url())![1]);
 
-    // Enter sobre la primera escena del mapa abre su guion; ahí se escribe una línea.
-    await pressWithKeyboard(page, page.locator('button.escena').first(), { max: 160 });
-    await expect(page.getByRole('heading', { level: 1, name: 'Guion de la escena' })).toBeVisible({ timeout: scaled(30_000) });
+    // La línea: «Agregar una línea» crea el campo y la tecla lo llena; al salir del campo (Tab) el editor guarda.
     await pressWithKeyboard(page, page.getByRole('button', { name: 'Agregar una línea' }), { max: 200 });
     await typeInto(page, page.getByLabel('Lo que dice, línea 1'), 'Hola, ¿esta es la oficina de Bienestar?', { max: 200 });
-    await page.keyboard.press('Tab'); // al salir del campo, el editor guarda
+    await page.keyboard.press('Tab');
+
+    // Dos respuestas. La clase es un grupo de botones de opción: Tab entra por el primero (Recomendada) y las flechas
+    // cambian de uno a otro; elegir uno con la flecha lo marca, sin pulsar nada más.
+    const respuestas = page.locator('li.respuesta');
+    await pressWithKeyboard(page, page.getByRole('button', { name: 'Agregar una respuesta' }), { max: 200 });
+    await expect(respuestas).toHaveCount(1, { timeout: scaled(30_000) });
+    await typeInto(page, respuestas.nth(0).getByLabel('Respuesta 1', { exact: true }), 'Sí, la sala de espera está aquí al lado. ¿Te acompaño?', { max: 200 });
+    await tabTo(page, respuestas.nth(0).getByRole('radio', { name: 'Recomendada', exact: true }), { max: 80 });
+    await page.keyboard.press('Space');
+    await expect(respuestas.nth(0).getByRole('radio', { name: 'Recomendada', exact: true })).toBeChecked();
+    // Sin «Lleva a…» la respuesta queda «Solo en esta pantalla»: el servidor no la guarda hasta que tiene destino.
+    await selectWithKeyboard(page, respuestas.nth(0).getByLabel('Lleva a…'), '2 · Sala de espera', { max: 6 });
+    await typeInto(page, respuestas.nth(0).getByLabel('Lo que lee el estudiante después de elegir'), 'Ofrecer compañía da seguridad.', { max: 80 });
+    await page.keyboard.press('Tab');
+
+    // Marcar un paso profesional: la faceta «Pasos» de la respuesta se abre con Enter y deja el foco en la primera casilla.
+    await pressWithKeyboard(page, respuestas.nth(0).getByRole('button', { name: /^Pasos/ }), { max: 80 });
+    const primerPaso = respuestas.nth(0).locator('fieldset.hitos input[type="checkbox"]').first();
+    await tabTo(page, primerPaso, { max: 20 });
+    await page.keyboard.press('Space');
+    await expect(primerPaso).toBeChecked();
+
+    await pressWithKeyboard(page, page.getByRole('button', { name: 'Agregar una respuesta' }), { max: 200 });
+    await expect(respuestas).toHaveCount(2, { timeout: scaled(30_000) });
+    await typeInto(page, respuestas.nth(1).getByLabel('Respuesta 2', { exact: true }), 'Sigue derecho, al fondo.', { max: 200 });
+    await tabTo(page, respuestas.nth(1).getByRole('radio', { name: 'Recomendada', exact: true }), { max: 80 });
+    await page.keyboard.press('ArrowRight');
+    await expect(respuestas.nth(1).getByRole('radio', { name: 'Aceptable', exact: true })).toBeChecked();
+    await selectWithKeyboard(page, respuestas.nth(1).getByLabel('Lleva a…'), '2 · Sala de espera', { max: 6 });
+    await typeInto(page, respuestas.nth(1).getByLabel('Lo que lee el estudiante después de elegir'), 'Indica el camino sin acompañar.', { max: 80 });
+    await page.keyboard.press('Tab');
+
     const admin = await apiToken(request, ADMIN);
-    const world: Json = (await (await request.get(`/api/authoring/cases/${id}/editor`, { headers: bearer(admin) })).json()).data;
+    const guardado = async (): Promise<Json> => (await (await request.get(`/api/authoring/cases/${id}/editor`, { headers: bearer(admin) })).json()).data;
+    await expect.poll(async () => ((await guardado())['decisions'] as Json[]).map(d => d['responseClass']).sort(), {
+      timeout: scaled(30_000), message: 'el servidor guardó las dos respuestas con su clase',
+    }).toEqual(['ACCEPTABLE', 'RECOMMENDED']);
+    const world: Json = await guardado();
+    expect(world['title']).toBe(title);
     const guionDelServidor = async (): Promise<string[]> => {
       const mundo: Json = (await (await request.get(`/api/authoring/cases/${id}/world-editor?nodeId=${world['nodes'][0]['id']}`, { headers: bearer(admin) })).json()).data;
       return mundo['dialogues'].flatMap((d: Json) => d['lines']).map((l: Json) => l['text']);
     };
     await expect.poll(guionDelServidor, { timeout: scaled(30_000), message: 'el servidor guardó la línea' }).toContain('Hola, ¿esta es la oficina de Bienestar?');
-    expect(world['title']).toBe(title);
+    const hitosMarcados = ((await guardado())['decisions'] as Json[]).flatMap(d => (d['milestones'] ?? d['effects']?.['milestones'] ?? []) as unknown[]);
+    expect(hitosMarcados.length, 'la respuesta recomendada cumple un paso profesional').toBeGreaterThan(0);
+
+    // Evaluación: la etapa se abre desde las secciones del caso y sus tres partes, desde su propia barra.
+    const secciones = page.getByRole('navigation', { name: 'Secciones del caso' });
+    await pressWithKeyboard(page, secciones.getByRole('link', { name: /^Evaluación/ }), { max: 200 });
+    await expect(page.getByRole('heading', { level: 1, name: 'Pasos profesionales' })).toBeVisible({ timeout: scaled(30_000) });
+    await expect(page.getByText(/^1 de \d+ pasos/)).toBeVisible({ timeout: scaled(30_000) });
+
+    // La rúbrica del caso: un caso sin rúbrica ofrece el atajo de las competencias del programa.
+    await pressWithKeyboard(page, page.getByRole('navigation', { name: 'Partes de la evaluación' }).getByRole('link', { name: /^Rúbrica/ }), { max: 200 });
+    await expect(page.getByRole('heading', { level: 1, name: 'Rúbrica del caso' })).toBeVisible({ timeout: scaled(30_000) });
+    await pressWithKeyboard(page, page.getByRole('button', { name: 'Usar las competencias del programa' }), { max: 200 });
+    await expect(page.getByRole('heading', { level: 2, name: 'Este caso todavía no tiene rúbrica' })).toHaveCount(0, { timeout: scaled(30_000) });
+    await expect(page.locator('[data-accion="rubrica-del-caso"][data-tipo]')).toBeVisible({ timeout: scaled(30_000) });
+
+    // Enviar a revisión: el botón se alcanza con Tab (con faltas pendientes no se puede pulsar, pero se llega a él y dice por qué).
+    await pressWithKeyboard(page, secciones.getByRole('link', { name: /^Enviar a revisión/ }), { max: 200 });
+    await expect(page.getByRole('heading', { level: 1, name: 'Enviar a revisión' })).toBeVisible({ timeout: scaled(30_000) });
+    await tabTo(page, page.getByRole('button', { name: 'Enviar a Psicología' }), { max: 250 });
     await expectNoPointer(page, 'crear y editar un caso');
   } finally {
     if (id) await retireCase(request, id);

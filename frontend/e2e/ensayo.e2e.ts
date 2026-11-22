@@ -161,7 +161,7 @@ test.describe(`ensayo-${KEYBOARD.name}`, () => {
       await loginStudent(other);
       await other.goto(url);
       await expect(other).toHaveURL(/\/portal\/sin-permiso/);
-      await expect(other.getByRole('heading', { name: 'Sin permiso' })).toBeVisible();
+      await expect(other.getByRole('heading', { name: 'Esta sección no es para tu rol' })).toBeVisible();
       await expect(other.locator('.game-container')).toHaveCount(0);
     } finally {
       await context.close();
