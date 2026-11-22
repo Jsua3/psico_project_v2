@@ -252,6 +252,20 @@ describe('SimulationService contrato HTTP', () => {
       expect(req.request.body).toEqual({ caseVersionId: 7, forceNew: true });
       req.flush({ data: {} });
     });
+
+    it('DP-26 · al reemplazar manda el intento que la persona aceptó perder', () => {
+      service.startAttempt(7, true, 'abc-123').subscribe();
+      const req = httpMock.expectOne(`${S}/attempts`);
+      expect(req.request.body).toEqual({ caseVersionId: 7, forceNew: true, expectedAttemptId: 'abc-123' });
+      req.flush({ data: {} });
+    });
+
+    it('sin reemplazo no manda el intento esperado aunque llegue', () => {
+      service.startAttempt(7, false, 'abc-123').subscribe();
+      const req = httpMock.expectOne(`${S}/attempts`);
+      expect(req.request.body).toEqual({ caseVersionId: 7, forceNew: false });
+      req.flush({ data: {} });
+    });
   });
 
   describe('chooseDecision', () => {

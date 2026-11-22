@@ -123,7 +123,7 @@ describe('SimulationPlayComponent: entrar al caso (intento por URL, permiso de r
     it('si ya no hay intento abierto, empieza uno sin reemplazar nada', () => {
       setup({ query: { intento: 'continuar' } });
       component.ngOnInit();
-      expect(sim['startAttempt']).toHaveBeenCalledWith(CASE_VERSION_ID, false);
+      expect(sim['startAttempt']).toHaveBeenCalledWith(CASE_VERSION_ID, false, undefined);
     });
   });
 
@@ -146,7 +146,7 @@ describe('SimulationPlayComponent: entrar al caso (intento por URL, permiso de r
       setup({ state: { navigationId: 3, reemplazar: { attemptId: 'abierto-1' } }, active: () => of(intento()) });
       component.ngOnInit();
       expect(sim['startAttempt']).toHaveBeenCalledTimes(1);
-      expect(sim['startAttempt']).toHaveBeenCalledWith(CASE_VERSION_ID, true);
+      expect(sim['startAttempt']).toHaveBeenCalledWith(CASE_VERSION_ID, true, 'abierto-1');
       expect(replaceState).toHaveBeenCalledTimes(1);
       expect((window.history.state as { reemplazar?: unknown }).reemplazar).toBeUndefined();
       expect((window.history.state as { navigationId?: number }).navigationId).toBe(3);
@@ -190,7 +190,7 @@ describe('SimulationPlayComponent: entrar al caso (intento por URL, permiso de r
     it('un permiso cuyo intento ya no está abierto no reemplaza nada: empieza uno con forceNew = false', () => {
       setup({ state: { reemplazar: { attemptId: 'abierto-1' } } });
       component.ngOnInit();
-      expect(sim['startAttempt']).toHaveBeenCalledWith(CASE_VERSION_ID, false);
+      expect(sim['startAttempt']).toHaveBeenCalledWith(CASE_VERSION_ID, false, undefined);
     });
 
     it('un permiso sin attemptId no reemplaza', () => {

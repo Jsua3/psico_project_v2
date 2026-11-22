@@ -91,8 +91,11 @@ export class SimulationService {
    * Inicia el intento o devuelve el abierto. El 403 `ACCESS_*` (cerró, aún no abre, secuencia) lo explica la pantalla de
    * juego con el aviso del caso, así que el aviso genérico de «sin permisos» no sale además.
    */
-  startAttempt(caseVersionId: number, forceNew = false) {
-    return this.http.post<ApiResponse<SimulationAttemptState>>(`${this.API}/attempts`, { caseVersionId, forceNew }, {
+  startAttempt(caseVersionId: number, forceNew = false, expectedAttemptId?: string) {
+    // `expectedAttemptId` (solo con forceNew): el intento que la persona aceptó perder. El servidor lo compara bajo cerrojo
+    // y responde 409 ATTEMPT_CHANGED si el abierto ya es otro, así una carrera nunca reemplaza un intento no aceptado.
+    const cuerpo = forceNew && expectedAttemptId ? { caseVersionId, forceNew, expectedAttemptId } : { caseVersionId, forceNew };
+    return this.http.post<ApiResponse<SimulationAttemptState>>(`${this.API}/attempts`, cuerpo, {
       context: new HttpContext().set(SCREEN_HANDLES_FORBIDDEN, true),
     }).pipe(map(response => response.data));
   }

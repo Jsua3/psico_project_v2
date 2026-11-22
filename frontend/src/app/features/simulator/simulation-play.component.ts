@@ -2300,6 +2300,8 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     const id = Number(this.route.snapshot.paramMap.get('caseVersionId'));
     if (!id) return;
     if (this.mode() === 'rehearsal') { this.beginRehearsal(id, this.rehearsalFrom); return; }
+    // El intento que la persona vio y aceptó perder: se toma ANTES de limpiar el estado y viaja al servidor.
+    const aceptado = this.pendingActiveAttempt()?.attemptId;
     this.showResumePrompt.set(false);
     this.resetAttemptScopedState();
     // Nada del intento anterior sobrevive: ni su diálogo o selección, ni la bitácora abierta, ni una
@@ -2310,7 +2312,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     // Los avisos pendientes eran del intento anterior.
     this.resetNotices();
     this.loading.set(true);
-    this.beginAttempt(id, true);
+    this.beginAttempt(id, true, aceptado);
   }
 
   /** Abre (o reabre) el ensayo: `POST rehearsal` cierra el anterior; sin consentimiento ni introducción (4.2.1) y sin guardar el token. */
@@ -2423,9 +2425,9 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
     });
   }
 
-  private beginAttempt(caseVersionId: number, forceNew: boolean) {
+  private beginAttempt(caseVersionId: number, forceNew: boolean, expectedAttemptId?: string) {
     const numero = this.nuevoArranque();
-    this.simulationService.startAttempt(caseVersionId, forceNew).subscribe({
+    this.simulationService.startAttempt(caseVersionId, forceNew, expectedAttemptId).subscribe({
       next: attempt => { if (this.esArranqueVigente(numero)) this.bootstrapAttempt(attempt); },
       // Un rechazo de acceso (cerró, aún no abre, secuencia) se dice con el aviso del caso y no se reintenta: repetirlo
       // da el mismo 403. Cualquier otro fallo conserva su mensaje y su reintento.
@@ -2436,7 +2438,7 @@ export class SimulationPlayComponent implements OnInit, OnDestroy {
         if (forceNew && esConflictoDeIntento(cause)) { this.volverAPreguntar(caseVersionId); return; }
         const refused = accessErrorMessage(cause);
         if (refused) this.fail(refused, cause, null);
-        else this.fail('No pudimos iniciar la simulación. Inténtalo de nuevo.', cause, () => this.beginAttempt(caseVersionId, forceNew));
+        else this.fail('No pudimos iniciar la simulación. Inténtalo de nuevo.', cause, () => this.beginAttempt(caseVersionId, forceNew, expectedAttemptId));
       },
     });
   }
