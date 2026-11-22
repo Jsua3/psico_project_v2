@@ -106,7 +106,12 @@ import { RutasAutoria } from '../../rutas';
     }
     /* En el teléfono las fichas del filtro van en una fila que se desliza, en vez de ocupar media pantalla antes de los lugares. */
     @media (max-width: 39.999rem) {
-      .filtro { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 0.25rem; }
+      .filtro {
+        flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 0.25rem 2.5rem 0.25rem 0.25rem;
+        /* El borde derecho se desvanece: dice que hay más fichas sin barra de desplazamiento. El relleno del final
+           deja la última ficha fuera del desvanecido cuando se llega al final. */
+        mask-image: linear-gradient(to right, var(--ds-text-1) calc(100% - 2.5rem), transparent);
+      }
       .ficha, .etiqueta { flex: none; white-space: nowrap; }
     }
     .cuerpo { flex: 1; display: flex; flex-direction: column; gap: 0.5rem; min-inline-size: 0; padding-inline: 0.25rem; }
