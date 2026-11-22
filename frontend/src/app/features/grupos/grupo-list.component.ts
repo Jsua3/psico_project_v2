@@ -1,9 +1,11 @@
 import {
-  ChangeDetectionStrategy, Component, ElementRef, Injector, OnInit, ViewChild, afterNextRender, computed, inject, signal,
+  ChangeDetectionStrategy, Component, ElementRef, Injector, OnInit, TemplateRef, ViewChild, afterNextRender, computed, effect, inject, input, signal, untracked,
 } from '@angular/core';
-import { AbstractControl, FormBuilder, FormGroupDirective, ReactiveFormsModule, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
+import { NgTemplateOutlet } from '@angular/common';
+import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
 import { GrupoService, Grupo, GrupoEstudiante, GrupoImportError, GrupoImportResult, GrupoImportSpec, MembershipStatus } from '../../core/api/grupo.service';
 import { mapAgregarEstudianteError } from '../../core/api/grupo-error.utils';
 import { SimulationService } from '../../core/api/simulation.service';
@@ -16,17 +18,24 @@ import { UiButton } from '../../shared/ui/button/ui-button';
 import { membershipLabel } from '../../shared/ui/labels';
 import { UiIconButton } from '../../shared/ui/button/ui-icon-button';
 import { UiCard } from '../../shared/ui/card/ui-card';
-import { UiConfirmOptions, UiDialog } from '../../shared/ui/dialog/ui-dialog';
+import { UiConfirmOptions, UiDialog, UiDialogFrame } from '../../shared/ui/dialog/ui-dialog';
 import { UiControl, UiField } from '../../shared/ui/field/ui-field';
 import { UiMenu, UiMenuItem } from '../../shared/ui/menu/ui-menu';
-import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
-import { UiSection } from '../../shared/ui/section/ui-section';
-import { UiStat } from '../../shared/ui/stat/ui-stat';
+import { UiPageActions, UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
+import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
+import { UiCelda, UiCeldaAcciones, UiCeldaPrincipal } from '../../shared/ui/table/ui-table-celda';
 import { uiDataState } from '../../shared/ui/state/ui-data-state';
 import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
-import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
+import { UiArchivo } from '../../shared/ui/archivo/ui-archivo';
+import { UiTab, UiTabs } from '../../shared/ui/tabs/ui-tabs';
 import { GroupAssignmentsComponent } from './group-assignments.component';
+
+@Component({ selector: 'app-grupo-hoja', standalone: true, imports: [NgTemplateOutlet, UiDialogFrame],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `<ui-dialog-frame [title]="data.title"><ng-container [ngTemplateOutlet]="data.template" /></ui-dialog-frame>`, })
+class GrupoHojaComponent { readonly data = inject<{ title: string; template: TemplateRef<unknown> }>(DIALOG_DATA); }
 
 /** E2-10: un servidor anterior no mandaba `membershipStatus` (todas eran membresías activas). */
 function membershipOf(student: GrupoEstudiante): MembershipStatus {
@@ -56,31 +65,72 @@ function removeLabel(student: GrupoEstudiante): string {
 }
 
 /**
- * Pantalla Grupos (plan visual F7-2): una cabecera, la tabla de grupos con UN menú de acciones por fila (antes cinco
- * botones de texto en cada tarjeta), esqueleto y error dentro de la tabla, ninguna cifra mientras carga, y el detalle
- * del grupo con la zona de importación (arrastrar o elegir el .xlsx). Los diálogos y los campos son los de la
- * biblioteca (`UiDialog`, `ui-field`).
+ * Pantalla Grupos en maestro-detalle (rediseño B5c, DP-18): la lista de grupos a la izquierda y el grupo elegido a la
+ * derecha, con su propia ruta (`/portal/grupos/:grupoId`) para que «atrás» funcione y el detalle se pueda enlazar. En
+ * teléfono son dos pantallas: la lista, y al tocar un grupo, el detalle con su regreso. «Nuevo grupo», «Editar» e
+ * «Importar desde Excel» abren una hoja (`UiDialog.sheet`) en vez de ocupar la mejor zona de la página.
  */
 @Component({
   selector: 'app-grupo-list',
   standalone: true,
   imports: [
     ReactiveFormsModule, RouterLink,
-    UiBadge, UiButton, UiIconButton, UiCard, UiControl, UiField, UiMenu, UiPageHeader, UiSection, UiStat,
-    UiEmptyState, UiErrorState, UiTable, UiTableRow, UiTableTable, GroupAssignmentsComponent,
+    UiBadge, UiButton, UiIconButton, UiCard, UiControl, UiField, UiMenu, UiPageHeader, UiPageActions, UiArchivo, UiTab, UiTabs,
+    UiSkeleton, UiTable, UiTableTable, UiTableRow, UiCelda, UiCeldaPrincipal, UiCeldaAcciones,
+    UiEmptyState, UiErrorState, GroupAssignmentsComponent,
   ],
   templateUrl: './grupo-list.component.html',
   styleUrl: './grupo-list.component.scss',
   // Eager: los errores de los campos salen de `control.touched`, que no es una señal; cada evento de la plantilla
   // vuelve a evaluarla.
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class GrupoListComponent implements OnInit {
-  @ViewChild('importFileInput') importFileInput?: ElementRef<HTMLInputElement>;
-  // Esta pantalla tiene tres formularios: el del grupo se referencia por variable de plantilla,
-  // no por `@ViewChild(FormGroupDirective)`, que devolvería el primero que encuentre.
-  @ViewChild('groupForm') private groupFormEl?: ElementRef<HTMLFormElement>;
-  @ViewChild('groupFormDir') private groupFormDir?: FormGroupDirective;
+  @ViewChild('formularioGrupo') formularioGrupo!: TemplateRef<unknown>;
+  @ViewChild('formularioImportacion') formularioImportacion!: TemplateRef<unknown>;
+  readonly grupoId = input<string>();
+  private hoja?: DialogRef<unknown, GrupoHojaComponent>;
+  constructor() {
+    effect(() => {
+      const id = this.grupoId();
+      const grupos = this.grupos();
+      const grupo = id ? grupos.find(g => String(g.id) === id) : grupos[0];
+      if (!grupo) { this.grupoActivo.set(null); return; }
+      if (untracked(this.grupoActivo)?.id !== grupo.id) untracked(() => this.gestionarGrupo(grupo));
+    });
+  }
+  nuevoGrupo(): void { this.cancelarEdicion(); this.abrirHoja('Nuevo grupo', this.formularioGrupo); }
+  abrirImportacion(): void {
+    const grupo = this.grupoActivo();
+    if (grupo) this.abrirImportacionDe(grupo);
+  }
+  private abrirImportacionDe(grupo: Grupo): void {
+    this.limpiarImportacion();
+    this.mensajeEstudiante.set('');
+    this.mensajeEsError.set(false);
+    this.importacionAbierta.set(true);
+    this.abrirHoja(`Importar estudiantes a ${grupo.nombre}`, this.formularioImportacion);
+  }
+  /**
+   * Abre una hoja lateral con una plantilla de este componente. Al cerrarse (botón, Esc o fondo) se sueltan los estados
+   * que solo tenían sentido con ella: la edición a medias y el aviso de importación.
+   */
+  private abrirHoja(title: string, template: TemplateRef<unknown>): void {
+    // Una hoja a la vez: la anterior se suelta antes (su cierre ya no toca los estados de la nueva).
+    const previa = this.hoja;
+    this.hoja = undefined;
+    previa?.close();
+    const hoja = this.dialog.sheet(GrupoHojaComponent, { side: 'end', data: { title, template }, origen: this.host.nativeElement });
+    this.hoja = hoja;
+    hoja.closed?.subscribe(() => {
+      if (this.hoja !== hoja) return;
+      this.hoja = undefined;
+      this.importacionAbierta.set(false);
+      if (this.editandoGrupo()) { this.editandoGrupo.set(null); this.resetGroupForm(); }
+    });
+  }
+  cerrarHoja(): void { this.hoja?.close(); }
+  archivoElegido(archivo: File | null): void { this.elegirArchivo(archivo); }
 
   private grupoService = inject(GrupoService);
   private simulationService = inject(SimulationService);
@@ -89,6 +139,7 @@ export class GrupoListComponent implements OnInit {
   private readonly dialog = inject(UiDialog);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly router = inject(Router);
 
   grupos = signal<Grupo[]>([]);
   grupoActivo = signal<Grupo | null>(null);
@@ -117,28 +168,40 @@ export class GrupoListComponent implements OnInit {
   agregandoEstudiante = signal(false);
   importandoEstudiantes = signal(false);
   error = signal('');
-  /** Hay un archivo sobre la zona de importación (se resalta mientras dure). */
-  arrastrando = signal(false);
+  /** Pestaña abierta del detalle (se conserva al pasar de un grupo a otro). */
+  pestana = signal<string | undefined>('estudiantes');
+  /** La hoja de importación está abierta: el aviso se lee dentro de ella y no se repite en el detalle. */
+  importacionAbierta = signal(false);
 
-  totalEstudiantes = computed(() =>
-    this.grupos().reduce((total, grupo) => total + grupo.totalEstudiantes, 0)
-  );
-  /** E2-10: invitaciones que los estudiantes aún no responden (no son miembros todavía). */
-  totalInvitados = computed(() =>
-    this.grupos().reduce((total, grupo) => total + (grupo.totalInvitados ?? 0), 0)
-  );
   /** Del grupo abierto: quienes aceptaron (miembros) y quienes tienen la invitación pendiente. */
   protected readonly miembros = computed(() => this.estudiantes().filter(student => membershipOf(student) === 'ACTIVE'));
   protected readonly invitados = computed(() => this.estudiantes().filter(student => membershipOf(student) === 'INVITED'));
   protected readonly detalleConteo = computed(() => {
-    const miembros = this.miembros().length;
-    const invitados = this.invitados().length;
+    // Mientras llegan los estudiantes se dicen las cifras que ya trae el grupo, no un «0» que luego cambia.
+    const grupo = this.grupoActivo();
+    const cargando = this.detailLoading() && !!grupo;
+    const miembros = cargando ? grupo.totalEstudiantes : this.miembros().length;
+    const invitados = cargando ? (grupo.totalInvitados ?? 0) : this.invitados().length;
     const partes = [`${miembros} ${miembros === 1 ? 'estudiante' : 'estudiantes'}`];
     if (invitados) partes.push(`${invitados} ${invitados === 1 ? 'invitación pendiente' : 'invitaciones pendientes'}`);
     const casos = this.casosAsignadosTotal();
     if (casos !== null) partes.push(`${casos} ${casos === 1 ? 'caso asignado' : 'casos asignados'}`);
     return partes.join(' · ');
   });
+  /** «Invitaciones · 2»: el conteo va en el nombre de la pestaña para no abrirla a ciegas. */
+  protected readonly etiquetaInvitaciones = computed(() => {
+    const n = this.invitados().length;
+    return n ? `Invitaciones · ${n}` : 'Invitaciones';
+  });
+  /** «12 estudiantes · 1 invitación pendiente», con singular y plural. */
+  protected resumenGrupo(grupo: Grupo): string {
+    const n = grupo.totalEstudiantes;
+    const m = grupo.totalInvitados ?? 0;
+    const partes = [`${n} ${n === 1 ? 'estudiante' : 'estudiantes'}`];
+    if (m) partes.push(`${m} ${m === 1 ? 'invitación pendiente' : 'invitaciones pendientes'}`);
+    return partes.join(' · ');
+  }
+  protected verTodos(): void { void this.router.navigate(['/portal/grupos']); }
   protected readonly membershipBadge = membershipBadge;
   protected readonly studentName = studentName;
   protected readonly removeLabel = removeLabel;
@@ -170,9 +233,8 @@ export class GrupoListComponent implements OnInit {
    */
   protected readonly statusText = computed(() => (this.state() === 'loading' ? 'Cargando grupos…' : this.mensajeEstudiante()));
 
-  /** Acciones del menú de cada fila (lo que no es «Ver detalle» ni «Ver reporte»). */
+  /** Acciones del menú «Más acciones» del grupo abierto (invitar e importar tienen su botón en la pestaña). */
   protected readonly rowActions: UiMenuItem[] = [
-    { value: 'agregar', label: 'Invitar estudiante', icon: 'person_add' },
     { value: 'copiar', label: 'Copiar código', icon: 'content_copy' },
     { value: 'editar', label: 'Editar', icon: 'edit' },
     { value: 'borrar', label: 'Borrar', icon: 'delete', tone: 'danger' },
@@ -239,25 +301,27 @@ export class GrupoListComponent implements OnInit {
   }
 
   /**
-   * Reinicia valores Y el estado «enviado» del formulario del grupo: se usa la directiva de ESE formulario, no la de
-   * los otros dos de la pantalla.
+   * Reinicia los valores y lo «tocado» del formulario del grupo. El estado «enviado» no hace falta reiniciarlo: el
+   * formulario vive en una hoja y cada vez que se abre nace uno nuevo (su directiva empieza sin enviar).
    */
   private resetGroupForm(value?: { nombre: string | null; codigo: string | null }): void {
-    if (this.groupFormDir) this.groupFormDir.resetForm(value);
-    else this.form.reset(value);
+    this.form.reset(value);
   }
 
-  /** true (y marca y enfoca) si el formulario del grupo tiene errores. */
-  private invalidGroupForm(): boolean {
+  /**
+   * true (y marca y enfoca) si el formulario del grupo tiene errores. El formulario está en una hoja, fuera de este
+   * componente en el DOM: la plantilla pasa su elemento (un `@ViewChild` sobre una plantilla que se pinta en otro sitio
+   * no se actualiza hasta que este componente vuelva a revisarse).
+   */
+  private invalidGroupForm(formEl?: HTMLElement): boolean {
     if (!this.form.invalid) return false;
     this.form.markAllAsTouched();
-    // El formulario de casos nace inválido: se busca solo dentro del formulario del grupo.
-    focusFirstInvalid(this.groupFormEl?.nativeElement ?? this.host.nativeElement);
+    focusFirstInvalid(formEl ?? this.host.nativeElement);
     return true;
   }
 
-  crear() {
-    if (this.saving() || this.invalidGroupForm()) return;
+  crear(formEl?: HTMLElement) {
+    if (this.saving() || this.invalidGroupForm(formEl)) return;
     const { nombre, codigo } = this.form.value;
     this.saving.set(true);
     this.grupoService.crear(nombre!, codigo!).subscribe({
@@ -265,6 +329,7 @@ export class GrupoListComponent implements OnInit {
         this.grupos.update(list => [...list, g]);
         this.resetGroupForm();
         this.saving.set(false);
+        this.hoja?.close();
         this.notify.success('Grupo creado.');
       },
       error: (err: unknown) => {
@@ -279,16 +344,18 @@ export class GrupoListComponent implements OnInit {
     this.editandoGrupo.set(grupo);
     this.resetGroupForm({ nombre: grupo.nombre, codigo: grupo.codigo });
     this.error.set('');
+    if (this.formularioGrupo) this.abrirHoja('Editar grupo', this.formularioGrupo);
   }
 
   cancelarEdicion() {
     this.editandoGrupo.set(null);
     this.resetGroupForm();
+    this.hoja?.close();
   }
 
-  actualizarGrupo() {
+  actualizarGrupo(formEl?: HTMLElement) {
     const grupo = this.editandoGrupo();
-    if (!grupo || this.saving() || this.invalidGroupForm()) return;
+    if (!grupo || this.saving() || this.invalidGroupForm(formEl)) return;
     const { nombre, codigo } = this.form.value;
     this.saving.set(true);
     this.error.set('');
@@ -298,6 +365,7 @@ export class GrupoListComponent implements OnInit {
         if (this.grupoActivo()?.id === actualizado.id) this.grupoActivo.set(actualizado);
         this.cancelarEdicion();
         this.saving.set(false);
+        this.hoja?.close();
         this.notify.success('Grupo actualizado.');
       },
       error: (err: unknown) => {
@@ -348,6 +416,8 @@ export class GrupoListComponent implements OnInit {
         this.grupos.update(list => list.filter(g => g.id !== grupo.id));
         if (this.grupoActivo()?.id === grupo.id) this.grupoActivo.set(null);
         if (this.editandoGrupo()?.id === grupo.id) this.cancelarEdicion();
+        // La ruta del grupo borrado ya no lleva a nada: se vuelve a la lista.
+        if (this.grupoId() === String(grupo.id)) this.verTodos();
         this.notify.success('Grupo eliminado.');
       },
       error: (err: unknown) => {
@@ -390,7 +460,7 @@ export class GrupoListComponent implements OnInit {
     this.mensajeEsError.set(false);
     this.limpiarImportacion();
     this.cargarDetalle(grupo.id);
-    this.enfocar('.gl-detail .ui-section__title');
+
   }
 
   agregarEstudiante(grupo: Grupo) {
@@ -438,15 +508,20 @@ export class GrupoListComponent implements OnInit {
   }
 
   cargarDetalle(grupoId: number) {
+    this.estudiantes.set([]);
     this.detailLoading.set(true);
     this.grupoService.listarEstudiantes(grupoId).subscribe({
       next: estudiantes => {
+        if (this.grupoActivo()?.id !== grupoId) return;
         this.estudiantes.set(estudiantes);
         this.detailLoading.set(false);
       },
       error: () => {
+        if (this.grupoActivo()?.id !== grupoId) return;
         this.estudiantes.set([]);
         this.detailLoading.set(false);
+        this.mensajeEstudiante.set('No fue posible cargar los estudiantes.');
+        this.mensajeEsError.set(true);
       }
     });
   }
@@ -540,28 +615,12 @@ export class GrupoListComponent implements OnInit {
     });
   }
 
-  seleccionarArchivoImportacion(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    if (!this.elegirArchivo(input.files?.[0] ?? null)) input.value = '';
-  }
-
-  arrastrarSobre(event: Event): void {
-    event.preventDefault();
-    this.arrastrando.set(true);
-  }
-
-  soltarArchivo(event: DragEvent): void {
-    event.preventDefault();
-    this.arrastrando.set(false);
-    // El control nativo conserva su elección anterior: se limpia para que no muestre un archivo que ya no vale.
-    this.resetImportFileInput();
-    this.elegirArchivo(event.dataTransfer?.files?.[0] ?? null);
-  }
-
   /** Acepta el archivo si es .xlsx; si no, lo rechaza con un mensaje. true si quedó elegido (o se quitó). */
   private elegirArchivo(file: File | null): boolean {
     this.archivoImportacion.set(file);
     this.resultadoImportacion.set(null);
+    this.mensajeEstudiante.set('');
+    this.mensajeEsError.set(false);
     this.erroresImportacion.set([]);
     if (file && !/\.xlsx$/i.test(file.name)) {
       this.mensajeEstudiante.set('Selecciona un archivo .xlsx.');
@@ -570,10 +629,6 @@ export class GrupoListComponent implements OnInit {
       return false;
     }
     return true;
-  }
-
-  descargarPlantillaImportacion(): void {
-    this.descargarPlantilla();
   }
 
   importarEstudiantes(): void {
@@ -589,7 +644,6 @@ export class GrupoListComponent implements OnInit {
         this.resultadoImportacion.set(result);
         this.erroresImportacion.set(result.errors);
         this.archivoImportacion.set(null);
-        this.resetImportFileInput();
         this.importandoEstudiantes.set(false);
         this.grupos.update(list => list.map(g => g.id === grupo.id ? result.grupo : g));
         this.grupoActivo.set(result.grupo);
@@ -613,12 +667,6 @@ export class GrupoListComponent implements OnInit {
     });
   }
 
-  private resetImportFileInput(): void {
-    if (this.importFileInput?.nativeElement) {
-      this.importFileInput.nativeElement.value = '';
-    }
-  }
-
   private mapImportError(err: HttpErrorResponse): string {
     const body = err.error;
     if (typeof body?.message === 'string' && body.message.trim()) {
@@ -630,7 +678,8 @@ export class GrupoListComponent implements OnInit {
     return 'No fue posible importar el archivo. Verifica columnas nombre, apellido y email.';
   }
 
-  private limpiarImportacion(): void {
+  /** Vuelve a la zona de archivo para cargar otra lista (también al abrir la hoja). */
+  limpiarImportacion(): void {
     this.archivoImportacion.set(null);
     this.resultadoImportacion.set(null);
     this.erroresImportacion.set([]);

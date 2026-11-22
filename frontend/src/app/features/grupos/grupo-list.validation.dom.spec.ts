@@ -1,6 +1,4 @@
-import { FormGroupDirective } from '@angular/forms';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 
@@ -10,6 +8,7 @@ import { SimulationCaseSummary } from '../../core/models/simulation.model';
 import { NotificationService } from '../../core/notifications/notification.service';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { GrupoListComponent } from './grupo-list.component';
+import { hojaFalsa } from './grupo-hoja.testing';
 import type { Mock } from 'vitest';
 
 /**
@@ -18,8 +17,10 @@ import type { Mock } from 'vitest';
  * `form.reset()` no reinicia `FormGroupDirective.submitted`, así que el reinicio del formulario pasa por la
  * directiva de ESE formulario. Estas pruebas comprueban lo que ve el usuario: tras enviar con errores, cancelar,
  * editar otro grupo o guardar con éxito no debe quedar ningún mensaje de error visible en un formulario recién
- * cargado. Y, con el detalle de un grupo abierto (el formulario de casos nace inválido), el foco debe ir al
- * formulario del grupo y no al del caso.
+ * cargado. Y, con el detalle de un grupo abierto, el foco debe ir al formulario del grupo y no al de invitar.
+ *
+ * B5c: el formulario vive en una hoja (`UiDialog.sheet`); aquí la hoja es un doble que pinta su plantilla junto al
+ * anfitrión (ver `grupo-hoja.testing.ts`), así que sus nodos se buscan en `document.body`.
  */
 const grupoA: Grupo = { id: 1, nombre: 'Cohorte A', codigo: 'COH-A', totalEstudiantes: 3 };
 const grupoB: Grupo = { id: 2, nombre: 'Cohorte B', codigo: 'COH-B', totalEstudiantes: 0 };
@@ -29,12 +30,14 @@ describe('grupos: validar al enviar el formulario de grupo (DOM con la bibliotec
   let fixture: ComponentFixture<GrupoListComponent>;
   let component: GrupoListComponent;
   let root: HTMLElement;
+  let sheet: ReturnType<typeof hojaFalsa>;
   let service: Record<'listar' | 'crear' | 'actualizar' | 'eliminar' | 'importSpec' | 'listarEstudiantes', Mock>;
 
-  const errorTexts = () => Array.from(root.querySelectorAll('.ui-field__message--error')).map(node => (node.textContent ?? '').trim());
-  const groupForm = () => root.querySelector<HTMLFormElement>('.gl-form form')!;
+  const errorTexts = () => Array.from(document.body.querySelectorAll('.gl-form .ui-field__message--error')).map(node => (node.textContent ?? '').trim());
+  const groupForm = () => document.body.querySelector<HTMLFormElement>('.gl-form form')!;
   const groupSubmitButton = () => groupForm().querySelector<HTMLButtonElement>('button[type="submit"]')!;
-  const groupFormSubmitted = () => fixture.debugElement.query(By.css('.gl-form form')).injector.get(FormGroupDirective).submitted;
+  // El estado «enviado» vive en la directiva de la hoja (nace nueva con cada hoja); lo que persiste es lo «tocado» del modelo.
+  const groupFormTouched = () => component.form.touched;
   const button = (label: string) =>
     Array.from(groupForm().querySelectorAll<HTMLButtonElement>('button')).find(candidate => (candidate.textContent ?? '').includes(label))!;
   const submit = () => {
@@ -59,6 +62,7 @@ describe('grupos: validar al enviar el formulario de grupo (DOM con la bibliotec
       importSpec: vi.fn(() => of({ requiredColumns: ['nombre'], optionalColumns: [], columns: ['nombre'], templateFilename: 'plantilla.xlsx', acceptedExtensions: ['.xlsx'] })),
       listarEstudiantes: vi.fn(() => of([])),
     };
+    sheet = hojaFalsa(() => fixture);
     TestBed.configureTestingModule({
       imports: [GrupoListComponent],
       providers: [
@@ -66,7 +70,7 @@ describe('grupos: validar al enviar el formulario de grupo (DOM con la bibliotec
         { provide: GrupoService, useValue: service },
         { provide: SimulationService, useValue: { listCases: vi.fn(() => of([caso])) } },
         { provide: NotificationService, useValue: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } },
-        { provide: UiDialog, useValue: { confirm: vi.fn(() => Promise.resolve(true)) } },
+        { provide: UiDialog, useValue: { confirm: vi.fn(() => Promise.resolve(true)), sheet } },
       ],
     });
     fixture = TestBed.createComponent(GrupoListComponent);
@@ -74,9 +78,13 @@ describe('grupos: validar al enviar el formulario de grupo (DOM con la bibliotec
     root = fixture.nativeElement;
     document.body.appendChild(root);
     fixture.detectChanges();
+    // «Nuevo grupo»: el formulario nace en la hoja.
+    component.nuevoGrupo();
+    fixture.detectChanges();
   });
 
   afterEach(() => {
+    sheet.limpiar();
     root.remove();
     TestBed.resetTestingModule();
   });
@@ -153,7 +161,7 @@ describe('grupos: validar al enviar el formulario de grupo (DOM con la bibliotec
       expect(nombre.getAttribute('aria-invalid')).toBe('true');
       expect(nombre.getAttribute('aria-required')).toBe('true');
       const described = nombre.getAttribute('aria-describedby') ?? '';
-      expect(root.querySelector(`#${described}`)?.textContent?.trim()).toBe('Escribe el nombre del grupo.');
+      expect(document.body.querySelector(`#${described}`)?.textContent?.trim()).toBe('Escribe el nombre del grupo.');
     });
 
     it('el botón no se bloquea por un formulario inválido', () => {
@@ -171,20 +179,20 @@ describe('grupos: validar al enviar el formulario de grupo (DOM con la bibliotec
     });
   });
 
-  describe('reinicio del estado «enviado»', () => {
+  describe('reinicio del formulario', () => {
     it('«Cancelar» tras un envío inválido deja el formulario en blanco sin errores', () => {
       edit(grupoA);
       component.form.patchValue({ nombre: '' });
       fixture.detectChanges();
       submit();
       expect(errorTexts().length).toBeGreaterThan(0);
-      expect(groupFormSubmitted()).toBe(true);
+      expect(groupFormTouched()).toBe(true);
 
       button('Cancelar').click();
       fixture.detectChanges();
 
       expect(errorTexts()).toEqual([]);
-      expect(groupFormSubmitted()).toBe(false);
+      expect(groupFormTouched()).toBe(false);
       expect(component.form.getRawValue()).toEqual({ nombre: null, codigo: null });
     });
 
@@ -195,7 +203,7 @@ describe('grupos: validar al enviar el formulario de grupo (DOM con la bibliotec
       edit(grupoB);
 
       expect(errorTexts()).toEqual([]);
-      expect(groupFormSubmitted()).toBe(false);
+      expect(groupFormTouched()).toBe(false);
       expect(component.form.getRawValue()).toEqual({ nombre: 'Cohorte B', codigo: 'COH-B' });
     });
 
@@ -210,7 +218,7 @@ describe('grupos: validar al enviar el formulario de grupo (DOM con la bibliotec
       expect(service.crear).toHaveBeenCalledTimes(1);
       expect(service.crear).toHaveBeenCalledWith('Cohorte C', 'COH-C');
       expect(errorTexts()).toEqual([]);
-      expect(groupFormSubmitted()).toBe(false);
+      expect(groupFormTouched()).toBe(false);
       expect(component.form.getRawValue()).toEqual({ nombre: null, codigo: null });
     });
 
@@ -229,7 +237,7 @@ describe('grupos: validar al enviar el formulario de grupo (DOM con la bibliotec
       expect(service.actualizar).toHaveBeenCalledWith(1, { nombre: 'Cohorte A2', codigo: 'COH-A' });
       expect(component.editandoGrupo()).toBeNull();
       expect(errorTexts()).toEqual([]);
-      expect(groupFormSubmitted()).toBe(false);
+      expect(groupFormTouched()).toBe(false);
     });
 
     it('borrar el grupo que se estaba editando tras un envío inválido no deja errores', async () => {
@@ -246,7 +254,7 @@ describe('grupos: validar al enviar el formulario de grupo (DOM con la bibliotec
       expect(service.eliminar).toHaveBeenCalledWith(1);
       expect(component.editandoGrupo()).toBeNull();
       expect(errorTexts()).toEqual([]);
-      expect(groupFormSubmitted()).toBe(false);
+      expect(groupFormTouched()).toBe(false);
     });
 
     it('después de reiniciar el formulario, un nuevo envío vacío vuelve a mostrar los errores', () => {
