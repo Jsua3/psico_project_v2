@@ -1,0 +1,52 @@
+import type { CasoBorrador } from '../../modelo/caso';
+import { centrarEn, encuadrar, seVe, ventana, zoomEn } from './camara';
+import { caminoIluminado } from './iluminar';
+
+// req: EDITOR-PRO.md punto 3 (lienzo de Caminos: zoom, mover, ver todo y caminos que se iluminan)
+describe('Caminos · la cámara del lienzo', () => {
+  it('«Ver todo» encuadra el caso centrado y no agiganta un caso corto', () => {
+    const c = encuadrar({ w: 400, h: 200 }, { w: 1000, h: 600 });
+    expect(c.z).toBe(1);
+    expect([c.x, c.y]).toEqual([300, 200]);
+    const grande = encuadrar({ w: 2000, h: 1000 }, { w: 1000, h: 600 }, 0);
+    expect(grande.z).toBe(0.5);
+  });
+
+  it('acercar con el cursor deja quieto el punto que está bajo el cursor', () => {
+    const c = { x: 10, y: 20, z: 1 };
+    const ancla = { x: 300, y: 200 };
+    const antes = { x: (ancla.x - c.x) / c.z, y: (ancla.y - c.y) / c.z };
+    const d = zoomEn(c, ancla, 1.5);
+    expect(antes.x * d.z + d.x).toBeCloseTo(ancla.x);
+    expect(antes.y * d.z + d.y).toBeCloseTo(ancla.y);
+    expect(zoomEn(c, ancla, 99).z).toBe(2);
+  });
+
+  it('centra un punto del mundo y sabe si un rectángulo se ve', () => {
+    const vista = { w: 800, h: 600 };
+    const c = centrarEn({ x: 0, y: 0, z: 1 }, { x: 1000, y: 1000 }, vista);
+    expect([c.x, c.y]).toEqual([-600, -700]);
+    expect(seVe(c, { x: 950, y: 950, w: 100, h: 100 }, vista)).toBe(true);
+    expect(seVe(c, { x: 0, y: 0, w: 100, h: 100 }, vista)).toBe(false);
+    expect(ventana({ x: -100, y: 0, z: 2 }, vista)).toEqual({ x: 50, y: -0, w: 400, h: 300 });
+  });
+});
+
+describe('Caminos · el camino que se ilumina', () => {
+  const escena = (id: string, destinos: string[]) => ({
+    id, respuestas: destinos.map((d, i) => ({ id: `${id}-${i}`, destinoId: d })),
+  });
+  const caso = {
+    inicioId: 'a',
+    escenas: [escena('a', ['b', 'c']), escena('b', ['d']), escena('c', ['d']), escena('d', ['e']), escena('e', [])],
+  } as unknown as CasoBorrador;
+
+  it('ilumina el camino más corto desde el inicio y lo que sale de la escena', () => {
+    expect([...caminoIluminado(caso, 'd')].sort()).toEqual(['a-0', 'b-0', 'd-0']);
+  });
+
+  it('en el inicio, solo lo que sale; en una escena sin salida, solo cómo se llega', () => {
+    expect([...caminoIluminado(caso, 'a')].sort()).toEqual(['a-0', 'a-1']);
+    expect([...caminoIluminado(caso, 'e')].sort()).toEqual(['a-0', 'b-0', 'd-0']);
+  });
+});

@@ -2,11 +2,14 @@ import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRend
 import { Router, RouterLink } from '@angular/router';
 
 import { CasoStore } from '../../estado/caso.store';
+import { EstudioSeccionComponent } from '../../marco/estudio/estudio-seccion.component';
+import { EstudioRanuraDirective } from '../../marco/estudio/estudio.service';
+import { rutaArte } from '../../modelo/biblioteca.service';
 import { ProgresoDelCaso } from '../../marco/progreso.service';
 import { revisarCaminos, type Aviso } from '../../modelo/caminos';
 import type { Escena } from '../../modelo/caso';
 import { escenasEnOrden } from '../../modelo/progreso';
-import { plural } from '../../modelo/textos';
+import { NOMBRE_INTENSIDAD, plural } from '../../modelo/textos';
 import { type AccionEscena, MapaEscenasComponent } from './mapa-escenas.component';
 import { RutasAutoria } from '../../rutas';
 
@@ -24,7 +27,7 @@ import { RutasAutoria } from '../../rutas';
  */
 @Component({
   selector: 'app-editor',
-  imports: [RouterLink, MapaEscenasComponent],
+  imports: [RouterLink, MapaEscenasComponent, EstudioRanuraDirective, EstudioSeccionComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (store.caso(); as caso) {
@@ -53,19 +56,33 @@ import { RutasAutoria } from '../../rutas';
           </p>
         }
 
-        <section class="elegida" aria-labelledby="pe">
-          @if (escenaElegida(); as e) {
-            <div class="elegida__datos">
-              <div class="elegida__nombre">
+        <!-- La escena elegida va al Inspector del estudio (sin estudio, aquí mismo): su sala, qué hacer con ella, cómo se
+             conecta y qué le falta. -->
+        <ng-template estudioRanura="inspector">
+          <section class="elegida" aria-labelledby="pe">
+            @if (escenaElegida(); as e) {
+              <div class="insp-cabeza">
+                <div class="insp-sala" aria-hidden="true">
+                  @if (miniatura(e); as src) {
+                    <img class="insp-sala__arte" [src]="src" alt="" width="960" height="528" decoding="async" />
+                  } @else {
+                    <span class="insp-sala__vacia"></span>
+                  }
+                </div>
                 <p class="elegida__rotulo">Escena elegida</p>
                 <h2 id="pe" tabindex="-1">{{ numero(e) }} · {{ e.titulo }}</h2>
+                <p class="elegida__meta" [attr.title]="metaDe(e)">{{ nombreSala(e.salaId) }} · Intensidad {{ nombreIntensidad[e.intensidad].toLowerCase() }}</p>
               </div>
-              <!-- Un renglón: la franja no cambia de alto al elegir otra escena (el mapa no salta). Lo entero, en el globo. -->
-              <p class="elegida__meta" [attr.title]="metaDe(e)">
-                {{ nombreSala(e.salaId) }} · {{ plural(e.lineas.length, 'línea', 'líneas') }} · {{ plural(e.respuestas.length, 'respuesta', 'respuestas') }}
-                · <strong>Llegan desde</strong> {{ lleganDesde(e) || 'ninguna escena' }}
-                · <strong>Lleva a</strong> {{ llevaA(e) || (e.esFinal ? 'es un final' : 'ninguna escena') }}
-              </p>
+              <div class="elegida__acciones">
+                <a class="boton boton-primario" [routerLink]="rutas.a('/editor/escena', e.id)" data-accion="abrir-guion">Abrir guion</a>
+                @if (e.salaId || hayPlano()) {
+                  <div class="elegida__secundarias">
+                    @if (e.salaId) { <a class="boton" [routerLink]="rutas.a('/editor/sala', e.salaId)" data-accion="abrir-sala">Abrir sala</a> }
+                    <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
+                    @if (hayPlano()) { <a class="boton" [routerLink]="rutas.a('/editor/plano')" data-accion="abrir-plano">Ver el plano</a> }
+                  </div>
+                }
+              </div>
               @if (e.marcaIa) {
                 <p class="marca-ia-linea"><span class="pildora pildora-ia">Sugerido por la IA</span> La creó el asistente; revísala y acéptala.
                   <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
@@ -73,51 +90,57 @@ import { RutasAutoria } from '../../rutas';
                 </p>
               }
               @if (avisosDeElegida().length) {
-                <ul class="elegida__avisos">
-                  @for (a of avisosDeElegida(); track $index) {
-                    <li>
-                      <p><span class="aviso-marca">⚠ Por corregir</span> {{ a.mensaje }}</p>
-                      @if (a.tipo === 'sin-salida' && a.escenaId && !store.soloLectura()) {
-                        <button type="button" class="boton boton-chico" [attr.aria-label]="'Marcar como final: ' + tituloDe(a.escenaId)" (click)="marcarFinalDesdeAviso(a.escenaId)">Marcar como final</button>
-                      } @else if (a.tipo === 'final-sin-hito') {
-                        <a class="boton boton-chico" [routerLink]="rutas.a('/editor/finales')">Ir a los finales</a>
-                      }
-                    </li>
-                  }
+                <app-estudio-seccion titulo="Por corregir" [resumen]="'' + avisosDeElegida().length">
+                  <ul class="elegida__avisos">
+                    @for (a of avisosDeElegida(); track $index) {
+                      <li>
+                        <p><span class="aviso-marca" aria-hidden="true">⚠</span> {{ a.mensaje }}</p>
+                        @if (a.tipo === 'sin-salida' && a.escenaId && !store.soloLectura()) {
+                          <button type="button" class="boton boton-chico" [attr.aria-label]="'Marcar como final: ' + tituloDe(a.escenaId)" (click)="marcarFinalDesdeAviso(a.escenaId)">Marcar como final</button>
+                        } @else if (a.tipo === 'final-sin-hito') {
+                          <a class="boton boton-chico" [routerLink]="rutas.a('/editor/finales')">Ir a los finales</a>
+                        }
+                      </li>
+                    }
+                  </ul>
+                </app-estudio-seccion>
+              }
+              <app-estudio-seccion titulo="Conexiones" [resumen]="resumenConexiones(e)">
+                <p class="conexion-rotulo">Llegan desde</p>
+                <ul class="chips">
+                  @for (x of lleganDesdeLista(e); track x.id) {
+                    <li><button type="button" class="chip" (click)="irAEscena(x.id)">{{ numero(x) }} · {{ x.titulo }}</button></li>
+                  } @empty { <li class="chip chip--vacio">{{ e.id === caso.inicioId ? 'Es el inicio del caso' : 'Ninguna escena' }}</li> }
                 </ul>
-              }
-            </div>
-            <div class="acciones elegida__acciones">
-              <a class="boton boton-primario" [routerLink]="rutas.a('/editor/escena', e.id)" data-accion="abrir-guion">Abrir guion</a>
-              @if (e.salaId) {
-                <a class="boton" [routerLink]="rutas.a('/editor/sala', e.salaId)" data-accion="abrir-sala">Abrir sala</a>
-              }
-              @if (hayPlano()) {
-                <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
-                <a class="boton" [routerLink]="rutas.a('/editor/plano')" data-accion="abrir-plano">Ver el plano</a>
-              }
-            </div>
-          } @else {
-            <div class="elegida__datos">
-              <div class="elegida__nombre">
+                <p class="conexion-rotulo">Lleva a</p>
+                <ul class="chips">
+                  @for (x of llevaALista(e); track x.escena.id) {
+                    <li><button type="button" class="chip" (click)="irAEscena(x.escena.id)">{{ numero(x.escena) }} · {{ x.escena.titulo }}<span class="chip__n" [attr.aria-label]="plural(x.n, 'respuesta', 'respuestas')">{{ x.n }}</span></button></li>
+                  } @empty { <li class="chip chip--vacio">{{ e.esFinal ? 'Es un final' : 'Ninguna escena' }}</li> }
+                </ul>
+              </app-estudio-seccion>
+              <app-estudio-seccion titulo="Contenido" [resumen]="plural(e.lineas.length, 'línea', 'líneas') + ' · ' + plural(e.respuestas.length, 'respuesta', 'respuestas')">
+                <dl class="datos">
+                  <div><dt>Líneas del libreto</dt><dd>{{ e.lineas.length }}</dd></div>
+                  <div><dt>Respuestas</dt><dd>{{ e.respuestas.length }}</dd></div>
+                  <div><dt>Pistas</dt><dd>{{ e.pistas?.length ?? 0 }}</dd></div>
+                </dl>
+              </app-estudio-seccion>
+            } @else {
+              <div class="elegida__vacia">
+                <span class="vacia__arte" aria-hidden="true"></span>
                 <p class="elegida__rotulo">Escena elegida</p>
                 <h2 id="pe">Ninguna</h2>
+                <p class="elegida__meta">Elige una escena en el mapa para ver a dónde lleva y abrir su guion o su sala.</p>
               </div>
-              <p class="elegida__meta">Elige una escena en el mapa para ver a dónde lleva y abrir su guion o su sala.</p>
-            </div>
-          }
-        </section>
+            }
+          </section>
+        </ng-template>
 
         <div class="zona-mapa">
           <app-mapa-escenas #mapa [caso]="caso" [avisos]="avisosMapa()" [elegidaInicial]="irA()" [soloLectura]="store.soloLectura()"
                             (seleccion)="elegida.set($event)" (abrirGuion)="abrirGuion($event)" (abrirSala)="abrirSala($event)"
-                            (accion)="accion($event)">
-            <!-- Las acciones del caso van en la barra del mapa, junto a las de la escena: una sola fila de herramientas. -->
-            @if (!store.soloLectura()) {
-              <button type="button" class="boton" data-accion="agregar-escena" (click)="agregarEscena()">Agregar una escena</button>
-              <button type="button" class="boton" data-accion="ordenar-mapa" (click)="ordenar()">Ordenar automáticamente</button>
-            }
-          </app-mapa-escenas>
+                            (accion)="accion($event)" (agregar)="agregarEscena()" (ordenar)="ordenar()" />
 
           @if (conectando(); as origen) {
             <div class="tarjeta dialogo" role="dialog" aria-labelledby="cct" aria-modal="false">
@@ -162,52 +185,79 @@ import { RutasAutoria } from '../../rutas';
   `,
   styles: `
     :host { display: block; min-inline-size: 0; }
-    .caminos { display: flex; flex-direction: column; gap: 0.75rem; padding: 1rem 1.5rem; min-inline-size: 0; }
-    .cabeza { display: flex; flex-wrap: wrap; gap: 0.25rem 1.5rem; align-items: center; justify-content: space-between; }
-    .cabeza__texto { min-inline-size: 0; }
-    /* Título de una pantalla de trabajo: un punto más chico que el de las páginas; el mapa necesita el alto. */
-    .cabeza h1 { font-size: var(--autoria-texto-24); line-height: 2rem; }
-    .cabeza p { margin: 0; font-size: var(--autoria-texto-16); line-height: 1.5rem; }
+    .caminos { display: flex; flex-direction: column; gap: 0.5rem; padding: 0.75rem 1rem; min-inline-size: 0; }
+    /* Cabecera de trabajo: una línea; el lienzo es el protagonista y se lleva el alto. */
+    .cabeza { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; align-items: center; justify-content: space-between; }
+    .cabeza__texto { display: flex; align-items: baseline; gap: 0.75rem; min-inline-size: 0; flex-wrap: wrap; }
+    .cabeza h1 { margin: 0; font-size: var(--autoria-texto-20); line-height: 1.75rem; }
+    .cabeza p { margin: 0; color: var(--ds-text-2); font-size: var(--autoria-texto-14); line-height: 1.25rem; }
     .acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
     .boton-chico { min-height: 2.75rem; padding-inline: 0.875rem; }
-    .boton-aviso { border-color: var(--aviso); color: var(--aviso-texto); background: var(--aviso-tinte); }
+    .boton-aviso { min-block-size: 2.25rem; border-color: var(--aviso); color: var(--aviso-texto); background: var(--aviso-tinte); font-size: var(--autoria-texto-14); }
     .estado-caminos {
-      display: inline-flex; align-items: center; gap: 0.375rem; min-block-size: 2.75rem; padding: 0 0.875rem;
-      border-radius: 999px; background: var(--l-superficie-hundida); color: var(--ds-text-2); font-size: var(--autoria-texto-16); font-weight: 600;
+      display: inline-flex; align-items: center; gap: 0.375rem; min-block-size: 2rem; padding: 0 0.75rem;
+      border-radius: 999px; background: var(--l-superficie); box-shadow: inset 0 0 0 1px var(--l-filo); color: var(--ds-text-2);
+      font-size: var(--autoria-texto-14); font-weight: 600;
     }
     .estado-caminos.completos { color: var(--ds-success); }
     .nota {
-      margin: 0; padding: 0.75rem 1rem; border: 1px solid var(--l-filo-fuerte); border-radius: var(--l-radio-control);
-      background: var(--l-superficie); font-size: var(--autoria-texto-16); line-height: 1.5rem;
+      margin: 0; padding: 0.625rem 0.875rem; border: 1px solid var(--l-filo-fuerte); border-radius: var(--l-radio-control);
+      background: var(--l-superficie); font-size: var(--autoria-texto-14); line-height: 1.375rem;
     }
 
-    /* Franja de la escena elegida: opaca (es superficie de trabajo, P3), con filo fino y radio continuo. */
-    .elegida {
-      display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.5rem 1.25rem; padding: 0.625rem 0.75rem 0.625rem 1rem;
-      border: 1px solid var(--l-filo-fuerte); border-radius: var(--l-radio-tarjeta); background: var(--l-superficie);
-      box-shadow: var(--l-sombra-trabajo);
+    /* Inspector de la escena elegida: la sala arriba como una ventana al juego, el título, una acción primaria y secciones. */
+    .elegida { display: flex; flex-direction: column; min-inline-size: 0; font-size: var(--autoria-texto-14); }
+    .insp-cabeza { display: flex; flex-direction: column; gap: 0.125rem; padding: 0.75rem 0.75rem 0.5rem; }
+    .insp-sala {
+      position: relative; aspect-ratio: 960 / 528; margin-block-end: 0.5rem; overflow: hidden; border-radius: var(--l-radio-chico, 0.5rem);
+      background: var(--l-superficie-hundida); box-shadow: inset 0 0 0 1px var(--l-filo);
+      animation: insp-entra var(--ds-dur-base) var(--ds-ease-out);
     }
-    .elegida__datos { display: flex; flex-direction: column; gap: 0.125rem; min-inline-size: 0; }
-    .elegida__nombre { display: flex; align-items: baseline; gap: 0.75rem; min-inline-size: 0; }
+    .insp-sala__arte { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; image-rendering: pixelated; }
+    .insp-sala__vacia, .vacia__arte {
+      display: block; inline-size: 100%; block-size: 100%;
+      background: linear-gradient(var(--l-superficie-hundida) 0 38%, transparent 38%),
+        repeating-conic-gradient(var(--l-filo-fuerte) 0 25%, transparent 0 50%) 0 0 / 0.75rem 0.75rem;
+    }
     .elegida__rotulo {
-      flex: none; margin: 0; color: var(--ds-text-2); font-size: var(--autoria-texto-14); font-weight: 700; letter-spacing: 0.04em;
-      text-transform: uppercase; line-height: 1.25rem;
+      margin: 0; color: var(--ds-text-2); font-size: var(--autoria-texto-14); font-weight: 700; font-variant-caps: all-small-caps;
+      letter-spacing: 0.06em; line-height: 1.25rem;
     }
-    .elegida h2 {
-      min-inline-size: 0; margin: 0; overflow: hidden; font-size: var(--autoria-texto-20); line-height: 1.75rem; text-overflow: ellipsis; white-space: nowrap;
-    }
-    .elegida__meta {
-      margin: 0; overflow: hidden; color: var(--ds-text-2); font-size: var(--autoria-texto-14); line-height: 1.375rem;
-      text-overflow: ellipsis; white-space: nowrap;
-    }
-    .elegida__meta strong { color: var(--ds-text-1); font-weight: 700; }
-    .marca-ia-linea { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0.375rem 0 0; font-size: var(--autoria-texto-16); }
+    .elegida h2 { margin: 0; font-size: var(--autoria-texto-18); line-height: 1.5rem; overflow-wrap: anywhere; outline-offset: 2px; }
+    .elegida__meta { margin: 0; color: var(--ds-text-2); font-size: var(--autoria-texto-14); line-height: 1.25rem; }
+    .elegida__acciones { display: flex; flex-direction: column; gap: 0.375rem; padding: 0.25rem 0.75rem 0.875rem; border-block-end: 1px solid var(--l-filo); }
+    .elegida__acciones .boton { justify-content: center; inline-size: 100%; }
+    .elegida__secundarias { display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); gap: 0.375rem; }
+    .marca-ia-linea { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0; padding: 0.625rem 0.75rem; border-block-end: 1px solid var(--l-filo); }
     .pildora-ia { border-style: dashed; }
-    .elegida__avisos { display: flex; flex-direction: column; gap: 0.375rem; margin: 0.375rem 0 0; padding: 0; list-style: none; }
-    .elegida__avisos li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; }
-    .elegida__avisos p { flex: 1 1 18rem; margin: 0; font-size: var(--autoria-texto-16); line-height: 1.5rem; }
+    .elegida__avisos { display: flex; flex-direction: column; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+    .elegida__avisos li { display: flex; flex-direction: column; align-items: flex-start; gap: 0.375rem; }
+    .elegida__avisos p { margin: 0; line-height: 1.375rem; }
     .aviso-marca { color: var(--aviso-texto); font-weight: 800; }
-    .elegida__acciones { justify-content: flex-end; }
+    .conexion-rotulo { margin: 0; color: var(--ds-text-2); font-size: var(--autoria-texto-14); }
+    .chips { display: flex; flex-wrap: wrap; gap: 0.25rem; margin: 0 0 0.25rem; padding: 0; list-style: none; }
+    .chip {
+      position: relative; display: inline-flex; align-items: center; gap: 0.375rem; max-inline-size: 100%; min-block-size: 2rem; padding: 0 0.625rem;
+      border: 1px solid var(--l-filo-fuerte); border-radius: 999px; background: var(--l-superficie); color: var(--ds-text-1);
+      font: inherit; font-size: var(--autoria-texto-14); text-align: start; cursor: pointer;
+      transition: background-color var(--ds-dur-fast) var(--ds-ease-out), border-color var(--ds-dur-fast) var(--ds-ease-out);
+    }
+    button.chip::after { content: ''; position: absolute; inset: -0.375rem 0; }
+    @media (hover: hover) and (pointer: fine) { button.chip:hover { border-color: var(--ds-primary); background: var(--l-tinte); } }
+    button.chip:active { scale: 0.97; }
+    .chip--vacio { border-style: dashed; color: var(--ds-text-2); cursor: default; }
+    .chip__n {
+      display: inline-grid; place-items: center; min-inline-size: 1.25rem; block-size: 1.25rem; border-radius: 999px;
+      background: var(--l-superficie-hundida); color: var(--ds-text-2); font-variant-numeric: tabular-nums;
+    }
+    .datos { display: grid; gap: 0.25rem; margin: 0; }
+    .datos div { display: flex; justify-content: space-between; gap: 1rem; }
+    .datos dt { color: var(--ds-text-2); }
+    .datos dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .elegida__vacia { display: flex; flex-direction: column; gap: 0.25rem; padding: 0.75rem; }
+    .vacia__arte { aspect-ratio: 960 / 528; block-size: auto; margin-block-end: 0.5rem; border-radius: var(--l-radio-chico, 0.5rem); opacity: 0.6; }
+    @keyframes insp-entra { from { opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) { .insp-sala, .chip { animation: none; transition: none; } }
 
     /* Los diálogos del mapa flotan sobre él, arriba a la derecha: no empujan el lienzo ni obligan a desplazarse. */
     .zona-mapa { position: relative; min-inline-size: 0; }
@@ -232,8 +282,6 @@ import { RutasAutoria } from '../../rutas';
     }
     @media (max-width: 63.999rem) {
       .caminos { padding: 1rem; }
-      .elegida { grid-template-columns: minmax(0, 1fr); }
-      .elegida__acciones { justify-content: flex-start; }
     }
   `,
 })
@@ -317,6 +365,34 @@ export class EditorComponent {
   protected metaDe(e: Escena): string {
     const sala = `${this.nombreSala(e.salaId)} · ${plural(e.lineas.length, 'línea', 'líneas')} · ${plural(e.respuestas.length, 'respuesta', 'respuestas')}`;
     return `${sala} · Llegan desde ${this.lleganDesde(e) || 'ninguna escena'} · Lleva a ${this.llevaA(e) || (e.esFinal ? 'es un final' : 'ninguna escena')}`;
+  }
+
+  protected readonly nombreIntensidad = NOMBRE_INTENSIDAD;
+
+  protected miniatura(e: Escena): string | null {
+    const caso = this.store.caso();
+    const fondo = caso?.salas.find((s) => s.id === e.salaId)?.fondo;
+    return caso && fondo ? rutaArte(caso.lugarId, fondo) || null : null;
+  }
+
+  protected lleganDesdeLista(e: Escena): Escena[] {
+    return this.enOrden().filter((x) => x.id !== e.id && x.respuestas.some((r) => r.destinoId === e.id));
+  }
+
+  protected llevaALista(e: Escena): { escena: Escena; n: number }[] {
+    const porId = new Map(this.enOrden().map((x) => [x.id, x]));
+    const cuenta = new Map<string, number>();
+    for (const r of e.respuestas) if (r.destinoId && porId.has(r.destinoId)) cuenta.set(r.destinoId, (cuenta.get(r.destinoId) ?? 0) + 1);
+    return [...cuenta].map(([id, n]) => ({ escena: porId.get(id)!, n }));
+  }
+
+  protected resumenConexiones(e: Escena): string {
+    return `${this.lleganDesdeLista(e).length} entran · ${this.llevaALista(e).length} salen`;
+  }
+
+  /** Un clic en una conexión elige esa escena en el mapa (la cámara va a ella si no se ve). */
+  protected irAEscena(id: string): void {
+    this.mapa()?.elegirYEnfocar(id);
   }
 
   protected nombreSala(id: string | null): string {
@@ -445,6 +521,7 @@ export class EditorComponent {
 
   /** Los diálogos flotan sobre el mapa: el foco va a su título. */
   private enfocar(selector: string): void {
-    afterNextRender(() => this.raiz.querySelector<HTMLElement>(selector)?.focus(), { injector: this.injector });
+    // El título de la escena elegida vive en el Inspector del estudio, fuera de esta pantalla: se busca también en el documento.
+    afterNextRender(() => (this.raiz.querySelector<HTMLElement>(selector) ?? this.raiz.ownerDocument.querySelector<HTMLElement>(selector))?.focus(), { injector: this.injector });
   }
 }
