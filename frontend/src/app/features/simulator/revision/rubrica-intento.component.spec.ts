@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 
 import { LiveRegionAnnouncer } from '../../../core/a11y/live-announcer.service';
 import { InstructorApi } from '../../../core/api/instructor.api';
@@ -283,6 +283,32 @@ describe('valoración de un intento (rubrica-intento, R2)', () => {
 
       expect(notify.success).toHaveBeenCalledWith('Evaluación guardada correctamente.');
       expect(saved).toHaveBeenCalledTimes(1);
+    });
+
+    it('lo que la docente cambia mientras el guardado y la recarga van en camino no se pierde', async () => {
+      const respuesta = new Subject<RubricEvaluationView>();
+      await render(rubricFixture(), () => respuesta.asObservable());
+      fillLevels('LOGRADO', 'EN_PROCESO');
+      saveButton().click();
+      fixture.detectChanges();
+      // Con el guardado en camino, cambia el primer criterio.
+      pick(0, 'DESTACADO');
+      respuesta.next(rubricFixture());
+      respuesta.complete();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(chosen(0)).toBe('DESTACADO');
+      expect(chosen(1)).toBe('EN_PROCESO');
+
+      // Llega la recarga con lo que se envió: lo cambiado después sigue ahí y cuenta como cambio sin guardar.
+      fixture.componentRef.setInput('evaluacion', rubricFixture({ scores: [
+        { criterionId: 1, level: 'LOGRADO', comment: '' }, { criterionId: 2, level: 'EN_PROCESO', comment: '' },
+      ] } as Partial<RubricEvaluationView>));
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(chosen(0)).toBe('DESTACADO');
+      expect(chosen(1)).toBe('EN_PROCESO');
+      expect(fixture.componentInstance.hayCambios()).toBe(true);
     });
 
     it('si el servidor rechaza el guardado, lo dice en línea junto al botón y no con un aviso de éxito', async () => {

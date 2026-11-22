@@ -47,6 +47,24 @@ export function sameSnapshot(a: FormSnapshot, b: FormSnapshot): boolean {
   return a.comment.trim() === b.comment.trim();
 }
 
+/**
+ * Lo guardado cambió (respondió el guardado o llegó la recarga) sin cambiar de intento: cada campo que la docente
+ * tocó desde que pulsó guardar (`tocados`) se queda como lo dejó; el resto toma lo nuevo. Así no se pierde lo que
+ * escribió mientras el guardado o la recarga estaban en camino (revisión de Codex de la pasada final).
+ */
+export function conservarEdiciones<T>(
+  nueva: Record<number, T>,
+  anterior: Record<number, T> | undefined,
+  tocados: ReadonlySet<number>,
+): Record<number, T> {
+  const resultado: Record<number, T> = { ...nueva };
+  if (!anterior) return resultado;
+  for (const key of tocados) {
+    if (key in anterior) resultado[key] = anterior[key];
+  }
+  return resultado;
+}
+
 /** ¿Hay algo guardado en el servidor? (un nivel, una observación o la retroalimentación). */
 export function tieneContenido(snapshot: FormSnapshot): boolean {
   return Object.values(snapshot.levels).some(Boolean)

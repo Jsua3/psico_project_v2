@@ -21,6 +21,8 @@ import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { UiControl, UiField } from '../../shared/ui/field/ui-field';
 import { UiMenu, UiMenuItem } from '../../shared/ui/menu/ui-menu';
+import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
+import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { AvisoDescriptor, TEXTO_AVISO_DESCRIPTOR, avisosDeDescriptor } from './descriptor-avisos.util';
 
 /** E2-2: una rúbrica ajena (la global o la de otra persona) es de solo lectura para el docente. */
@@ -85,7 +87,7 @@ type CriterioLeido = RubricCriterionAdmin & { competencyId?: number | null };
   selector: 'app-rubrica-editor',
   imports: [
     ReactiveFormsModule, MatIconModule,
-    UiBadge, UiBarraAcciones, UiButton, UiControl, UiField, UiMenu,
+    UiBadge, UiBarraAcciones, UiButton, UiControl, UiErrorState, UiField, UiMenu, UiSkeleton,
   ],
   templateUrl: './rubrica-editor.component.html',
   styleUrl: './rubrica-editor.component.scss',
@@ -132,6 +134,14 @@ export class RubricaEditorComponent implements OnChanges, OnInit {
   readonly caseVersionId = signal(0);
   readonly criterioAbierto = signal<number | null>(null);
   readonly saving = signal(false);
+  /**
+   * El formulario solo se muestra con datos que corresponden a lo pedido (Codex, pasada final): mientras llega el
+   * detalle o la plantilla de competencias, un esqueleto; si el detalle falla, un error con «Reintentar». Así no se
+   * edita ni se guarda una rúbrica vacía o la anterior en lugar de la pedida.
+   */
+  readonly carga = signal<'lista' | 'cargando' | 'error'>('lista');
+  /** El guardado en camino: la guardia de salida lo espera en vez de dejar salir sin saber si falló. */
+  private guardadoEnCurso: Promise<void> | null = null;
   readonly message = signal('');
   readonly messageIsError = signal(false);
   /** El panel «Más» del pie. */
@@ -484,15 +494,18 @@ export class RubricaEditorComponent implements OnChanges, OnInit {
     this.criterioAbierto.set(null);
     this.readOnly.set(false);
     this.clearMessage();
+    this.carga.set('cargando');
     const request = ++this.openRequest;
     this.rubricService.detail(id).subscribe({
       next: rubric => {
         if (request !== this.openRequest) return;
         this.selected.set(rubric);
         this.populate(rubric);
+        this.carga.set('lista');
       },
       error: (err: unknown) => {
         if (request !== this.openRequest) return;
+        this.carga.set('error');
         if (err instanceof HttpErrorResponse && err.status === 404) {
           this.explainError(err, '');
           return;
@@ -503,8 +516,15 @@ export class RubricaEditorComponent implements OnChanges, OnInit {
     });
   }
 
+  /** «Reintentar» del error de apertura: vuelve a pedir la misma rúbrica. */
+  reintentarApertura(): void {
+    const id = this.rubricId();
+    if (id !== null) this.openRubric(id);
+  }
+
   newRubric(): void {
     this.openRequest += 1;
+    this.carga.set('lista');
     this.readOnly.set(false);
     this.clearMessage();
     this.selected.set(null);
@@ -520,10 +540,13 @@ export class RubricaEditorComponent implements OnChanges, OnInit {
    */
   desdeCompetencias(): void {
     this.newRubric();
+    // Hasta que llegue la plantilla no hay formulario: lo que se escribiera antes lo pisaría el catálogo.
+    this.carga.set('cargando');
     const request = this.openRequest;
     this.rubricService.competencies().subscribe({
       next: items => {
         if (request !== this.openRequest) return;
+        this.carga.set('lista');
         const activas = items.filter(item => item.active).sort((a, b) => a.sortOrder - b.sortOrder);
         this.competencias.set(activas);
         if (!activas.length) {
@@ -540,13 +563,19 @@ export class RubricaEditorComponent implements OnChanges, OnInit {
         this.criterioAbierto.set(null);
         this.form.markAsDirty();
       },
-      error: () => this.notify.error('No pudimos traer las competencias del programa. Empieza en blanco o vuelve a intentarlo.'),
+      error: () => {
+        if (request !== this.openRequest) return;
+        this.carga.set('lista');
+        this.notify.error('No pudimos traer las competencias del programa. Empieza en blanco o vuelve a intentarlo.');
+      },
     });
   }
 
   /** Salir con cambios sin guardar pregunta antes, con «Seguir editando» como acción segura por defecto. */
   async canLeave(): Promise<boolean> {
-    if (!this.form.dirty || this.saving()) return true;
+    // Con un guardado en camino se espera su respuesta: si falla, lo escrito sigue sin guardar y se pregunta.
+    if (this.saving() && this.guardadoEnCurso) await this.guardadoEnCurso;
+    if (!this.form.dirty) return true;
     if (!this.dialog) return window.confirm('Tienes cambios sin guardar. ¿Quieres salir de todos modos?');
     const answer = await this.dialog.consequence({
       title: 'Tienes cambios sin guardar',
@@ -579,7 +608,14 @@ export class RubricaEditorComponent implements OnChanges, OnInit {
       return;
     }
     const payload = this.payload();
+    // Mientras guarda, los campos quedan inertes (plantilla): la respuesta repuebla el formulario y lo que se escribiera
+    // en el entretanto se perdería sin aviso (Codex, pasada final). El foco pasa al botón ocupado para no caer al body.
+    if (this.host.nativeElement.querySelector('.re-marco')?.contains(document.activeElement)) {
+      this.host.nativeElement.querySelector<HTMLElement>('.re-pie button[type="submit"]')?.focus();
+    }
     this.saving.set(true);
+    let terminar: () => void = () => undefined;
+    this.guardadoEnCurso = new Promise<void>(resolve => (terminar = resolve));
     const actual = this.selected();
     const request = actual ? this.rubricService.update(actual.id, payload) : this.rubricService.create(payload);
     request.subscribe({
@@ -588,10 +624,12 @@ export class RubricaEditorComponent implements OnChanges, OnInit {
         this.populate(rubric);
         this.notify.success('Rúbrica guardada.');
         this.saving.set(false);
+        terminar();
         this.guardada.emit(rubric);
       },
       error: (err: unknown) => {
         this.saving.set(false);
+        terminar();
         this.explainError(err, 'No fue posible guardar la rúbrica.');
       },
     });

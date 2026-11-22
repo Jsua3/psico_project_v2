@@ -6,11 +6,18 @@
     <p class="rb-message rb-message--error">{{ message() }}</p>
     <button ui-button type="button" variant="secondary" icon="content_copy" (click)="duplicate()">Duplicar para personalizar</button>
   </div>
-} @else if (messageIsError() && message()) {
+} @else if (messageIsError() && message() && carga() !== 'error') {
   <p class="rb-message rb-message--error re-aviso re-aviso--peligro">{{ message() }}</p>
 }
 
-@if (soloLectura()) {
+@if (carga() === 'cargando') {
+  <div class="re-cargando" aria-busy="true">
+    <ui-skeleton shape="card" [lines]="2" />
+    <ui-skeleton shape="card" [lines]="4" />
+  </div>
+} @else if (carga() === 'error') {
+  <ui-error-state kind="server" message="No fue posible abrir la rúbrica." (retry)="reintentarApertura()" />
+} @else if (soloLectura()) {
   <!-- Rúbrica ajena conocida de antemano: la matriz entera, sin campos, y la salida que la resuelve. -->
   <div class="rb-readonly re-aviso">
     <mat-icon class="re-aviso__icono" aria-hidden="true">lock</mat-icon>
@@ -56,7 +63,7 @@
     <button ui-button type="button" icon="content_copy" (click)="duplicate()">Duplicar para personalizar</button>
   </ui-barra-acciones>
 } @else {
-  <form [formGroup]="form" novalidate class="re-form" (ngSubmit)="save()">
+  <form [formGroup]="form" novalidate class="re-form" [attr.aria-busy]="saving() || null" (ngSubmit)="save()">
     @if (selected()?.usage?.evaluations; as usadas) {
       <div class="re-aviso re-aviso--uso">
         <mat-icon class="re-aviso__icono" aria-hidden="true">schedule</mat-icon>
@@ -69,7 +76,7 @@
       </div>
     }
 
-    <div class="re-marco">
+    <div class="re-marco" [inert]="saving()">
       <section class="re-tarjeta re-datos" aria-labelledby="re-datos-titulo">
         <div class="re-tarjeta__cabeza">
           <h2 id="re-datos-titulo" class="re-tarjeta__titulo">Datos</h2>

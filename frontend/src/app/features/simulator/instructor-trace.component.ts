@@ -661,9 +661,15 @@ export class InstructorTraceComponent implements OnInit, CanLeave {
    * La valoración se guardó: se vuelven a pedir la rúbrica (sus niveles guardados y el nivel global) y la traza (al
    * guardar su valoración, el servidor entrega también el perfil automático).
    */
-  onValoracionGuardada(): void {
+  onValoracionGuardada(evento?: { entregada: boolean }): void {
     const attemptId = this.selectedAttemptId();
     if (!attemptId) return;
+    // Entregada: la fila deja de contar «Por revisar» y «Siguiente por revisar» ya no vuelve a ella (Codex, pasada
+    // final). Se marca con lo confirmado por el servidor, sin volver a pedir la bandeja ni perder la selección.
+    if (evento?.entregada) {
+      this.attempts.update(attempts => attempts.map(attempt =>
+        attempt.attemptId === attemptId ? { ...attempt, evaluationStatus: 'APLICADA' } : attempt));
+    }
     this.loadRubric(attemptId, { silencioso: true });
     this.refreshTrace(attemptId);
   }

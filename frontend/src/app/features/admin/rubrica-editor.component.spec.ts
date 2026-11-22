@@ -518,10 +518,71 @@ describe('editor de una rúbrica (R1)', () => {
       expect(component().form.get('name')?.value).toBe('Observación de aula');
     });
 
-    it('si no se puede abrir, el aviso queda junto al formulario y se anuncia en la región de estado', async () => {
-      await render({ detail: () => throwError(() => new Error('HTTP 500')) });
-      expect(text(host().querySelector('.rb-message--error'))).toBe('No fue posible abrir la rúbrica.');
+    it('si no se puede abrir, un error con «Reintentar» ocupa el lugar del formulario y se anuncia en la región de estado', async () => {
+      let llamadas = 0;
+      await render({ detail: () => (++llamadas === 1 ? throwError(() => new Error('HTTP 500')) : of(completa)) });
+      expect(host().querySelector('form')).toBeNull();
+      expect(text(host().querySelector('ui-error-state'))).toContain('No fue posible abrir la rúbrica.');
       expect(text(host().querySelector('[role="status"].ds-sr-only'))).toBe('No fue posible abrir la rúbrica.');
+
+      const reintentar = [...host().querySelectorAll('ui-error-state button')].find(b => text(b).includes('Reintentar')) as HTMLButtonElement;
+      reintentar.click();
+      await settle();
+      expect(llamadas).toBe(2);
+      expect(host().querySelector('form')).not.toBeNull();
+      expect(component().form.get('name')?.value).toBe(completa.name);
+    });
+  });
+
+  // Revisión de Codex de la pasada final: carga, guardado y salida sin perder lo escrito.
+  // req: SIEP-CU-04, RNF-04
+  describe('carga, guardado y salida', () => {
+    it('mientras llega el detalle no hay formulario que editar: un esqueleto ocupado', async () => {
+      const detalle = new Subject<RubricAdmin>();
+      await render({ detail: () => detalle });
+      expect(host().querySelector('form')).toBeNull();
+      expect(host().querySelector('.re-cargando[aria-busy="true"]')).not.toBeNull();
+      detalle.next(completa);
+      await settle();
+      expect(host().querySelector('form')).not.toBeNull();
+    });
+
+    it('«Con las competencias del programa» no muestra el formulario hasta aplicar la plantilla', async () => {
+      const lista = new Subject<typeof catalogo>();
+      await render({}, { rubricId: null, comienzo: 'competencias' });
+      // render() ya consumió el catálogo inmediato: se repite con uno que tarda.
+      service['competencies'].mockReturnValue(lista);
+      component().desdeCompetencias();
+      await settle();
+      expect(host().querySelector('form')).toBeNull();
+      lista.next(catalogo);
+      lista.complete();
+      await settle();
+      expect(host().querySelector('form')).not.toBeNull();
+      expect(component().criteria.length).toBe(catalogo.filter(item => item.active).length);
+    });
+
+    it('mientras guarda los campos quedan inertes y salir espera la respuesta: si falla, pregunta', async () => {
+      const respuesta = new Subject<RubricAdmin>();
+      await render();
+      service['update'].mockReturnValue(respuesta);
+      component().form.patchValue({ name: 'Otra' });
+      component().form.markAsDirty();
+      component().save();
+      await settle();
+      expect((host().querySelector('.re-marco') as HTMLElement).inert).toBe(true);
+
+      let salio: boolean | null = null;
+      void component().canLeave().then(valor => (salio = valor));
+      await Promise.resolve();
+      expect(salio).toBeNull();
+      expect(dialog.consequence).not.toHaveBeenCalled();
+
+      respuesta.error(new Error('HTTP 500'));
+      await settle();
+      expect((host().querySelector('.re-marco') as HTMLElement).inert).toBe(false);
+      expect(dialog.consequence).toHaveBeenCalled();
+      expect(salio).toBe(false);
     });
   });
 

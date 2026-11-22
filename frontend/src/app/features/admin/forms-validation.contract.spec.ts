@@ -66,6 +66,7 @@ describe('formularios: validar al enviar — Grupos', () => {
     expect(grupos).not.toContain('[disabled]="form.invalid || saving()"');
     expect(grupos).toContain('Escribe el nombre del grupo.');
     expect(grupos).toContain('Escribe el código del grupo.');
-    expect(grupos).toContain('private invalidGroupForm(): boolean {');
+    // Desde B5c recibe el formulario de la hoja (para enfocar su primer campo inválido): basta con que el método exista.
+    expect(grupos).toMatch(/private invalidGroupForm\([^)]*\): boolean \{/);
   });
 });

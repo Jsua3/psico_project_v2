@@ -528,6 +528,34 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       expect(systemSection()!.querySelector('table')).not.toBeNull();
       expect(text(systemSection())).not.toContain('se mostrará cuando registres');
     });
+
+    it('al entregar, el intento deja de contar «Por revisar» y «Siguiente» no vuelve a él (dos entregas seguidas)', async () => {
+      await render({ recent: () => of([
+        attempt('a-1', { evaluationStatus: 'PENDIENTE' }), attempt('a-2', { evaluationStatus: 'PENDIENTE' }),
+      ]) });
+      const trace = fixture.componentInstance;
+      const porRevisar = () => trace.attempts().filter(item => trace.porRevisar(item)).map(item => item.attemptId);
+      expect(trace.selectedAttemptId()).toBe('a-1');
+
+      fillLevels();
+      saveButton().click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(porRevisar()).toEqual(['a-2']);
+      expect(trace.selectedAttemptId()).toBe('a-1');
+
+      trace.abrirSiguientePendiente();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(trace.selectedAttemptId()).toBe('a-2');
+      fillLevels();
+      saveButton().click();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(porRevisar()).toEqual([]);
+      trace.abrirSiguientePendiente();
+      expect(trace.selectedAttemptId()).toBe('a-2');
+    });
   });
 
   // req: SIEP-CU-04, RNF-04 (revisión de F7)

@@ -1,6 +1,6 @@
 import { DIALOG_DATA } from '@angular/cdk/dialog';
 import {
-  ChangeDetectionStrategy, Component, ElementRef, computed, inject, input, linkedSignal, output, signal,
+  ChangeDetectionStrategy, Component, ElementRef, computed, inject, input, linkedSignal, output, signal, untracked,
 } from '@angular/core';
 import { LiveRegionAnnouncer } from '../../../core/a11y/live-announcer.service';
 import { InstructorApi, esValoracionYaEntregada } from '../../../core/api/instructor.api';
@@ -19,7 +19,7 @@ import { DRAFT_COPY } from '../draft-copy';
 import { cleanText, formativeLevelLabel, formativeLevelTone, responseClassAccent } from '../trace-labels.util';
 import { ValoracionDocenteComponent } from '../valoracion-docente.component';
 import {
-  FormSnapshot, ScoreEnviado, accionDeTecla, esGuardarConTeclado, evidenciaDe, marcaDeTiempo, sameSnapshot, sistemaDe,
+  FormSnapshot, ScoreEnviado, accionDeTecla, conservarEdiciones, esGuardarConTeclado, evidenciaDe, marcaDeTiempo, sameSnapshot, sistemaDe,
   snapshotOf, textoDeAvance, vistaDelEstudiante,
 } from './rubrica-intento.modelo';
 
@@ -97,7 +97,8 @@ export class RubricaIntentoComponent {
   /** Hay otro intento por revisar en la bandeja: solo entonces se ofrece «Siguiente por revisar». */
   readonly haySiguiente = input(false);
 
-  readonly guardada = output<void>();
+  /** Se guardó; `entregada` dice si fue la entrega (la bandeja deja de contarlo «Por revisar») o un borrador. */
+  readonly guardada = output<{ entregada: boolean }>();
   /** El código de competencia del criterio enfocado: la columna de evidencia resalta esas decisiones. */
   readonly criterioEnfocado = output<string | null>();
   /** El número de orden de una decisión: la columna de evidencia se desplaza hasta ella. */
@@ -114,9 +115,31 @@ export class RubricaIntentoComponent {
 
   /** Lo guardado: parte de la entrada y, tras guardar con éxito, pasa a ser lo que se envió. */
   private readonly base = linkedSignal<FormSnapshot>(() => snapshotOf(this.evaluacion()));
-  readonly levels = linkedSignal(() => ({ ...this.base().levels }));
-  readonly comments = linkedSignal(() => ({ ...this.base().comments }));
-  readonly comment = linkedSignal(() => this.base().comment);
+  /**
+   * Lo que la docente tocó desde que pulsó guardar por última vez (niveles y observaciones por id de criterio; la
+   * retroalimentación general aparte). Vuelve a vacío al cambiar de intento.
+   */
+  private readonly tocados = linkedSignal(() => (this.attemptId(), { levels: new Set<number>(), comments: new Set<number>(), comment: false }));
+  /**
+   * Lo que se ve y se edita. Cuando lo guardado cambia sin cambiar de intento (respuesta del guardado o recarga
+   * silenciosa), lo tocado en el entretanto se conserva (`conservarEdiciones`); al cambiar de intento, se parte de cero.
+   */
+  private readonly fuente = computed(() => ({ attemptId: this.attemptId(), base: this.base() }));
+  readonly levels = linkedSignal<{ attemptId: string; base: FormSnapshot }, Record<number, FormativeLevel | null>>({
+    source: this.fuente,
+    computation: (fuente, previo) => conservarEdiciones(fuente.base.levels,
+      previo?.source.attemptId === fuente.attemptId ? previo.value : undefined, untracked(this.tocados).levels),
+  });
+  readonly comments = linkedSignal<{ attemptId: string; base: FormSnapshot }, Record<number, string>>({
+    source: this.fuente,
+    computation: (fuente, previo) => conservarEdiciones(fuente.base.comments,
+      previo?.source.attemptId === fuente.attemptId ? previo.value : undefined, untracked(this.tocados).comments),
+  });
+  readonly comment = linkedSignal<{ attemptId: string; base: FormSnapshot }, string>({
+    source: this.fuente,
+    computation: (fuente, previo) => (previo?.source.attemptId === fuente.attemptId && untracked(this.tocados).comment
+      ? previo.value : fuente.base.comment),
+  });
 
   /** Qué se está guardando: la entrega o el borrador (cada botón muestra su propia carga). */
   readonly saving = signal<'entrega' | 'borrador' | null>(null);
@@ -275,6 +298,7 @@ export class RubricaIntentoComponent {
   /** La docente eligió (o quitó) el nivel de un criterio: se limpia el error de ESE criterio y se conservan los demás. */
   private setLevel(criterion: RubricCriterionView, level: FormativeLevel | null): void {
     this.levels.update(levels => ({ ...levels, [criterion.id]: level }));
+    this.tocados.update(t => ({ ...t, levels: new Set(t.levels).add(criterion.id) }));
     const next = { ...this.validationErrors() };
     delete next[criterion.id];
     this.validationErrors.set(next);
@@ -359,6 +383,7 @@ export class RubricaIntentoComponent {
 
   protected onCriterionComment(criterionId: number, value: string): void {
     this.comments.update(comments => ({ ...comments, [criterionId]: value }));
+    this.tocados.update(t => ({ ...t, comments: new Set(t.comments).add(criterionId) }));
     if (this.validationErrors()[criterionId] === COPY.commentNeedsLevel && !value.trim()) {
       const next = { ...this.validationErrors() };
       delete next[criterionId];
@@ -368,6 +393,7 @@ export class RubricaIntentoComponent {
 
   protected onComment(value: string): void {
     this.comment.set(value);
+    this.tocados.update(t => ({ ...t, comment: true }));
   }
 
   // ── Guardar ──────────────────────────────────────────────────────────────────────────────────────────────────
@@ -452,6 +478,9 @@ export class RubricaIntentoComponent {
     const sent: FormSnapshot = { levels: { ...this.levels() }, comments: { ...this.comments() }, comment: this.comment() };
     this.saving.set(entregar ? 'entrega' : 'borrador');
     this.setMessage('', false);
+    // Lo enviado deja de contar como tocado; lo que se toque desde aquí se conserva al llegar la respuesta.
+    const tocadosAlEnviar = this.tocados();
+    this.tocados.set({ levels: new Set(), comments: new Set(), comment: false });
 
     // Entregar viaja con el cuerpo de siempre (un servidor anterior a R0 no recibe nada nuevo); el borrador, con
     // `deliver: false`, que solo se ofrece si el servidor lo entiende (`admiteBorrador`).
@@ -471,11 +500,18 @@ export class RubricaIntentoComponent {
           this.entregadaAhora.set(true);
           this.recienEntregada.set(true);
         }
-        this.guardada.emit();
+        this.guardada.emit({ entregada: entregar });
       },
       error: (error: unknown) => {
         this.saving.set(null);
         if (this.attemptId() !== attemptId) return;
+        // No se guardó: lo enviado vuelve a contar como tocado, junto con lo tocado en el entretanto.
+        const ahora = this.tocados();
+        this.tocados.set({
+          levels: new Set([...tocadosAlEnviar.levels, ...ahora.levels]),
+          comments: new Set([...tocadosAlEnviar.comments, ...ahora.comments]),
+          comment: tocadosAlEnviar.comment || ahora.comment,
+        });
         // 409 de RK-5: alguien la entregó (otra pestaña). Lo escrito se queda y el borrador deja de ofrecerse.
         const yaEntregada = !entregar && esValoracionYaEntregada(error);
         if (yaEntregada) this.entregadaAhora.set(true);

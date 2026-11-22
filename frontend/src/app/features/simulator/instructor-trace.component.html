@@ -346,7 +346,7 @@
               @if (rubric(); as rub) {
                 <app-rubrica-intento [attemptId]="item.attemptId" [evaluacion]="rub"
                   [evidencia]="item.evidenceByCompetency" [sistema]="item.systemEvaluation?.competencyLevels"
-                  [haySiguiente]="haySiguientePendiente()" (guardada)="onValoracionGuardada()"
+                  [haySiguiente]="haySiguientePendiente()" (guardada)="onValoracionGuardada($event)"
                   (criterioEnfocado)="competenciaResaltada.set($event)" (irADecision)="irADecision($event)"
                   (siguiente)="abrirSiguientePendiente()" />
               } @else {
