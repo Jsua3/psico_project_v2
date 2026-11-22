@@ -63,7 +63,12 @@
 <ui-section class="us-users" title="Cuentas">
   <ui-filtros etiquetaBusqueda="Buscar por nombre o correo" [busqueda]="busqueda()" (busquedaChange)="busqueda.set($event)"
     [total]="users().length" [visibles]="filtrados().length" [hayFiltros]="rol() !== 'todos' || estadoFiltro() !== 'todos' || orden() !== 'nombre'" (limpiar)="limpiarFiltros()">
-    <ui-segmentado etiqueta="Filtrar por rol" [opciones]="opcionesRol" [valor]="rol()" (valorChange)="rol.set($event)" />
+    <!-- Rótulo visible como el de «Estado» y «Ordenar por»: los tres controles se alinean por su base. El nombre
+         accesible lo da el propio grupo («Filtrar por rol»), por eso el rótulo no se lee dos veces. -->
+    <div class="us-control us-control--rol">
+      <span aria-hidden="true">Rol</span>
+      <ui-segmentado etiqueta="Filtrar por rol" [opciones]="opcionesRol" [valor]="rol()" (valorChange)="rol.set($event)" />
+    </div>
     <label class="us-control">Estado <select [value]="estadoFiltro()" (change)="estadoFiltro.set($any($event.target).value)">
       <option value="todos">Todos</option><option value="activa">Activas</option><option value="inactiva">Inactivas</option><option value="pendiente">Pendientes</option>
     </select></label>

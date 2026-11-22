@@ -183,13 +183,41 @@
   display: none;
 }
 
-@container (max-width: 40rem) {
-  .us-sel {
-    order: 1;
-  }
+// El segmentado de rol no se encoge por debajo de su contenido: si falta ancho, se desplaza dentro de sí.
+.us-control--rol {
+  flex: 1 1 18rem;
+}
 
-  .us-actions {
-    order: 2;
+@container (max-width: 40rem) {
+  // Pie de la tarjeta en UNA fila: «Seleccionar» a la izquierda, lápiz y «⋮» a la derecha (antes, dos filas con aire).
+  // Los selectores llevan `.us-users tbody` para pesar más que las reglas de la tarjeta de `ui-table`.
+  .us-users tbody tr {
+    grid-template-columns: minmax(0, 1fr) auto;
+
+    > * {
+      grid-column: 1 / -1;
+    }
+
+    > .us-sel {
+      order: 1;
+      grid-column: 1;
+      align-self: center;
+
+      &::before {
+        display: none;
+      }
+    }
+
+    > .us-actions {
+      order: 2;
+      grid-column: 2;
+      align-self: center;
+      margin-block-start: 0;
+
+      > * {
+        flex: none;
+      }
+    }
   }
 
   .us-check__txt {
