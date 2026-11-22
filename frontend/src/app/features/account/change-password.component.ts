@@ -1,7 +1,9 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, computed, inject, input, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { apiErrorMessage } from '../../core/api/api-error.util';
 import { AuthService } from '../../core/auth/auth.service';
@@ -11,6 +13,8 @@ import { NotificationService } from '../../core/notifications/notification.servi
 import { focusFirstInvalid } from '../../shared/forms/focus-first-invalid.util';
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiControl, UiField } from '../../shared/ui/field/ui-field';
+import { TemaService } from '../../core/tema/tema.service';
+import { PublicBarComponent } from '../../shared/layout/public-bar.component';
 import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
 
 type PasswordField = 'currentPassword' | 'newPassword';
@@ -31,21 +35,44 @@ function sameNewPassword(group: AbstractControl): ValidationErrors | null {
  */
 @Component({
   selector: 'app-change-password',
-  imports: [ReactiveFormsModule, UiButton, UiControl, UiField, UiPageHeader],
-  // Eager: los errores de los campos salen de `control.touched`, que no es una señal.
-  changeDetection: ChangeDetectionStrategy.Eager,
+  imports: [ReactiveFormsModule, RouterLink, NgTemplateOutlet, PublicBarComponent, UiButton, UiControl, UiField, UiPageHeader],
+  // Los eventos del formulario notifican a OnPush los cambios de validación.
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <main id="main-content" tabindex="-1" class="cambio">
-      <ui-page-header [title]="title()" [description]="description()" />
+    @if (modo() === 'forzado') {
+      <div class="publico cambio-publico" [attr.data-skin]="tema.piel()">
+        <app-public-bar mode="acceso" />
+        <main id="main-content" tabindex="-1" class="cambio cambio--publico">
+          <div class="cambio__tarjeta pub-vidrio">
+            <ui-page-header eyebrow="Tu cuenta" [title]="title()" [description]="description()" />
+            <ng-container [ngTemplateOutlet]="contenido" />
+          </div>
+        </main>
+      </div>
+    } @else {
+      <section class="cambio">
+        <ui-page-header [title]="title()" [description]="description()" volverA="/portal/dashboard" volverEtiqueta="Volver al inicio" />
+        <ng-container [ngTemplateOutlet]="contenido" />
+      </section>
+    }
+    <ng-template #contenido>
       <p class="ds-sr-only" role="status">{{ statusText() }}</p>
-
+      @if (guardado()) {
+        <p role="status">Contraseña actualizada.</p>
+        <a ui-button routerLink="/portal/dashboard">Volver al inicio</a>
+      } @else {
       <form class="cambio__form" [formGroup]="form" novalidate (ngSubmit)="submit()">
-        <ui-field label="Contraseña actual" required revealable [error]="errorOf('currentPassword')">
+        <ui-field [label]="modo() === 'forzado' ? 'Contraseña temporal' : 'Contraseña actual'" required revealable [error]="errorOf('currentPassword')">
           <input uiControl id="cambio-actual" type="password" formControlName="currentPassword" autocomplete="current-password" />
         </ui-field>
-        <ui-field label="Nueva contraseña" required revealable [hint]="hint" [error]="errorOf('newPassword')">
+        <ui-field label="Nueva contraseña" required revealable [error]="errorOf('newPassword')">
           <input uiControl id="cambio-nueva" type="password" formControlName="newPassword" autocomplete="new-password" />
         </ui-field>
+        <ul class="cambio__requisitos" aria-label="Requisitos de la nueva contraseña">
+          <li [class.cumplido]="tieneLongitud()"><span aria-hidden="true">{{ tieneLongitud() ? '✓' : '○' }}</span> Al menos 10 caracteres<span class="ds-sr-only">{{ tieneLongitud() ? ': cumplido' : ': pendiente' }}</span></li>
+          <li [class.cumplido]="noSoloNumeros()"><span aria-hidden="true">{{ noSoloNumeros() ? '✓' : '○' }}</span> No solo números<span class="ds-sr-only">{{ noSoloNumeros() ? ': cumplido' : ': pendiente' }}</span></li>
+          <li><span aria-hidden="true">○</span> Que no sea una contraseña común (se comprueba al guardar)</li>
+        </ul>
         <ui-field label="Repite la nueva contraseña" required revealable [error]="confirmError()">
           <input uiControl id="cambio-confirmar" type="password" formControlName="confirmPassword" autocomplete="new-password" />
         </ui-field>
@@ -56,10 +83,11 @@ function sameNewPassword(group: AbstractControl): ValidationErrors | null {
 
         <div class="cambio__actions">
           <button ui-button type="submit" icon="lock" [loading]="saving()">{{ saving() ? 'Guardando…' : 'Guardar contraseña' }}</button>
-          <button ui-button type="button" variant="ghost" (click)="logout()">Cerrar sesión</button>
+          @if (modo() === 'forzado') { <button ui-button type="button" variant="ghost" (click)="logout()">Cerrar sesión</button> }
         </div>
       </form>
-    </main>
+      }
+    </ng-template>
   `,
   styles: [`
     :host { display: block; }
@@ -71,6 +99,12 @@ function sameNewPassword(group: AbstractControl): ValidationErrors | null {
       margin-inline: auto;
       padding: var(--ds-space-8) var(--ds-space-4);
     }
+    .cambio-publico { min-height: 100vh; }
+    .cambio--publico { padding-top: calc(var(--asb-alto-modulo-superior) + var(--ds-space-8)); }
+    .cambio__tarjeta { display: grid; gap: var(--ds-space-5); padding: var(--ds-space-6); min-width: 0; }
+    .cambio__requisitos { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--ds-space-1); color: var(--ds-text-2); font-size: var(--ds-type-body-s-size); }
+    .cambio__requisitos .cumplido { color: var(--ds-success, var(--ds-text-1)); }
+    @media (forced-colors: active) { .cambio__tarjeta { border: 1px solid CanvasText; } }
     .cambio__form {
       display: grid;
       grid-template-columns: minmax(0, 1fr);
@@ -91,6 +125,10 @@ function sameNewPassword(group: AbstractControl): ValidationErrors | null {
   `],
 })
 export class ChangePasswordComponent {
+  readonly modo = input('forzado' as 'forzado' | 'voluntario', { transform: (valor: 'forzado' | 'voluntario' | undefined) => valor === 'voluntario' ? 'voluntario' : 'forzado' });
+  protected readonly tema = inject(TemaService);
+  protected readonly guardado = signal(false);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly notify = inject(NotificationService);
@@ -104,7 +142,10 @@ export class ChangePasswordComponent {
     confirmPassword: ['', Validators.required],
   }, { validators: sameNewPassword });
 
-  protected readonly hint = `Al menos ${PASSWORD_MIN_LENGTH} caracteres. Evita contraseñas comunes o solo de números.`;
+  constructor() { this.form.events.pipe(takeUntilDestroyed()).subscribe(() => this.cdr.markForCheck()); }
+  protected tieneLongitud(): boolean { return this.form.controls.newPassword.value.length >= PASSWORD_MIN_LENGTH; }
+  protected noSoloNumeros(): boolean { const value = this.form.controls.newPassword.value; return !!value && !/^\d+$/.test(value); }
+
   protected readonly saving = signal(false);
   /** Lo que el servidor dijo de un campo (`field` del error): se muestra en ese campo, no en un aviso suelto. */
   private readonly serverErrors = signal<Partial<Record<PasswordField, string>>>({});
@@ -112,9 +153,9 @@ export class ChangePasswordComponent {
   protected readonly statusText = computed(() => (this.saving() ? 'Guardando tu nueva contraseña…' : this.formError()));
 
   protected readonly title = computed(() =>
-    this.auth.mustChangePassword() ? 'Cambia tu contraseña temporal' : 'Cambia tu contraseña');
-  protected readonly description = computed(() => this.auth.mustChangePassword()
-    ? 'Entraste con una contraseña temporal. Elige una nueva para seguir usando el simulador.'
+    this.modo() === 'forzado' ? 'Elige tu contraseña' : 'Cambia tu contraseña');
+  protected readonly description = computed(() => this.modo() === 'forzado' && this.auth.mustChangePassword()
+    ? 'Tu cuenta tiene una contraseña temporal. Elige una propia para entrar.'
     : 'Elige una nueva contraseña para tu cuenta.');
 
   protected errorOf(field: PasswordField): string | null {
@@ -155,8 +196,12 @@ export class ChangePasswordComponent {
       next: () => {
         this.saving.set(false);
         this.auth.markPasswordChanged();
-        this.notify.success('Contraseña actualizada.');
-        void this.router.navigateByUrl(this.destination);
+        if (this.modo() === 'voluntario') {
+          this.guardado.set(true);
+        } else {
+          this.notify.success('Contraseña actualizada.');
+          void this.router.navigateByUrl(this.destination);
+        }
       },
       error: (err: unknown) => {
         this.saving.set(false);

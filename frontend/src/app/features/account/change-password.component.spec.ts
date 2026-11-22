@@ -115,4 +115,26 @@ describe('ChangePasswordComponent', () => {
     logout.click();
     expect(auth['logout']).toHaveBeenCalled();
   });
+  it('en modo voluntario conserva la contraseña actual y confirma en línea', async () => {
+    const auth = await open('/portal/cuenta/contrasena');
+    fixture.componentRef.setInput('modo', 'voluntario');
+    await fixture.whenStable();
+    expect(host().querySelector('main')).toBeNull();
+    expect(host().querySelectorAll('h1')).toHaveLength(1);
+    fill('Actual-123', 'Nueva-clave-2026');
+    await submit();
+    expect(auth['changePassword']).toHaveBeenCalledWith('Actual-123', 'Nueva-clave-2026');
+    expect(text(host())).toContain('Contraseña actualizada');
+    expect(text(host())).not.toContain('Cerrar sesión');
+  });
+
+  it('sin dato de ruta mantiene el modo forzado', async () => {
+    await open('/cambiar-contrasena');
+    fixture.componentRef.setInput('modo', undefined);
+    await fixture.whenStable();
+    expect(host().querySelector('main#main-content')).not.toBeNull();
+    expect(text(host().querySelector('h1'))).toBe('Elige tu contraseña');
+    expect(text(host())).toContain('Contraseña temporal');
+  });
+
 });
