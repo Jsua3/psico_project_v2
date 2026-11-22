@@ -207,7 +207,9 @@ export class DatosComponent implements CanLeave {
     if (!this.errores().nombre) this.nombre.set(this.nombre().trim()); // lo que se ve en el campo es lo que se guarda
     if (this.cambiado()) void this.enviar();
     else if (this.conErrores()) this.aviso.set({ forma: 'corregir', texto: 'Corrige lo marcado para poder guardar.' });
-    else if (this.aviso().forma === 'corregir') this.aviso.set({ forma: '', texto: '' });
+    // Corrigió el error y lo escrito volvió a ser lo que ya estaba guardado: no hay nada que enviar, pero lo honesto es
+    // decir que está guardado (antes quedaba el estado en blanco y la docente no sabía si se había perdido algo).
+    else if (this.aviso().forma === 'corregir') this.aviso.set({ forma: 'guardado', texto: 'Guardado.' });
   }
 
   private async enviar(): Promise<void> {
