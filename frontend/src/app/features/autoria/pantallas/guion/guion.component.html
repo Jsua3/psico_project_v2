@@ -116,7 +116,7 @@
         }
         @if (siguiente(); as s) {
           <a class="pie__enlace pie__enlace--siguiente" [routerLink]="rutas.a('/editor/escena', s.id)" aria-keyshortcuts="Alt+ArrowDown">
-            <span class="pie__rotulo">Escena siguiente ›</span><span class="pie__titulo">{{ numero(s) }} · {{ s.titulo }}</span>
+            <span class="pie__rotulo">{{ sinEscribir(s) ? 'Escribir la escena siguiente ›' : 'Escena siguiente ›' }}</span><span class="pie__titulo">{{ numero(s) }} · {{ s.titulo }}</span>
           </a>
         } @else {
           <!-- En la última escena el libreto no termina en seco: dice qué etapa del hilo sigue (EDITOR.md §3.1). -->
@@ -128,6 +128,28 @@
     </div>
 
   </div>
+
+  <!-- La pasarela (pedido del usuario, 2026-11-22): la escena anterior y la siguiente, SIEMPRE a la vista en la barra de
+       herramientas del estudio (el pie seguía al final de un libreto largo). Si la siguiente está sin escribir, lo dice. -->
+  <ng-template estudioRanura="herramientas">
+    <nav class="guion-nav" aria-label="Escenas vecinas">
+      @if (anterior(); as a) {
+        <a class="guion-nav__enlace" [routerLink]="rutas.a('/editor/escena', a.id)" aria-keyshortcuts="Alt+ArrowUp">
+          <span aria-hidden="true">‹</span> {{ numero(a) }} · {{ a.titulo }}
+        </a>
+      }
+      <span class="guion-nav__aqui">Escena {{ posicion() + 1 }} de {{ orden().length }}</span>
+      @if (siguiente(); as s) {
+        <a class="guion-nav__enlace guion-nav__enlace--siguiente" [routerLink]="rutas.a('/editor/escena', s.id)" aria-keyshortcuts="Alt+ArrowDown">
+          {{ sinEscribir(s) ? 'Escribir la escena' : 'Escena' }} {{ numero(s) }} · {{ s.titulo }} <span aria-hidden="true">›</span>
+        </a>
+      } @else {
+        <a class="guion-nav__enlace guion-nav__enlace--siguiente" [routerLink]="rutas.a('/editor/evaluacion')">
+          Siguiente etapa: Evaluación <span aria-hidden="true">›</span>
+        </a>
+      }
+    </nav>
+  </ng-template>
 
   <!-- El Inspector de la escena (EDITOR-PRO.md §1): sus propiedades, lo que lee antes de decidir y cómo la verá el estudiante.
        Sin estudio alrededor (una prueba, el teléfono) va aquí mismo, después del libreto. -->

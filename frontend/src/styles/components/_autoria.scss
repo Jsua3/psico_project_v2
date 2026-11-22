@@ -73,8 +73,7 @@ app-autoria-shell .cromo .barra-marca {
 // Con un caso abierto, la marca cede la palabra y queda el isotipo antes que el hilo pierda sus etapas (el enlace conserva
 // su nombre). Sin caso (crear uno) sobra sitio y la marca va completa.
 @media (min-width: 64rem) and (max-width: 99.999rem) {
-  app-autoria-shell .cromo .bandeja:has(app-hilo-del-caso) .barra-marca .marca__palabra,
-  app-autoria-shell .cromo .bandeja:has(app-hilo-del-caso) .logo-volver__texto {
+  app-autoria-shell .cromo .bandeja:has(app-hilo-del-caso) .barra-marca .marca__palabra {
     display: none;
   }
 }
@@ -136,14 +135,83 @@ app-autoria-shell .boton-barra[aria-expanded='true'] {
   box-shadow: inset 0 1px 0 var(--asb-filo), inset 0 0 0 1px var(--asb-canto);
 }
 
-// El logo es la salida del editor: «‹» delante y, al pasar el cursor o con el foco del teclado, la palabra METAFRÓNESIS
-// se funde en «Volver a casos» en su mismo sitio (el isotipo se queda). Donde la palabra cede por ancho, queda el «‹».
-app-autoria-shell .cromo .modulo-logo {
-  gap: 0.125rem;
-  padding-inline-start: 0.5rem;
+// «Agregar» (la pasarela, 2026-11-22): el disparador de su menú es un rótulo más sobre el vidrio, como Probar o Ayuda.
+app-autoria-shell .cromo .menu-agregar .ui-menu__trigger {
+  min-block-size: 2.75rem;
+  padding-inline: 0.75rem 0.625rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: inset 0 1px 0 transparent, inset 0 0 0 1px transparent;
+  color: var(--asb-cromo-tinta);
+  font-size: var(--autoria-texto-16);
+  font-weight: 700;
 }
 
-app-autoria-shell .logo-volver__flecha {
+@media (hover: hover) and (pointer: fine) {
+  app-autoria-shell .cromo .menu-agregar .ui-menu__trigger:hover {
+    background-color: var(--asb-brillo);
+    box-shadow: inset 0 1px 0 var(--asb-filo), inset 0 0 0 1px var(--asb-canto);
+    color: var(--asb-cromo-tinta);
+  }
+}
+
+app-autoria-shell .cromo .menu-agregar .ui-menu__trigger[aria-expanded='true'] {
+  background-color: color-mix(in oklab, var(--asb-acento) 14%, transparent);
+  box-shadow: inset 0 1px 0 var(--asb-filo), inset 0 0 0 1px var(--asb-canto);
+}
+
+// «Volver» es un MÓDULO propio junto a la marca (pedido del usuario, 2026-11-22; /barra-de-vidrio-modular): una cápsula
+// de 44 px con «‹» sobre el vidrio de la barra (brillo y canto de luz, sin un segundo desenfoque: nunca vidrio sobre
+// vidrio). Al pasar el cursor o con el foco del teclado se expande con el resorte suave (620 ms) y su texto aparece en
+// 200 ms (sale en 160). La expansión se dibuja ENCIMA del hueco que sigue (posición absoluta): ni el nombre del caso ni
+// las etapas se mueven. Su texto dice a dónde vuelve (Casos, Caminos, el Plano o el guion).
+app-autoria-shell .cromo .modulo-logo {
+  gap: 0.5rem;
+}
+
+app-autoria-shell .logo-marca {
+  display: inline-flex;
+  align-items: center;
+}
+
+app-autoria-shell .volver {
+  position: relative;
+  flex: none;
+  display: block;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border-radius: 999px;
+  color: var(--asb-cromo-tinta);
+  text-decoration: none;
+}
+
+app-autoria-shell .volver__capsula {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  box-sizing: border-box;
+  min-inline-size: 2.75rem;
+  max-inline-size: 2.75rem;
+  block-size: 2.75rem;
+  padding-inline: 0.8125rem 0.875rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background-color: var(--asb-brillo);
+  box-shadow: inset 0 1px 0 var(--asb-filo), inset 0 0 0 1px var(--asb-canto);
+  color: var(--asb-cromo-tinta);
+  white-space: nowrap;
+  transition:
+    max-inline-size var(--ds-dur-glass) var(--ds-spring-soft),
+    background-color var(--ds-dur-base) var(--ds-ease-out),
+    scale var(--ds-dur-press) var(--ds-ease-out);
+}
+
+app-autoria-shell .volver__flecha {
   flex: none;
   inline-size: 1.125rem;
   block-size: 1.125rem;
@@ -152,69 +220,45 @@ app-autoria-shell .logo-volver__flecha {
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
-  color: var(--asb-cromo-tinta-tenue);
-  transition:
-    translate var(--ds-dur-fast) var(--ds-ease-out),
-    color var(--ds-dur-fast) var(--ds-ease-out);
 }
 
-app-autoria-shell .logo-volver {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-}
-
-app-autoria-shell .logo-volver__texto {
-  position: absolute;
-  inset-block: 0;
-  // La palabra empieza tras el isotipo (317/286 del alto) y su separación (0,3 del alto).
-  inset-inline-start: calc(var(--marca-alto, 1.75rem) * 1.408);
-  display: flex;
-  align-items: center;
-  color: var(--asb-cromo-tinta);
+app-autoria-shell .volver__texto {
   font-size: var(--autoria-texto-16);
   font-weight: 700;
-  white-space: nowrap;
   opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--ds-dur-fast) var(--ds-ease-out);
+  transition: opacity var(--ds-dur-fade) var(--ds-ease-out);
 }
 
-app-autoria-shell .cromo .barra-marca .marca__palabra {
-  transition: opacity var(--ds-dur-fast) var(--ds-ease-out);
-}
-
+// Expandida tapa lo que haya detrás en la barra: toma la superficie de la barra casi opaca para que se lea.
 @media (hover: hover) and (pointer: fine) {
-  app-autoria-shell .cromo .modulo-logo:hover .logo-volver__flecha {
-    translate: -0.125rem 0;
-    color: var(--asb-cromo-tinta);
+  app-autoria-shell .volver:hover .volver__capsula {
+    max-inline-size: 13rem;
+    background-color: color-mix(in oklab, var(--asb-superficie) 94%, transparent);
   }
 
-  app-autoria-shell .cromo .modulo-logo:hover .marca__palabra {
-    opacity: 0;
-  }
-
-  app-autoria-shell .cromo .modulo-logo:hover .logo-volver__texto {
+  app-autoria-shell .volver:hover .volver__texto {
     opacity: 1;
+    transition-duration: var(--ds-dur-base);
   }
 }
 
-app-autoria-shell .cromo .modulo-logo:focus-visible .logo-volver__flecha {
-  color: var(--asb-cromo-tinta);
+app-autoria-shell .volver:focus-visible {
+  outline: none;
 }
 
-app-autoria-shell .cromo .modulo-logo:focus-visible .marca__palabra {
-  opacity: 0;
+app-autoria-shell .volver:focus-visible .volver__capsula {
+  max-inline-size: 13rem;
+  background-color: color-mix(in oklab, var(--asb-superficie) 94%, transparent);
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
 }
 
-app-autoria-shell .cromo .modulo-logo:focus-visible .logo-volver__texto {
+app-autoria-shell .volver:focus-visible .volver__texto {
   opacity: 1;
 }
 
-@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: reduce) {
-  app-autoria-shell .cromo .modulo-logo:hover .logo-volver__flecha {
-    translate: none;
-  }
+app-autoria-shell .volver:active .volver__capsula {
+  scale: 0.97;
 }
 
 // La cápsula de tema, como en la barra del portal: 46 px (la barra cae en medios píxeles) y crece dentro del módulo.
@@ -263,7 +307,6 @@ app-autoria-shell .cromo .modulo-cuenta > .tema {
 // entre las dos filas: en móvil los módulos no llevan vidrio (el vidrio es la banda), así que no se pierde nada.
 @media (max-width: 63.999rem) {
   app-autoria-shell .cromo .bandeja:has(app-hilo-del-caso) .barra-marca .marca__palabra,
-  app-autoria-shell .cromo .bandeja:has(app-hilo-del-caso) .logo-volver__texto,
   app-autoria-shell .cromo .enlace-casos,
   app-autoria-shell .cromo .caso-actual {
     display: none;

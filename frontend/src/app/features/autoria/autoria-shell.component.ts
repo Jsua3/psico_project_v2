@@ -4,7 +4,7 @@ import {
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
-import { filter, map } from 'rxjs';
+import { filter, map, scan } from 'rxjs';
 
 import { AuthService } from '../../core/auth/auth.service';
 import type { CanLeave } from '../../core/navigation/can-leave.guard';
@@ -25,6 +25,7 @@ import { IaService } from './ia/ia.service';
 import { PanelIaComponent } from './ia/panel-ia.component';
 import { DeshacerBorrado } from './marco/deshacer-borrado';
 import { HiloDelCasoComponent } from './marco/hilo-del-caso.component';
+import { injectLlevar } from './marco/llevar';
 import { PanelPendientesComponent } from './marco/panel-pendientes.component';
 import { ProgresoDelCaso } from './marco/progreso.service';
 import { RielDeEscenasComponent } from './marco/riel-de-escenas.component';
@@ -32,7 +33,7 @@ import { injectComandosDelCaso } from './marco/estudio/comandos-del-caso';
 import { EstudioMarcoComponent } from './marco/estudio/estudio-marco.component';
 import { EstudioService } from './marco/estudio/estudio.service';
 import { ExploradorBibliotecaComponent } from './marco/estudio/explorador-biblioteca.component';
-import { RutasAutoria } from './rutas';
+import { RUTA_CASOS, RutasAutoria } from './rutas';
 
 const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', icon: 'logout', tone: 'danger' }];
 
@@ -64,15 +65,18 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
   template: `
     <a class="saltar" href="#main-content" (click)="saltar($event)">Saltar al contenido</a>
     <header ui-glass-bar label="Editor de casos" compactLabel="Editor de casos" [congelada]="ayudaAbierta()" #cabecera>
-      <!-- El logo es la salida del editor: «‹» delante y, al pasar el cursor o con el foco, la palabra se funde en «Volver a
-           casos» (pedido del usuario, 2026-11-22; antes había un botón aparte que desordenaba la barra). -->
-      <a class="modulo modulo-logo pulsable ds-motion" [routerLink]="rutas.a('/')" aria-label="Volver a Casos" title="Volver a Casos">
-        <svg class="logo-volver__flecha" viewBox="0 0 20 20" aria-hidden="true"><path d="m12 4-6 6 6 6" /></svg>
-        <span class="logo-volver">
-          <app-marca class="barra-marca" />
-          <span class="logo-volver__texto" aria-hidden="true">Volver a casos</span>
-        </span>
-      </a>
+      <!-- La marca y, junto a ella, el módulo «‹» para volver (pedido del usuario, 2026-11-22): una cápsula de vidrio que al
+           pasar el cursor o con el foco se expande y dice a dónde vuelve; desde el guion o una sala, al menú del que se vino
+           dentro del editor; desde una pantalla principal, a Casos. El nombre accesible es su propio texto. -->
+      <div class="modulo modulo-logo">
+        <span class="logo-marca"><app-marca class="barra-marca" /></span>
+        <a class="volver pulsable" [routerLink]="volver().ruta" data-accion="volver">
+          <span class="volver__capsula">
+            <svg class="volver__flecha" viewBox="0 0 20 20" aria-hidden="true"><path d="m12 4-6 6 6 6" /></svg>
+            <span class="volver__texto">{{ volver().texto }}</span>
+          </span>
+        </a>
+      </div>
       <!-- El módulo central es el «dónde estoy» del editor: el caso y su hilo de etapas. Nada de él se pliega al desplazarse
            (DG-6); lo que no cabe cede por ancho, con su nombre completo para el lector. -->
       <div class="modulo modulo-principal ds-motion">
@@ -86,6 +90,11 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
       <div class="modulo modulo-cuenta ds-motion">
         <!-- Las herramientas del caso, juntas: en el teléfono bajan a su propia fila sin separarse. -->
         <div class="herramientas">
+          @if (store.caso() && !store.soloLectura()) {
+            <!-- La pasarela (pedido del usuario, 2026-11-22): todo lo que se puede agregar al caso, desde cualquier pantalla.
+                 «Escena nueva» la crea después de la actual y abre su guion; lo demás lleva a su control con el foco puesto. -->
+            <ui-menu class="menu-agregar" label="Agregar" icon="add" align="start" [items]="opcionesAgregar()" (itemSelected)="agregar($event)" />
+          }
           @if (store.caso()) {
             <!-- BORRADOR: texto nuevo, pendiente de la aprobación de Psicología -->
             <a class="boton-barra enlace-probar" [attr.href]="rutaEnsayo()" target="_blank" rel="noopener" data-accion="probar"
@@ -174,6 +183,12 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
           {{ textoPendientes() }}
         </button>
       }
+      <!-- La pasarela: el siguiente paso, a la vista en todas las pantallas (antes solo en el Explorador de Historia). -->
+      @if (store.caso() && progreso.siguiente(); as paso) {
+        <button estudioEstadoInicio type="button" class="est-dato-boton est-siguiente" (click)="llevar(paso)">
+          <span class="est-siguiente__rotulo">Siguiente:</span><span class="est-siguiente__texto">{{ paso.texto }}</span><span aria-hidden="true">→</span>
+        </button>
+      }
     </app-estudio-marco>
 
     <!-- El Explorador de la etapa Historia: las escenas en jerarquía y la biblioteca del caso, en dos pestañas. -->
@@ -232,6 +247,17 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
     .enlace-probar { background: color-mix(in oklab, var(--asb-acento) 16%, transparent); color: var(--ds-primary); }
     @media (hover: hover) and (pointer: fine) {
       .enlace-probar:hover { background: color-mix(in oklab, var(--asb-acento) 24%, transparent); color: var(--ds-primary); }
+    }
+    /* El siguiente paso, en la barra de estado: una cápsula con el acento, siempre a la vista (pasarela, 2026-11-22). */
+    /* Doble clase: le gana a la regla base de la barra de estado (.est-dato-boton), que se carga después. */
+    .est-dato-boton.est-siguiente {
+      margin-inline-start: 0.25rem; border-radius: 999px; background: color-mix(in oklab, var(--ds-primary) 12%, transparent);
+      color: var(--ds-primary); font-weight: 700;
+    }
+    .est-siguiente__rotulo { font-weight: 600; }
+    .est-siguiente__texto { min-inline-size: 0; max-inline-size: 28rem; overflow: hidden; text-overflow: ellipsis; }
+    @media (hover: hover) and (pointer: fine) {
+      .est-dato-boton.est-siguiente:hover { background: color-mix(in oklab, var(--ds-primary) 20%, transparent); color: var(--ds-primary); }
     }
     /* El guardado, en la barra de estado: el punto y su palabra, sin el relleno de la barra de arriba. */
     .guardado-estado { padding-inline: 0.5rem; }
@@ -334,6 +360,33 @@ export class AutoriaShellComponent implements CanLeave {
   private readonly direccion = toSignal(
     this.router.events.pipe(filter((e) => e instanceof NavigationEnd), map(() => this.router.url)), { initialValue: this.router.url },
   );
+  /** La dirección actual y la anterior: «volver» lleva al menú del que se vino, no solo al padre. */
+  private readonly trayecto = toSignal(
+    this.router.events.pipe(
+      filter((e) => e instanceof NavigationEnd),
+      map(() => this.router.url),
+      scan((antes: { actual: string; previa: string | null }, url: string) => ({ actual: url, previa: antes.actual }), { actual: this.router.url, previa: null }),
+    ),
+    { initialValue: { actual: this.router.url, previa: null } },
+  );
+  /**
+   * A dónde lleva el módulo «‹» de la barra. Desde el guion de una escena, a Caminos; desde una sala, al Plano o al guion si
+   * de ahí se vino (si no, a Caminos); desde cualquier pantalla principal del editor (y al crear un caso), a Casos.
+   */
+  protected readonly volver = computed<{ ruta: string; texto: string }>(() => {
+    const { actual, previa } = this.trayecto();
+    const limpia = (url: string | null): string => (url ?? '').split(/[?#]/)[0];
+    const aqui = limpia(actual);
+    const antes = limpia(previa);
+    const caminos = { ruta: this.rutas.a('/editor'), texto: 'Volver a Caminos' };
+    if (this.store.caso() && /\/editor\/escena\/[^/]+$/.test(aqui)) return caminos;
+    if (this.store.caso() && /\/editor\/sala\/[^/]+$/.test(aqui)) {
+      if (/\/editor\/plano$/.test(antes)) return { ruta: this.rutas.a('/editor/plano'), texto: 'Volver al Plano' };
+      if (/\/editor\/escena\/[^/]+$/.test(antes)) return { ruta: antes, texto: 'Volver al guion' };
+      return caminos;
+    }
+    return { ruta: RUTA_CASOS, texto: 'Volver a casos' };
+  });
   protected readonly progreso = inject(ProgresoDelCaso);
   protected readonly deshacer = inject(DeshacerBorrado);
   private readonly ia = inject(IaService);
@@ -355,6 +408,53 @@ export class AutoriaShellComponent implements CanLeave {
   protected readonly rutaEnsayo = computed(() => RUTA_ENSAYO(this.store.caso()?.id ?? ''));
   protected probar(evento: MouseEvent): void {
     void alPulsarProbar(evento, this.store);
+  }
+  private readonly anfitrion = inject<ElementRef<HTMLElement>>(ElementRef);
+  /** Lleva al siguiente paso (la misma acción que la tarjeta del Explorador). */
+  protected readonly llevar = injectLlevar();
+  /** Lo que se puede agregar desde cualquier pantalla (pasarela del docente, 2026-11-22). */
+  protected readonly opcionesAgregar = computed<UiMenuItem[]>(() => {
+    const enEscena = !!this.progreso.escenaActual();
+    return [
+      { value: 'escena', label: enEscena ? 'Escena nueva, después de esta' : 'Escena nueva', icon: 'add' },
+      { value: 'linea', label: enEscena ? 'Línea de diálogo en esta escena' : 'Línea de diálogo', icon: 'chat' },
+      { value: 'respuesta', label: enEscena ? 'Respuesta del estudiante en esta escena' : 'Respuesta del estudiante', icon: 'forum' },
+      { value: 'mueble', label: 'Mueble, objeto o personaje en la sala', icon: 'chair' },
+      { value: 'paso', label: 'Paso profesional', icon: 'task_alt' },
+      { value: 'final', label: 'Final del caso', icon: 'flag' },
+      { value: 'objetivo', label: 'Objetivo de aprendizaje', icon: 'school' },
+    ];
+  });
+  /**
+   * Agrega sin volver a otro menú: la escena se crea (después de la actual, en su misma sala) y se abre su guion; el paso
+   * profesional abre su formulario en Evaluación; lo demás lo localiza la guía y deja el foco en su control.
+   */
+  protected async agregar(valor: string | undefined): Promise<void> {
+    const caso = this.store.caso();
+    if (!caso || this.store.soloLectura()) return;
+    const guiaPara: Record<string, string> = {
+      linea: 'agregar-linea', respuesta: 'agregar-respuesta', mueble: 'agregar-mueble', final: 'definir-finales', objetivo: 'datos-del-caso',
+    };
+    if (valor === 'escena') {
+      const actual = this.progreso.escenaActual();
+      const sala = caso.escenas.find((e) => e.id === actual)?.salaId ?? caso.salas[0]?.id ?? null;
+      const id = this.store.agregarEscena(sala, actual ?? undefined);
+      await this.router.navigateByUrl(this.rutas.a('/editor/escena', id));
+      return;
+    }
+    if (valor === 'paso') {
+      await this.router.navigateByUrl(this.rutas.a('/editor/evaluacion'));
+      this.pulsarCuandoAparezca('#agregar-paso');
+      return;
+    }
+    if (valor && guiaPara[valor]) await this.guia.mostrar(guiaPara[valor], 'foco');
+  }
+
+  /** Pulsa un control de la pantalla recién abierta en cuanto está pintado (la ruta puede tardar unos cuadros). */
+  private pulsarCuandoAparezca(selector: string, intentos = 30): void {
+    const boton = this.anfitrion.nativeElement.querySelector<HTMLButtonElement>(selector);
+    if (boton) { boton.click(); return; }
+    if (intentos > 0) requestAnimationFrame(() => this.pulsarCuandoAparezca(selector, intentos - 1));
   }
   protected readonly iaAbierta = signal(false);
   /** La pestaña del Explorador de Historia. */

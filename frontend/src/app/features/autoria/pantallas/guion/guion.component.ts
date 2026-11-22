@@ -129,6 +129,11 @@ export class GuionComponent {
     { value: 'borrar', label: 'Borrar la escena', icon: 'delete', tone: 'danger', disabled: this.orden().length <= 1 },
   ]);
 
+  /** Una escena sin líneas ni respuestas: la pasarela invita a escribirla («Escribir la escena 3»). */
+  protected sinEscribir(e: Escena): boolean {
+    return !e.lineas.length && !e.respuestas.length;
+  }
+
   protected numero(e: Escena): number {
     return this.orden().indexOf(e) + 1;
   }

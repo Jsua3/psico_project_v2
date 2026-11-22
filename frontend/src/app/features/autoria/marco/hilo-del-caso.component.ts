@@ -58,22 +58,36 @@ export function cifraDeEtapa(a: AvanceEtapa): string {
   styles: `
     :host { display: flex; align-items: center; min-inline-size: 0; }
     .hilo__nav { min-inline-size: 0; }
-    .hilo__lista { display: flex; align-items: center; gap: 0.125rem; margin: 0; padding: 0; list-style: none; }
-    .hilo__etapa {
-      position: relative; display: inline-flex; align-items: center; gap: 0.375rem; min-block-size: 2.75rem;
-      padding-inline: 0.625rem; border-radius: 999px; color: var(--asb-cromo-tinta); font-size: var(--autoria-texto-16);
-      font-weight: 600; white-space: nowrap; text-decoration: none;
-      transition: background-color var(--ds-dur-fade) var(--ds-ease-out), scale var(--ds-dur-press) var(--ds-ease-out);
+    /* Las etapas, como un control segmentado de vidrio (/barra-de-vidrio-modular; pedido del usuario, 2026-11-22): una
+       pista hundida en la barra y, en ella, cada etapa una cápsula; la etapa en la que estás es la cápsula elevada (más
+       clara, con su filo de luz arriba y su canto), como el segmento elegido de iOS. Sin un segundo desenfoque: el
+       vidrio es el de la barra. Cada etapa conserva su marca de estado (vacía, a medias, verde) y su cifra. */
+    .hilo__lista {
+      display: flex; align-items: center; gap: 0.125rem; margin: 0; padding: 0.1875rem; list-style: none;
+      border-radius: 999px; background: color-mix(in oklab, var(--asb-cromo-tinta) 5%, transparent);
+      box-shadow: inset 0 0 0 1px var(--asb-canto);
     }
+    .hilo__etapa {
+      position: relative; display: inline-flex; align-items: center; gap: 0.375rem; min-block-size: 2.5rem;
+      padding-inline: 0.75rem; border-radius: 999px; color: var(--asb-cromo-tinta); font-size: var(--autoria-texto-16);
+      font-weight: 600; white-space: nowrap; text-decoration: none;
+      box-shadow: inset 0 1px 0 transparent, inset 0 0 0 1px transparent;
+      transition:
+        background-color var(--ds-dur-fade) var(--ds-ease-out),
+        box-shadow var(--ds-dur-fade) var(--ds-ease-out),
+        scale var(--ds-dur-press) var(--ds-ease-out);
+    }
+    /* El área tocable llega a 44 px sin agrandar la cápsula (la pista la contiene). */
+    .hilo__etapa::after { content: ''; position: absolute; inset: -0.125rem 0; }
     @media (hover: hover) and (pointer: fine) {
-      .hilo__etapa:hover { background: color-mix(in oklab, var(--ds-primary) 9%, transparent); color: var(--asb-cromo-tinta); }
+      .hilo__etapa:not([aria-current='page']):hover { background-color: var(--asb-brillo); color: var(--asb-cromo-tinta); }
     }
     .hilo__etapa:active { scale: 0.97; }
-    /* Donde estás: tinte y una raya bajo el nombre (forma, no solo color). */
-    .hilo__etapa[aria-current='page'] { background: var(--l-tinte); font-weight: 800; }
-    .hilo__etapa[aria-current='page']::after {
-      content: ''; position: absolute; inset-inline: 0.75rem; inset-block-end: 0.3125rem; block-size: 0.1875rem;
-      border-radius: 0.125rem; background: var(--ds-primary);
+    .hilo__etapa:focus-visible { outline: 2px solid var(--ds-focus); outline-offset: 2px; }
+    /* Donde estás: la cápsula elevada (forma, no solo color: se despega de la pista con su filo y su canto). */
+    .hilo__etapa[aria-current='page'] {
+      background-color: color-mix(in oklab, var(--asb-superficie) 88%, transparent); font-weight: 800;
+      box-shadow: inset 0 1px 0 var(--asb-filo), inset 0 0 0 1px var(--asb-canto), 0 1px 3px color-mix(in oklab, var(--asb-cromo-tinta) 18%, transparent);
     }
     .hilo__numero { display: none; font-variant-numeric: tabular-nums; }
     .hilo__cifra { color: var(--asb-cromo-tinta-tenue); font-size: var(--autoria-texto-14); font-variant-numeric: tabular-nums; }

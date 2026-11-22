@@ -678,3 +678,59 @@ button:active {
     forced-color-adjust: none;
   }
 }
+
+// La pasarela en la barra de herramientas: la escena anterior, dónde estás y la siguiente, siempre a la vista.
+.guion-nav {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.25rem;
+  min-inline-size: 0;
+}
+
+.guion-nav__aqui {
+  padding-inline: 0.5rem;
+  color: var(--ds-text-2);
+  font-size: var(--autoria-texto-14);
+  white-space: nowrap;
+}
+
+.guion-nav__enlace {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-block-size: 2.75rem;
+  min-inline-size: 0;
+  max-inline-size: 22rem;
+  padding-inline: 0.75rem;
+  overflow: hidden;
+  border-radius: 999px;
+  color: var(--ds-text-1);
+  font-weight: 600;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background-color var(--ds-dur-fade) var(--ds-ease-out);
+}
+
+.guion-nav__enlace--siguiente {
+  margin-inline-start: auto;
+  background: color-mix(in oklab, var(--ds-primary) 12%, transparent);
+  color: var(--ds-primary);
+  font-weight: 700;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .guion-nav__enlace:hover {
+    background: var(--l-superficie-hundida);
+  }
+
+  .guion-nav__enlace--siguiente:hover {
+    background: color-mix(in oklab, var(--ds-primary) 20%, transparent);
+  }
+}
+
+.guion-nav__enlace:focus-visible {
+  outline: 2px solid var(--ds-focus);
+  outline-offset: 2px;
+}
