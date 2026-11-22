@@ -180,6 +180,11 @@
           <a class="pie__enlace pie__enlace--siguiente" [routerLink]="rutas.a('/editor/escena', s.id)" aria-keyshortcuts="Alt+ArrowDown">
             <span class="pie__rotulo">Escena siguiente ›</span><span class="pie__titulo">{{ numero(s) }} · {{ s.titulo }}</span>
           </a>
+        } @else {
+          <!-- En la última escena el libreto no termina en seco: dice qué etapa del hilo sigue (EDITOR.md §3.1). -->
+          <a class="pie__enlace pie__enlace--siguiente" [routerLink]="rutas.a('/editor/evaluacion')" data-accion="siguiente-etapa">
+            <span class="pie__rotulo">Siguiente etapa ›</span><span class="pie__titulo">Evaluación: pasos, rúbrica y finales</span>
+          </a>
         }
       </nav>
     </div>

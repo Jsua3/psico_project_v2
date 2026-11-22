@@ -6,6 +6,7 @@ import { CasoStore } from '../../estado/caso.store';
 import { BibliotecaService } from '../../modelo/biblioteca.service';
 import { copiarEscenarioAlCaso } from '../../modelo/copiar';
 import { universidad } from '../../testing/universidad';
+import { escenasEnOrden } from '../../modelo/progreso';
 import { GuionComponent } from './guion.component';
 
 /**
@@ -176,5 +177,15 @@ describe('GuionComponent · teclado, anclas y facetas', () => {
     raiz.querySelector('#en')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }));
     await listo();
     expect(store.caso()!.escenas.find((e) => e.id === id)!.respuestas).toHaveLength(1);
+  });
+
+  it('en la última escena del recorrido el pie dice qué etapa sigue: Evaluación (flujo guiado, EDITOR.md §3.1)', async () => {
+    const { fixture, store, listo, raiz } = await montar();
+    const ultima = escenasEnOrden(store.caso()!).at(-1)!;
+    fixture.componentRef.setInput('escenaId', ultima.id);
+    await listo();
+    const pie = raiz.querySelector('nav.pie')!;
+    expect(pie.textContent).not.toContain('Escena siguiente');
+    expect(pie.querySelector('[data-accion="siguiente-etapa"]')?.textContent).toContain('Evaluación');
   });
 });

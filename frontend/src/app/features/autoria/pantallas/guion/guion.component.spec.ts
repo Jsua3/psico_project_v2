@@ -293,19 +293,24 @@ describe('GuionComponent · Probar desde aquí', () => {
     expect(id).toBeTruthy();
   });
 
-  it('el clic primario guarda lo pendiente y va al ensayo en esta pestaña; Ctrl+clic deja el enlace normal', async () => {
+  it('el clic primario guarda lo pendiente y va al ensayo en esta pestaña; Ctrl+clic abre otra pestaña ya sincronizada', async () => {
     const { store, raiz, listo } = await montar();
     vi.spyOn(store, 'nodoDeEscena').mockReturnValue(12);
     store.fijar({ ...store.caso()!, id: '41' });
     await listo();
     const sincronizado = vi.spyOn(store, 'sincronizado').mockResolvedValue();
     const navegar = vi.spyOn(store, 'navegar').mockResolvedValue(true);
-    const abrir = vi.spyOn(window, 'open');
+    // Ctrl+clic: el navegador no sigue el enlace a ciegas; se abre una pestaña provisional y recibe la dirección al guardar
+    // (cambio de «Probar» de la pasada final de editor-b, `ensayo.ts`).
+    const pestana = { opener: {}, closed: false, close: vi.fn(), location: { href: '' } };
+    const abrir = vi.spyOn(window, 'open').mockReturnValue(pestana as unknown as Window);
     const enlace = raiz.querySelector<HTMLAnchorElement>('a[data-accion="probar"]')!;
     const conCtrl = new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true });
     enlace.dispatchEvent(conCtrl);
-    expect(conCtrl.defaultPrevented).toBe(false);
+    expect(conCtrl.defaultPrevented).toBe(true);
+    await vi.waitFor(() => expect(pestana.location.href).toBe('/portal/casos/41/ensayo?desde=12'));
     expect(navegar).not.toHaveBeenCalled();
+    abrir.mockClear();
     const primario = new MouseEvent('click', { bubbles: true, cancelable: true });
     enlace.dispatchEvent(primario);
     expect(primario.defaultPrevented).toBe(true);
