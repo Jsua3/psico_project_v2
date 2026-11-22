@@ -444,6 +444,23 @@
 .tr-event[data-accent='risky'] { border-inline-start-color: var(--ds-warning-text); }
 .tr-event[data-accent='contraindicated'] { border-inline-start-color: var(--ds-danger); }
 
+// R2: las decisiones del criterio enfocado en la valoración se tiñen del acento (se reconocen sin leer), y la decisión
+// a la que llevó una ficha lleva además un anillo. Sin movimiento: solo color, que «movimiento reducido» no toca.
+.tr-event--resaltada {
+  border-color: var(--l-tinte-filo, var(--ds-border-strong));
+  background: var(--l-tinte, var(--ds-surface-2));
+}
+
+.tr-event--destino {
+  outline: 2px solid var(--l-acento, var(--ds-primary));
+  outline-offset: 2px;
+}
+
+.tr-event:focus-visible {
+  outline: 3px solid var(--ds-focus);
+  outline-offset: 2px;
+}
+
 .tr-event__tiempo {
   padding-block-start: var(--ds-space-1);
   color: var(--ds-text-2);
@@ -596,5 +613,9 @@
   .tr-bandeja,
   .tr-valoracion {
     border-color: CanvasText;
+  }
+
+  .tr-event--resaltada {
+    border-color: Highlight;
   }
 }

@@ -275,7 +275,10 @@
                         @for (fila of filasLinea(); track fila.orden ?? 's' + $index) {
                           @let entry = fila.entry;
                           <li class="tr-event" [class.tr-event--sistema]="!fila.decision" [attr.data-accent]="timelineEntryAccent(entry)"
-                            [attr.id]="fila.orden ? 'decision-' + fila.orden : null" [attr.data-decision]="fila.orden">
+                            [attr.id]="fila.orden ? 'decision-' + fila.orden : null" [attr.data-decision]="fila.orden"
+                            [attr.tabindex]="fila.orden ? -1 : null"
+                            [class.tr-event--resaltada]="!!fila.orden && decisionesResaltadas().has(fila.orden)"
+                            [class.tr-event--destino]="!!fila.orden && fila.orden === decisionDestino()">
                             <small class="tr-event__tiempo">{{ entry.time }}</small>
                             <span class="tr-event__body">
                               <span class="tr-event__top">
@@ -341,7 +344,11 @@
             <!-- La valoración: su propia columna pegajosa con desplazamiento propio; «Guardar» queda al pie, a la vista. -->
             <aside class="tr-valoracion p-pegajosa p-pegajosa--desplaza" aria-label="Valoración del intento">
               @if (rubric(); as rub) {
-                <app-rubrica-intento [attemptId]="item.attemptId" [evaluacion]="rub" (guardada)="onValoracionGuardada()" />
+                <app-rubrica-intento [attemptId]="item.attemptId" [evaluacion]="rub"
+                  [evidencia]="item.evidenceByCompetency" [sistema]="item.systemEvaluation?.competencyLevels"
+                  [haySiguiente]="haySiguientePendiente()" (guardada)="onValoracionGuardada()"
+                  (criterioEnfocado)="competenciaResaltada.set($event)" (irADecision)="irADecision($event)"
+                  (siguiente)="abrirSiguientePendiente()" />
               } @else {
                 <div class="tr-stack tr-sin-rubrica">
                   <p class="tr-empty">No hay rúbrica disponible para este caso.</p>

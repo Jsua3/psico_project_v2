@@ -1,6 +1,7 @@
+import { DOCUMENT } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
-  ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal, viewChild,
+  ChangeDetectionStrategy, Component, DestroyRef, Injector, OnInit, afterNextRender, computed, inject, signal, viewChild,
 } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
@@ -159,6 +160,23 @@ export class InstructorTraceComponent implements OnInit, CanLeave {
   readonly mostrarEventos = signal(false);
 
   private readonly rubrica = viewChild(RubricaIntentoComponent);
+  private readonly injector = inject(Injector);
+  private readonly documento = inject(DOCUMENT);
+
+  // ── R2: la valoración señala la evidencia ───────────────────────────────────────────────────────────────────
+  /** La competencia del criterio que la docente tiene enfocado en la valoración (sus decisiones se resaltan). */
+  readonly competenciaResaltada = signal<string | null>(null);
+  /** La decisión a la que llevó una ficha de evidencia: se marca hasta que se pide otra o se cambia de intento. */
+  readonly decisionDestino = signal<number | null>(null);
+  /** Los números de orden de las decisiones de la competencia resaltada (RK-4); vacío sin el campo del servidor. */
+  protected readonly decisionesResaltadas = computed<ReadonlySet<number>>(() => {
+    const code = this.competenciaResaltada();
+    const grupo = code ? this.trace()?.evidenceByCompetency?.find(item => item.code === code) : null;
+    return new Set(grupo?.items.map(item => item.order) ?? []);
+  });
+  /** Hay otro intento por revisar además del abierto: solo entonces la valoración ofrece «Siguiente por revisar». */
+  protected readonly haySiguientePendiente = computed(() =>
+    this.attempts().some(attempt => this.porRevisar(attempt) && attempt.attemptId !== this.selectedAttemptId()));
 
   /** Estado de la lista y del detalle: una sola señal cada una, de a uno. */
   readonly listState = uiDataState({
@@ -311,9 +329,30 @@ export class InstructorTraceComponent implements OnInit, CanLeave {
     if (siguiente) this.elegir(siguiente);
   }
 
+  /**
+   * R2 («Evidencia» de un criterio): lleva a la decisión en la pestaña «Decisiones» y la marca. En el teléfono la
+   * valoración se oculta al pasar a la evidencia, así que allí el foco va a la decisión; en escritorio se queda en la
+   * ficha, para seguir valorando con el teclado.
+   */
+  irADecision(orden: number): void {
+    this.pestana.set('decisiones');
+    this.vista.set('evidencia');
+    this.decisionDestino.set(orden);
+    afterNextRender(() => {
+      const destino = this.documento.querySelector<HTMLElement>(`#decision-${orden}`);
+      if (!destino) return;
+      const quieto = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      destino.scrollIntoView({ block: 'center', behavior: quieto ? 'auto' : 'smooth' });
+      const panel = this.documento.querySelector<HTMLElement>('.tr-valoracion');
+      if (!panel || getComputedStyle(panel).display === 'none') destino.focus({ preventScroll: true });
+    }, { injector: this.injector });
+  }
+
   /** Abre un intento. Basta su id: un intento fuera de la lista reciente (p. ej. de un caso republicado) también se abre. */
   open(attempt: Pick<RecentAttempt, 'attemptId'>) {
     this.cancelRequests();
+    this.competenciaResaltada.set(null);
+    this.decisionDestino.set(null);
     this.loadingTrace.set(true);
     this.traceError.set(null);
     this.rubricMessage.set('');

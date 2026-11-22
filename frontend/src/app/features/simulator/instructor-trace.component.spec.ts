@@ -106,12 +106,13 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
   const status = () => text(host().querySelector('[role="status"].ds-sr-only'));
   // La valoración vive en `app-rubrica-intento` (B5b); sus casos propios están en `revision/rubrica-intento.component.spec.ts`.
   const criteriaCards = () => [...host().querySelectorAll('.ri-criterio')];
-  const levelSelect = (index: number) => criteriaCards()[index].querySelector('select') as HTMLSelectElement;
-  /** Elige un nivel en el selector de un criterio, como lo haría el docente. */
+  /**
+   * Elige un nivel pulsándolo, como lo haría el docente (R2: la lista desplegable «Nivel logrado» pasó a botones de
+   * opción). Con '' pulsa otra vez el elegido, que lo quita: el «Sin calificar» de antes.
+   */
   const pick = (index: number, level: FormativeLevel | '') => {
-    const select = levelSelect(index);
-    select.value = level;
-    select.dispatchEvent(new Event('change'));
+    const radios = [...criteriaCards()[index].querySelectorAll<HTMLInputElement>('input[type="radio"]')];
+    (level ? radios.find(radio => radio.value === level) : radios.find(radio => radio.checked))?.click();
     fixture.detectChanges();
   };
   const fillLevels = (first: FormativeLevel = 'LOGRADO', second: FormativeLevel = 'EN_PROCESO') => {
@@ -646,6 +647,31 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       fixture.componentInstance.mostrarEventos.set(true);
       fixture.detectChanges();
       expect(ids()).toEqual([null, 'decision-1', null, null, 'decision-2']);
+    });
+
+    // R2: el cableado de la valoración con la evidencia (sus casos propios están en la prueba de rubrica-intento).
+    it('enfocar un criterio resalta sus decisiones y una ficha de evidencia lleva a la decisión en «Decisiones»', async () => {
+      const evidenceByCompetency = [{
+        code: 'ETICA_PROFESIONAL', name: 'Intervención técnica y ética',
+        items: [{ order: 2, nodeTitle: 'Sala de escucha', optionText: 'Aplicar la ruta', class: 'ACCEPTABLE', atSeconds: 90 }],
+      }];
+      await render({ trace: (id: string) => of(traceFixture(id, { timeline, evidenceByCompetency } as Partial<AttemptTrace>)) });
+      const resaltadas = () => rows().filter(row => row.classList.contains('tr-event--resaltada')).map(row => row.id);
+      expect(resaltadas()).toEqual([]);
+
+      const ficha = host().querySelector<HTMLButtonElement>('.ri-criterio .ri-ficha')!;
+      ficha.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+      fixture.detectChanges();
+      expect(resaltadas()).toEqual(['decision-2']);
+
+      fixture.componentInstance.pestana.set('recorrido');
+      fixture.detectChanges();
+      ficha.click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(fixture.componentInstance.pestana()).toBe('decisiones');
+      expect(host().querySelector('#decision-2')?.classList).toContain('tr-event--destino');
+      expect(host().querySelector('#decision-2')?.getAttribute('tabindex')).toBe('-1');
     });
 
     it('la bandeja filtra «Por revisar» (sin BK-3: los terminados, con una nota) y «En curso»', async () => {
