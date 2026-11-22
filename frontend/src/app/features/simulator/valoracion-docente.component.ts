@@ -26,7 +26,7 @@ import { FormativeLevel, OwnerEvaluation } from '../../core/models/simulation.mo
                     <h4>{{ criterio.title }}</h4>
                     <span class="valoracion__nivel">{{ criterio.level ? niveles[criterio.level] : 'Sin nivel' }}</span>
                   </div>
-                  @if (criterio.level && criterio.descriptor?.trim()) {
+                  @if (criterio.descriptor?.trim()) {
                     <p class="valoracion__descriptor">{{ criterio.descriptor }}</p>
                   }
                   <p><strong>Observación:</strong> {{ criterio.comment.trim() || 'Sin observación para este criterio.' }}</p>

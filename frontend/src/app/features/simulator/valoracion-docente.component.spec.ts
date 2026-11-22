@@ -11,6 +11,15 @@ describe('ValoracionDocenteComponent', () => {
       { criterionId: 456, title: 'Reflexión', level: null, comment: '' },
     ],
   };
+  it('muestra el descriptor aunque el criterio no tenga nivel', () => {
+    const fixture = TestBed.createComponent(ValoracionDocenteComponent);
+    fixture.componentRef.setInput('valoracion', {
+      ...valoracion,
+      criteria: [{ criterionId: 7, title: 'Cierre', level: null, descriptor: 'Cierra con calma', comment: '' }],
+    });
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.valoracion__descriptor')?.textContent).toContain('Cierra con calma');
+  });
   it('muestra la espera cuando no hay valoración', () => {
     const fixture = TestBed.createComponent(ValoracionDocenteComponent);
     fixture.detectChanges();
@@ -29,11 +38,12 @@ describe('ValoracionDocenteComponent', () => {
     expect(texto).toContain('Buena escucha');
     expect(texto).toContain('Sin nivel');
     expect(texto).toContain('Sin observación para este criterio.');
-    expect(texto).not.toMatch(/123|456|EN_PROCESO|LOGRADO|%/);
+    // Ninguna cifra (id, peso, puntaje o porcentaje) debe llegar a la persona; los textos libres de prueba no llevan números.
+    expect(texto).not.toMatch(/\d|EN_PROCESO|LOGRADO|%/);
     const items = fixture.nativeElement.querySelectorAll('li');
     expect(items[0].textContent).toContain('Escucha');
     expect(items[1].textContent).toContain('Reflexión');
-    expect(items[1].querySelector('.valoracion__descriptor')).toBeNull();
+    expect(items[1].querySelector('.valoracion__descriptor')).toBeNull(); // sin descriptor en los datos
   });
   it('actualiza la vista cuando cambia la entrada', () => {
     const fixture = TestBed.createComponent(ValoracionDocenteComponent);
