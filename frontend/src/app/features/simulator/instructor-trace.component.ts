@@ -23,6 +23,7 @@ import { UiControl, UiField } from '../../shared/ui/field/ui-field';
 import { statusLabel } from '../../shared/ui/labels';
 import { UiMenu, UiMenuItem } from '../../shared/ui/menu/ui-menu';
 import { CabeceraHerramientaComponent } from '../herramientas/cabecera-herramienta.component';
+import { moverFocoEnLista } from '../herramientas/mover-foco-en-lista';
 import { UiSection } from '../../shared/ui/section/ui-section';
 import { UiSegmentado, UiSegmento } from '../../shared/ui/segmentado/ui-segmentado';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
@@ -206,6 +207,11 @@ export class InstructorTraceComponent implements OnInit, CanLeave {
 
   /** BK-3 en el servidor: cada intento dice si su valoración está pendiente. Sin él, se filtra por «terminado». */
   protected readonly conEstadoDeValoracion = computed(() => this.attempts().some(attempt => !!attempt.evaluationStatus));
+
+  /** ↑/↓, Inicio y Fin recorren la bandeja como la lista de un cliente de correo (abrir sigue siendo Intro). */
+  protected recorrerBandeja(evento: KeyboardEvent): void {
+    moverFocoEnLista(evento, '.tr-attempts', '.tr-attempt');
+  }
 
   protected readonly segmentos = computed<UiSegmento[]>(() => {
     const attempts = this.attempts();

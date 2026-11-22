@@ -47,7 +47,8 @@
           @for (attempt of bandeja(); track attempt.attemptId) {
             <li>
               <button type="button" class="tr-attempt"
-                [attr.aria-current]="selectedAttemptId() === attempt.attemptId ? 'true' : null" (click)="elegir(attempt)">
+                [attr.aria-current]="selectedAttemptId() === attempt.attemptId ? 'true' : null" (click)="elegir(attempt)"
+                (keydown)="recorrerBandeja($event)">
                 <!-- Como en un cliente de correo: quién arriba, el caso (recortado, con su número de intento siempre a la
                      vista) en medio, y abajo cuándo y el estado. El estado va abajo para que no le quite ancho al nombre. -->
                 <strong class="tr-attempt__quien">{{ clean(attempt.studentAlias, 'Estudiante') }}</strong>

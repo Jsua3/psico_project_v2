@@ -24,6 +24,7 @@ import { UiMenu, UiMenuItem } from '../../shared/ui/menu/ui-menu';
 import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
 import { UiVacioIlustrado } from '../../shared/ui/vacio-ilustrado/ui-vacio-ilustrado';
 import { CabeceraHerramientaComponent } from '../herramientas/cabecera-herramienta.component';
+import { moverFocoEnLista } from '../herramientas/mover-foco-en-lista';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
 import { UiCelda, UiCeldaAcciones, UiCeldaPrincipal } from '../../shared/ui/table/ui-table-celda';
@@ -298,6 +299,11 @@ export class GrupoListComponent implements OnInit {
         this.error.set('No fue posible cargar la información.');
       }
     });
+  }
+
+  /** ↑/↓, Inicio y Fin recorren la lista de grupos (abrir sigue siendo Intro sobre el enlace). */
+  protected recorrerGrupos(evento: KeyboardEvent): void {
+    moverFocoEnLista(evento, '.gl-groups', '.gl-group');
   }
 
   limpiarBusqueda() {

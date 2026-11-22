@@ -41,7 +41,8 @@
           @for (g of gruposFiltrados(); track g.id) {
             <li>
               <a class="gl-group" [class.gl-group--active]="grupoActivo()?.id === g.id"
-                [routerLink]="['/portal/grupos', g.id]" [attr.aria-current]="grupoActivo()?.id === g.id ? 'true' : null">
+                [routerLink]="['/portal/grupos', g.id]" [attr.aria-current]="grupoActivo()?.id === g.id ? 'true' : null"
+                (keydown)="recorrerGrupos($event)">
                 <span class="gl-group__top">
                   <strong class="gl-group__name">{{ g.nombre }}</strong>
                   <span class="gl-group__code">{{ g.codigo }}</span>
