@@ -5,19 +5,25 @@
 
 <p class="ds-sr-only" role="status">{{ statusText() }}</p>
 
-@if (requestsError() || accessRequests().length) {
+<div class="us-views">
+  <ui-segmentado etiqueta="Vista de usuarios" [opciones]="vistas()" [valor]="vista()" (valorChange)="cambiarVista($event)" />
+</div>
+<p class="us-result" [class.us-result--vacio]="!resumen()" role="status" aria-live="polite">{{ resumen() }}</p>
+
+@if (vista() === 'solicitudes') {
   <ui-section class="us-requests" title="Solicitudes de acceso pendientes">
     <div class="us-stack">
       <p class="us-hint">Estudiantes que pidieron cuenta desde el acceso.</p>
       @if (requestsError()) {
         <ui-error-state kind="server" message="No pudimos cargar las solicitudes de acceso." (retry)="loadAccessRequests()" />
       } @else {
+        @if (!accessRequests().length) { <ui-empty-state kind="first-use" title="No hay solicitudes pendientes" /> }
         <ul class="us-request-list">
           @for (request of accessRequests(); track request.id) {
             <li class="us-request">
               <span class="us-request__text">
                 <strong>{{ request.nombre }} {{ request.apellido }}</strong>
-                <span>{{ request.email }}</span>
+                <span class="us-email" [title]="request.email">{{ request.email }}</span>
                 <small>Solicitado: {{ formatDate(request.createdAt) }}</small>
               </span>
               <span class="us-request__actions">
@@ -32,20 +38,46 @@
   </ui-section>
 }
 
-@if (pendingUsers().length) {
+@if (vista() === 'por-aprobar') {
   <ui-section class="us-pending" title="Cuentas por aprobar">
     <ui-card class="us-pending__card">
       <p class="us-hint">{{ pendingText() }}</p>
-      <button ui-button type="button" icon="task_alt" [loading]="saving()" (click)="approvePending()">Aprobar pendientes ({{ pendingUsers().length }})</button>
+      <label class="us-check"><input type="checkbox" [checked]="pendingUsers().length > 0 && seleccionPendientes().length === pendingUsers().length"
+        (change)="seleccionarVisibles($any($event.target).checked, true)"> Seleccionar cuentas pendientes</label>
+      @for (user of pendingUsers(); track user.id) {
+        <label class="us-check"><input type="checkbox" [checked]="seleccionPendientes().includes(user.id)"
+          (change)="seleccionar(user.id, $any($event.target).checked, true)"> {{ user.nombre }} {{ user.apellido }} <span class="us-email" [title]="user.email">{{ user.email }}</span></label>
+      }
+      <button ui-button type="button" icon="task_alt" [disabled]="!seleccionPendientes().length" [loading]="saving()" (click)="aprobarSeleccion()">Aprobar {{ seleccionPendientes().length }} cuentas</button>
     </ui-card>
   </ui-section>
 }
 
+@if (vista() === 'cuentas') {
 <ui-section class="us-users" title="Cuentas">
-  <ui-table label="Tabla de usuarios" density="compact" [state]="state()">
+  <ui-filtros etiquetaBusqueda="Buscar por nombre o correo" [busqueda]="busqueda()" (busquedaChange)="busqueda.set($event)"
+    [total]="users().length" [visibles]="filtrados().length" [hayFiltros]="rol() !== 'todos' || estadoFiltro() !== 'todos' || orden() !== 'nombre'" (limpiar)="limpiarFiltros()">
+    <ui-segmentado etiqueta="Filtrar por rol" [opciones]="opcionesRol" [valor]="rol()" (valorChange)="rol.set($event)" />
+    <label class="us-control">Estado <select [value]="estadoFiltro()" (change)="estadoFiltro.set($any($event.target).value)">
+      <option value="todos">Todos</option><option value="activa">Activas</option><option value="inactiva">Inactivas</option><option value="pendiente">Pendientes</option>
+    </select></label>
+    <label class="us-control">Ordenar por <select [value]="orden()" (change)="orden.set($any($event.target).value)">
+      <option value="nombre">Nombre</option><option value="rol">Rol</option><option value="estado">Estado</option>
+    </select></label>
+  </ui-filtros>
+  @if (seleccion().length) {
+    <div class="us-batch" aria-label="Acciones de cuentas seleccionadas">
+      <strong>{{ seleccion().length }} seleccionadas</strong>
+      <button ui-button type="button" variant="secondary" [disabled]="saving()" (click)="cambiarLote(false)">Desactivar</button>
+      <button ui-button type="button" variant="secondary" [disabled]="saving()" (click)="cambiarLote(true)">Activar</button>
+      <button ui-button type="button" variant="ghost" (click)="seleccion.set([])">Quitar selección</button>
+    </div>
+  }
+  <ui-table label="Tabla de usuarios" density="compact" apilar [state]="state()">
     <table ui-table>
       <thead>
         <tr>
+          <th scope="col"><label class="us-check"><input type="checkbox" [attr.aria-label]="'Seleccionar las ' + filtrados().length + ' visibles'" [checked]="todosVisibles()" [indeterminate]="algunosVisibles()" (change)="seleccionarVisibles($any($event.target).checked)"></label></th>
           <th scope="col">Nombre</th>
           <th scope="col">Email</th>
           <th scope="col">Rol</th>
@@ -54,14 +86,15 @@
         </tr>
       </thead>
       <tbody>
-        @for (user of users(); track user.id) {
+        @for (user of filtrados(); track user.id) {
           <tr uiRow [selected]="selectedUser()?.id === user.id">
-            <th scope="row" class="us-name">{{ user.nombre }} {{ user.apellido }}</th>
-            <td class="us-email">{{ user.email }}</td>
+            <td class="us-sel"><label class="us-check"><input type="checkbox" [attr.aria-label]="'Seleccionar a ' + user.nombre + ' ' + user.apellido" [checked]="seleccion().includes(user.id)" (change)="seleccionar(user.id, $any($event.target).checked)"><span class="us-check__txt" aria-hidden="true">Seleccionar</span></label></td>
+            <th scope="row" class="us-name" data-celda="principal">{{ user.nombre }} {{ user.apellido }}</th>
+            <td><span class="us-email" [title]="user.email">{{ user.email }}</span></td>
             <td>{{ roleLabel(user.role) }}</td>
             @let badge = statusBadge(user);
             <td><ui-badge [tone]="badge.tone">{{ badge.label }}</ui-badge></td>
-            <td class="us-actions">
+            <td class="us-actions" data-celda="acciones">
               <button ui-icon-button type="button" icon="edit" [label]="'Editar a ' + user.nombre + ' ' + user.apellido"
                 (click)="editUser(user)"></button>
               <ui-menu iconOnly [label]="'Más acciones de ' + user.nombre + ' ' + user.apellido" [items]="rowActions(user)"
@@ -81,3 +114,5 @@
     }
   </ui-table>
 </ui-section>
+
+}

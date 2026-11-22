@@ -1,3 +1,5 @@
+import { AuthService } from '../../core/auth/auth.service';
+import { Router, ActivatedRoute } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ElementRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
@@ -37,6 +39,8 @@ describe('usuarios: feedback de acciones (comportamiento)', () => {
 
     TestBed.configureTestingModule({
       providers: [
+        { provide: AuthService, useValue: { currentUser: () => ({ id: 99 }) } },
+        { provide: Router, useValue: null }, { provide: ActivatedRoute, useValue: null },
         { provide: UserAdminService, useValue: service },
         { provide: AccessRequestAdminService, useValue: requests },
         { provide: NotificationService, useValue: notify },
@@ -304,6 +308,8 @@ describe('usuarios: el aviso de éxito no se borra al guardar (NotificationServi
     const requests = { listPending: vi.fn(() => of([])) };
     TestBed.configureTestingModule({
       providers: [
+        { provide: AuthService, useValue: { currentUser: () => ({ id: 99 }) } },
+        { provide: Router, useValue: null }, { provide: ActivatedRoute, useValue: null },
         { provide: UserAdminService, useValue: service },
         { provide: AccessRequestAdminService, useValue: requests },
         { provide: UiDialog, useValue: { sheet: vi.fn(() => ({ close: vi.fn() })), confirm: vi.fn(() => Promise.resolve(true)) } },

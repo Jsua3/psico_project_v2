@@ -90,7 +90,12 @@
 }
 
 .us-email {
-  overflow-wrap: anywhere;
+  display: block;
+  min-width: 0;
+  max-width: min(100%, 20rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 // En una tabla estrecha las acciones no se parten: la tabla se desplaza dentro de su marco.
@@ -100,4 +105,104 @@
   align-items: center;
   gap: var(--ds-space-1);
   white-space: nowrap;
+}
+
+.us-views {
+  margin-block-start: var(--ds-space-4);
+  min-width: 0;
+}
+
+// El resumen del lote o de la aprobación va en línea, con filo propio: es el resultado de lo que se acaba de hacer.
+.us-result {
+  min-width: 0;
+  margin-block: var(--ds-space-3) 0;
+  padding: var(--ds-space-3) var(--ds-space-4);
+  border: 1px solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-1);
+  color: var(--ds-text-1);
+  overflow-wrap: anywhere;
+
+  &--vacio {
+    display: none;
+  }
+}
+
+.us-batch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-space-2);
+  margin-block-end: var(--ds-space-3);
+  padding: var(--ds-space-3);
+  border: 1px solid var(--ds-border-strong);
+  border-radius: var(--ds-radius-md);
+  background: var(--l-vidrio-alto, var(--ds-surface-1));
+}
+
+// Misma letra que la etiqueta de la búsqueda (ui-field): los selectos no se ven más grandes que ella.
+.us-control {
+  display: grid;
+  gap: var(--ds-space-1);
+  min-width: 0;
+  color: var(--ds-text-1);
+  font-size: var(--ds-type-body-s-size);
+  font-weight: 600;
+
+  select {
+    min-block-size: var(--ds-target-min);
+    max-inline-size: 100%;
+    padding-inline: var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface-1);
+    color: var(--ds-text-1);
+    font: inherit;
+    font-weight: 400;
+  }
+}
+
+.us-check {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  min-block-size: var(--ds-target-min);
+  min-width: 0;
+
+  input {
+    inline-size: 1.25rem;
+    block-size: 1.25rem;
+    flex: none;
+  }
+}
+
+// «Seleccionar» solo se lee en la tarjeta de móvil: en la tabla basta el nombre accesible de la casilla.
+.us-check__txt {
+  display: none;
+}
+
+@container (max-width: 40rem) {
+  .us-sel {
+    order: 1;
+  }
+
+  .us-actions {
+    order: 2;
+  }
+
+  .us-check__txt {
+    display: inline;
+    color: var(--ds-text-2);
+    font-size: var(--ds-type-body-s-size);
+  }
+}
+
+.us-pending__card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ds-space-2);
+}
+
+.us-request__text {
+  max-width: 100%;
 }

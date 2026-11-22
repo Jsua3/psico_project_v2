@@ -1,6 +1,7 @@
 import { DIALOG_DATA } from '@angular/cdk/dialog';
-import { ChangeDetectionStrategy, Component, Signal, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Signal, inject } from '@angular/core';
 import { AbstractControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { AdminUser, UserRole } from '../../core/api/user-admin.service';
 import { UiButton } from '../../shared/ui/button/ui-button';
@@ -35,7 +36,7 @@ export interface UserFormSheetData {
 @Component({
   selector: 'app-user-form-sheet',
   imports: [ReactiveFormsModule, UiButton, UiControl, UiDialogActions, UiDialogFrame, UiField],
-  changeDetection: ChangeDetectionStrategy.Eager,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <form [formGroup]="host.form" novalidate (ngSubmit)="host.save()">
       <ui-dialog-frame [title]="host.selectedUser() ? 'Editar usuario' : 'Crear usuario'"
@@ -79,6 +80,12 @@ export interface UserFormSheetData {
 })
 export class UserFormSheetComponent {
   protected readonly host = inject<UserFormSheetData>(DIALOG_DATA).host;
+  private readonly cambios = inject(ChangeDetectorRef);
+
+  constructor() {
+    // Los eventos de touched y validación no son señales; actualizan la hoja OnPush al cambiar el formulario.
+    this.host.form.events.pipe(takeUntilDestroyed()).subscribe(() => this.cambios.markForCheck());
+  }
 
   protected control(name: string): AbstractControl {
     return this.host.form.get(name)!;
