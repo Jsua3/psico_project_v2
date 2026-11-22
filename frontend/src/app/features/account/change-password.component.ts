@@ -58,7 +58,7 @@ function sameNewPassword(group: AbstractControl): ValidationErrors | null {
     <ng-template #contenido>
       <p class="ds-sr-only" role="status">{{ statusText() }}</p>
       @if (guardado()) {
-        <p role="status">Contraseña actualizada.</p>
+        <p id="cambio-confirmacion" class="cambio__ok" tabindex="-1">Contraseña actualizada.</p>
         <a ui-button routerLink="/portal/dashboard">Volver al inicio</a>
       } @else {
       <form class="cambio__form" [formGroup]="form" novalidate (ngSubmit)="submit()">
@@ -66,9 +66,9 @@ function sameNewPassword(group: AbstractControl): ValidationErrors | null {
           <input uiControl id="cambio-actual" type="password" formControlName="currentPassword" autocomplete="current-password" />
         </ui-field>
         <ui-field label="Nueva contraseña" required revealable [error]="errorOf('newPassword')">
-          <input uiControl id="cambio-nueva" type="password" formControlName="newPassword" autocomplete="new-password" />
+          <input uiControl id="cambio-nueva" type="password" formControlName="newPassword" autocomplete="new-password" aria-describedby="cambio-requisitos" />
         </ui-field>
-        <ul class="cambio__requisitos" aria-label="Requisitos de la nueva contraseña">
+        <ul id="cambio-requisitos" class="cambio__requisitos" aria-label="Requisitos de la nueva contraseña">
           <li [class.cumplido]="tieneLongitud()"><span aria-hidden="true">{{ tieneLongitud() ? '✓' : '○' }}</span> Al menos 10 caracteres<span class="ds-sr-only">{{ tieneLongitud() ? ': cumplido' : ': pendiente' }}</span></li>
           <li [class.cumplido]="noSoloNumeros()"><span aria-hidden="true">{{ noSoloNumeros() ? '✓' : '○' }}</span> No solo números<span class="ds-sr-only">{{ noSoloNumeros() ? ': cumplido' : ': pendiente' }}</span></li>
           <li><span aria-hidden="true">○</span> Que no sea una contraseña común (se comprueba al guardar)</li>
@@ -110,6 +110,8 @@ function sameNewPassword(group: AbstractControl): ValidationErrors | null {
       grid-template-columns: minmax(0, 1fr);
       gap: var(--ds-space-4);
     }
+    .cambio__ok { margin: 0; color: var(--ds-text-1); font-weight: var(--ds-type-h3-weight); }
+    .cambio__ok:focus-visible { outline: 2px solid var(--ds-focus, var(--ds-primary)); outline-offset: 2px; }
     .cambio__error {
       margin: 0;
       color: var(--ds-danger);
@@ -150,7 +152,10 @@ export class ChangePasswordComponent {
   /** Lo que el servidor dijo de un campo (`field` del error): se muestra en ese campo, no en un aviso suelto. */
   private readonly serverErrors = signal<Partial<Record<PasswordField, string>>>({});
   protected readonly formError = signal('');
-  protected readonly statusText = computed(() => (this.saving() ? 'Guardando tu nueva contraseña…' : this.formError()));
+  protected readonly statusText = computed(() => {
+    if (this.saving()) return 'Guardando tu nueva contraseña…';
+    return this.guardado() ? 'Contraseña actualizada.' : this.formError();
+  });
 
   protected readonly title = computed(() =>
     this.modo() === 'forzado' ? 'Elige tu contraseña' : 'Cambia tu contraseña');
@@ -198,6 +203,10 @@ export class ChangePasswordComponent {
         this.auth.markPasswordChanged();
         if (this.modo() === 'voluntario') {
           this.guardado.set(true);
+          // El formulario (y el botón con el foco) desaparece: se pinta ya la confirmación y el foco va a ella. El
+          // anuncio lo da la región `status` de arriba, que existe desde el principio y solo cambia de texto.
+          this.cdr.detectChanges();
+          this.host.nativeElement.querySelector<HTMLElement>('#cambio-confirmacion')?.focus();
         } else {
           this.notify.success('Contraseña actualizada.');
           void this.router.navigateByUrl(this.destination);

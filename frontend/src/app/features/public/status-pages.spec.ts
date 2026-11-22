@@ -5,6 +5,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 
 import { ForbiddenComponent } from './forbidden.component';
 import { FULL_NAVIGATION, OfflineComponent } from './offline.component';
+import { PaginaEstadoComponent } from '../../shared/layout/pagina-estado/pagina-estado.component';
 
 /**
  * Páginas de estado (plan visual F4-3): «Sin permiso» (dentro del portal, con la sección pedida) y «Sin conexión»
@@ -55,6 +56,12 @@ describe('páginas de estado', () => {
     expect(text(host.querySelector('app-pagina-estado'))).toContain('No tienes permiso para abrir esta página.');
   });
 
+  it('sin permiso lleva la puerta del consultorio y el letrero; sin conexión ninguna imagen', async () => {
+    const host = await render('/portal/sin-permiso');
+    const fuentes = [...host.querySelectorAll('app-pagina-estado img')].map((i) => i.getAttribute('src'));
+    expect(fuentes).toEqual(['assets/game/doors/door_consultorio.png', 'assets/game/objects/object_acceso_restringido.png']);
+  });
+
   it('sin conexión: su propio <main>, un h1, el estado bloqueante y «Reintentar» CARGA de nuevo la ruta pedida', async () => {
     // El navegador guarda en su mapa de módulos la descarga fallida: un import() otra vez fallaría aunque ya haya
     // red; por eso «Reintentar» hace una carga completa (FULL_NAVIGATION), no una navegación del Router.
@@ -62,6 +69,9 @@ describe('páginas de estado', () => {
     expect(host.querySelector('main#main-content')).not.toBeNull();
     expect([...host.querySelectorAll('h1')].map(text)).toEqual(['Sin conexión']);
     expect(host.querySelector('img')).toBeNull();
+    // Ni la hoja de estilos de la plantilla pide recursos por red (url()): la pantalla debe pintarse sin conexión.
+    const hojas = (PaginaEstadoComponent as unknown as { ɵcmp: { styles: string[] } }).ɵcmp.styles.join('');
+    expect(hojas).not.toContain('url(');
     expect(text(host)).toContain('último guardado');
     retry(host);
     expect(fullNavigation).toHaveBeenCalledWith('/portal/simulador');
