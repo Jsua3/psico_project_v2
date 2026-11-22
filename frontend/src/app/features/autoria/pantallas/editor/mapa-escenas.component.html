@@ -157,7 +157,7 @@
     }
   </div>
 
-  @if (caso().escenas.length > 1) {
+  @if (desborda()) {
     <app-minimapa class="minimapa" [mundo]="{ w: limites().ancho, h: limites().alto }" [tamNodo]="tamNodo" [nodos]="nodosMini()"
                   [ventana]="ventanaMundo()" (ir)="irA($event)" />
   }

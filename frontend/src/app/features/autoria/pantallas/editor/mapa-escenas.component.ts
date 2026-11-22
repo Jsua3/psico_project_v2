@@ -162,6 +162,11 @@ export class MapaEscenasComponent {
   protected readonly nodosMini = computed<NodoMini[]>(() =>
     this.caso().escenas.map((e) => ({ id: e.id, ...this.pos(e), elegida: e.id === this.elegida(), aviso: this.avisosDe(e.id).length > 0 })));
   protected readonly ventanaMundo = computed(() => ventana(this.camara(), this.tamMarco()));
+  /** El caso entero no se ve: solo entonces el minimapa ayuda a ubicarse (si todo cabe, sería ruido en una esquina). */
+  protected readonly desborda = computed(() => {
+    const { ancho, alto } = this.limites();
+    return this.tamMarco().w > 0 && !seVe(this.camara(), { x: 0, y: 0, w: ancho, h: alto }, this.tamMarco(), 0);
+  });
 
   /** El globo de una escena: su sala (con la miniatura solo si tiene fondo: nunca un `src` vacío) y dónde se dibuja. */
   protected readonly vistaEscena = computed(() => {

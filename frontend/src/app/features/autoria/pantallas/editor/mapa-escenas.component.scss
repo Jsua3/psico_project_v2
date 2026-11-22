@@ -192,3 +192,8 @@ hr { inline-size: 100%; border: 0; border-block-start: 1px solid var(--ds-border
   .flecha.de-elegida, .flecha.iluminada { stroke: Highlight; }
   .punta, .punta-elegida { fill: CanvasText; }
 }
+
+// En el teléfono no hay teclado ni cursor: sin separadores ni «Teclas del mapa», las herramientas caben en una fila.
+@media (max-width: 63.999rem) {
+  .separador, .teclas-ancla { display: none; }
+}

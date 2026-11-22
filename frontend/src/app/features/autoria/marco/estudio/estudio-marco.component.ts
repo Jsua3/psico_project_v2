@@ -110,7 +110,7 @@ const ATAJOS_GENERALES: GrupoAtajos[] = [
     .centro { display: flex; flex-direction: column; min-inline-size: 0; min-block-size: 0; }
     /* La pantalla de la ruta se desplaza sola dentro de esta caja (que no se desplaza): lo que flota encima, como el
        asistente de IA, se ancla aquí y no viaja con el contenido. */
-    .centro__contenido { position: relative; display: grid; grid-template-rows: minmax(0, 1fr); flex: 1; min-inline-size: 0; min-block-size: 0; }
+    .centro__contenido { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); flex: 1; min-inline-size: 0; min-block-size: 0; }
     .herramientas {
       display: flex; align-items: center; gap: 0.25rem; min-block-size: 2.75rem; padding: 0.25rem 0.5rem; overflow-x: auto;
       border-block-end: 1px solid var(--l-filo); background: var(--l-superficie);

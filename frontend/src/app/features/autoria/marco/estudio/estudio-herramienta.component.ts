@@ -71,6 +71,8 @@ export function atajoAria(atajo: string): string {
     }
     :host(:focus-visible) .est-globo { opacity: 1; translate: -50% 0; }
     :host([data-globo='fin']:focus-visible) .est-globo, :host([data-globo='inicio']:focus-visible) .est-globo { translate: 0 0; }
+    /* En pantallas táctiles o estrechas no hay cursor que pase por encima: el nombre lo da el lector y el globo sobra. */
+    @media (hover: none), (max-width: 63.999rem) { .est-globo { display: none; } }
     @media (prefers-reduced-motion: reduce) {
       :host, .est-globo { transition: none; }
     }

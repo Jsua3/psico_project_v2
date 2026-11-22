@@ -64,7 +64,7 @@ interface Actor { clave: string; nombre: string; x: number; y: number; fila: num
     .camara { margin: 0; overflow: hidden; border: 1px solid var(--l-filo); border-radius: var(--l-radio-tarjeta); background: var(--l-superficie); }
     /* Una franja oscura de lado a lado con el cuadro al centro: el visor de una cámara, no una foto suelta. */
     .camara__visor {
-      display: grid; place-items: center; padding: 0.75rem; background: var(--juego-escenario, var(--ds-text-1));
+      display: grid; grid-template-columns: minmax(0, 1fr); justify-items: center; padding: 0.75rem; background: var(--juego-escenario, var(--ds-text-1));
       background-image: radial-gradient(circle, color-mix(in oklab, var(--ds-surface-1) 10%, transparent) 1px, transparent 1.5px);
       background-size: 0.75rem 0.75rem;
     }
@@ -108,6 +108,8 @@ interface Actor { clave: string; nombre: string; x: number; y: number; fila: num
     .rec { inline-size: 0.5rem; block-size: 0.5rem; background: var(--ds-danger); box-shadow: 0 0 0 2px color-mix(in oklab, var(--ds-danger) 25%, transparent); }
     @keyframes aro-entra { from { opacity: 0; scale: 0.6; } }
     @keyframes globo-entra { from { opacity: 0; translate: -1rem calc(-100% + 0.25rem); } }
+    /* En el teléfono el pie dice solo qué cámara es: las cifras ya están en el Inspector. */
+    @media (max-width: 29.999rem) { .camara__dato { display: none; } }
     @media (prefers-reduced-motion: reduce) { .aro, .globo { animation: none; } }
   `,
 })

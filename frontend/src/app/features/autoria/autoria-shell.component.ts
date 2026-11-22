@@ -144,9 +144,7 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
           </div>
         } @else {
           @if (store.soloLectura()) {
-            <div class="pagina">
-              <p class="solo-lectura" role="note">{{ textoSoloLectura() }}</p>
-            </div>
+            <p class="solo-lectura" role="note">{{ textoSoloLectura() }}</p>
           }
           <!-- En un caso que ya no es un borrador, los campos de las pantallas se bloquean (la prueba como estudiante no cambia nada y sigue viva). -->
           <fieldset class="marco-pantalla" [disabled]="bloqueado()">
@@ -236,7 +234,16 @@ const MENU_CUENTA: UiMenuItem[] = [{ value: 'salir', label: 'Cerrar sesión', ic
 
     .zona-centro { inline-size: 100%; min-inline-size: 0; outline: none; }
     .marco-pantalla { border: 0; margin: 0; padding: 0; min-inline-size: 0; }
-    .solo-lectura { margin: 0; padding: 0.625rem 0.75rem; border-radius: var(--radio-control); background: var(--primario-tinte); font-weight: 700; }
+    /* Aviso de solo lectura: un aviso de verdad (filo, icono de candado en píxeles y texto), igual en claro y en oscuro. */
+    .solo-lectura {
+      display: flex; align-items: center; gap: 0.625rem; margin: 0.75rem 1rem 0; padding: 0.5rem 0.875rem;
+      border: 1px solid var(--l-tinte-filo); border-radius: var(--l-radio-control); background: var(--l-tinte); color: var(--ds-text-1);
+      font-size: var(--autoria-texto-14); font-weight: 700;
+    }
+    .solo-lectura::before {
+      content: ''; flex: none; inline-size: 0.875rem; block-size: 0.75rem; margin-block-start: 0.25rem; border-radius: 0.125rem;
+      background: var(--ds-primary); box-shadow: 0 -0.375rem 0 -0.125rem var(--l-tinte), 0 -0.375rem 0 0 var(--ds-primary);
+    }
 
     /* Explorador de Historia: dos pestañas con un indicador que viaja de una a otra (no salta). */
     .explorador { display: grid; grid-template-rows: auto minmax(0, 1fr); min-block-size: 0; }
