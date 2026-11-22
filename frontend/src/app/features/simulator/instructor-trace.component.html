@@ -52,7 +52,7 @@
                   <strong>{{ clean(attempt.studentAlias, 'Estudiante') }}</strong>
                   <ui-badge [tone]="statusTone(attempt.status)">{{ statusLabel(attempt.status) }}</ui-badge>
                 </span>
-                <span class="tr-attempt__case">{{ clean(attempt.caseTitle, 'Caso sin título') }}</span>
+                <span class="tr-attempt__case">{{ clean(attempt.caseTitle, 'Caso sin título') }}@if (numeroIntento()[attempt.attemptId]; as numero) { · {{ numero }}}</span>
                 <span class="tr-attempt__meta">{{ cuando(attempt) }}</span>
               </button>
             </li>

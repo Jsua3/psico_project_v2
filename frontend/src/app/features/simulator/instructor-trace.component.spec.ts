@@ -529,6 +529,14 @@ describe('traza del docente en el sistema de la biblioteca (F7-4)', () => {
       expect(text(systemSection())).not.toContain('se mostrará cuando registres');
     });
 
+    it('dos intentos de la misma persona en el mismo caso se distinguen por su número', async () => {
+      await render({ recent: () => of([
+        attempt('a-2', { studentAlias: 'Misma', startedAt: '2026-10-11T10:00:00Z' }), attempt('a-1', { studentAlias: 'Misma' }), attempt('a-3', { studentAlias: 'Otra' }),
+      ].map(item => ({ ...item, caseTitle: 'Mismo caso' }))) });
+      expect(fixture.componentInstance.numeroIntento()).toEqual({ 'a-1': 'Intento 1 de 2', 'a-2': 'Intento 2 de 2' });
+      expect(text(host().querySelector('.tr-attempt__case'))).toContain('Intento 2 de 2');
+    });
+
     it('al entregar, el intento deja de contar «Por revisar» y «Siguiente» no vuelve a él (dos entregas seguidas)', async () => {
       await render({ recent: () => of([
         attempt('a-1', { evaluationStatus: 'PENDIENTE' }), attempt('a-2', { evaluationStatus: 'PENDIENTE' }),

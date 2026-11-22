@@ -405,6 +405,23 @@ export class InstructorTraceComponent implements OnInit, CanLeave {
   }
 
   /** Por revisar: con BK-3, la valoración pendiente; sin él, cualquier intento terminado (se dice con una nota). */
+  /**
+   * Varios intentos de la misma persona en el mismo caso eran filas idénticas en la bandeja: cada uno dice cuál es
+   * («Intento 2 de 3», por fecha de inicio). Con uno solo, nada (pasada final).
+   */
+  readonly numeroIntento = computed(() => {
+    const grupos = new Map<string, string[]>();
+    for (const item of [...this.attempts()].sort((a, b) => (a.startedAt ?? '').localeCompare(b.startedAt ?? ''))) {
+      const clave = `${item.studentAlias}|${item.caseVersionId ?? item.caseTitle}`;
+      grupos.set(clave, [...(grupos.get(clave) ?? []), item.attemptId]);
+    }
+    const numeros: Record<string, string> = {};
+    for (const ids of grupos.values()) {
+      if (ids.length > 1) ids.forEach((id, i) => (numeros[id] = `Intento ${i + 1} de ${ids.length}`));
+    }
+    return numeros;
+  });
+
   porRevisar(attempt: RecentAttempt): boolean {
     if (attempt.evaluationStatus) return attempt.evaluationStatus === 'PENDIENTE';
     return (attempt.status ?? '').toUpperCase() === 'COMPLETED';
