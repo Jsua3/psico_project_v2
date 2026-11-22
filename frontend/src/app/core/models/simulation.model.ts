@@ -243,7 +243,7 @@ export interface AttemptCompletionReport {
 }
 
 /** Una decisión que sostiene el nivel de una competencia (reporte v3, `competencyLevels[].evidence[]`). */
-export interface CompetencyEvidence {
+export interface CompetencyEvidenceDecision {
   order: number;
   nodeTitle: string;
   optionText: string;
@@ -258,7 +258,7 @@ export interface CompetencyLevelEntry {
   level: FormativeLevel | null;
   /** Con qué se calculó el nivel, en palabras; nulo si ninguna decisión tocó la competencia. */
   basis: string | null;
-  evidence: CompetencyEvidence[];
+  evidence: CompetencyEvidenceDecision[];
 }
 
 /**

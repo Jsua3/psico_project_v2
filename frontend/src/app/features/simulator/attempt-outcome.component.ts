@@ -93,7 +93,14 @@ import { RECONSIDERED_LABEL, reconsideredChip } from './reconsidered.util';
               <button type="button" class="oc-btn oc-btn--go" (click)="retry.emit()">Iniciar un nuevo intento</button>
               <a class="oc-btn oc-btn--line" routerLink="/portal/simulador">Volver al catálogo</a>
             } @else {
-              <button type="button" class="oc-btn oc-btn--go" (click)="retry.emit()">Reintentar caso</button>
+              @if (cierreLink(); as cierre) {
+                <!-- Etapa 1 del cierre (DISENO §4.5): el análisis largo vive en la página del portal. La transición de salida
+                     (el mundo se funde y llega la página) la decide el router por la ruta; el estado lleva el título al encabezado. -->
+                <a class="oc-btn oc-btn--go" [routerLink]="cierre" [state]="{ umbral: { titulo: report()?.caseTitle ?? '' } }">Ver tu recorrido</a>
+                <button type="button" class="oc-btn oc-btn--line" (click)="retry.emit()">Reintentar caso</button>
+              } @else {
+                <button type="button" class="oc-btn oc-btn--go" (click)="retry.emit()">Reintentar caso</button>
+              }
               <a class="oc-btn oc-btn--line" routerLink="/portal/simulador">Volver al simulador</a>
             }
             @if (mode() !== 'rehearsal') {
@@ -583,6 +590,12 @@ export class AttemptOutcomeComponent {
    * petición. Con el id, `decisionReview` sale del reporte congelado, no de la respuesta de la última decisión.
    */
   readonly reviewAttemptId = input<string | null>(null);
+  /** La página de cierre de este intento (solo al completar un caso del estudiante); nulo si falta alguno de los dos ids. */
+  protected readonly cierreLink = computed<string[] | null>(() => {
+    const intento = this.reviewAttemptId();
+    const caso = this.caseVersionId();
+    return intento && caso !== null ? ['/portal/simulador', String(caso), 'cierre', intento] : null;
+  });
   /**
    * Autoevaluación breve (R-6): abierta hasta que la persona pulsa «Listo» u «Omitir»; después se recoge.
    * Solo vive en este componente: no se envía al servidor ni se guarda (se pierde al cerrar la pantalla).
