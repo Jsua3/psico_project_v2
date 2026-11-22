@@ -42,27 +42,28 @@
         @for (caseGroup of caseGroups(); track caseGroup.id) {
         <ui-card class="re-case-card">
           <h3>{{ caseGroup.title }}</h3>
+          <p class="re-status">{{ caseStatus(caseGroup.attempts) }}</p>
         <ui-table label="Intentos del estudiante" density="compact" apilar>
           <table ui-table>
             <thead>
               <tr>
-                <th scope="col">Caso</th>
                 <th scope="col" class="re-num">Intento</th>
                 <th scope="col">Estado</th>
                 <th scope="col">Inicio</th>
                 <th scope="col" class="re-num">Tiempo activo</th>
-                <th scope="col" class="re-num">Tiempo de reloj</th>
               </tr>
             </thead>
             <tbody>
               @for (item of caseGroup.attempts; track item.attemptId) {
                 <tr uiRow>
-                  <th scope="row" class="re-case">{{ item.caseTitle }}</th>
-                  <td class="re-num">{{ item.ordinal }}</td>
+                  <th scope="row" class="re-num">{{ item.ordinal }}</th>
                   <td class="re-nowrap"><ui-badge [tone]="tone(item.status)">{{ label(item.status) }}</ui-badge></td>
                   <td class="re-nowrap">{{ start(item.startedAt) }}</td>
-                  <td class="re-num">{{ item.activeSeconds === 0 ? 'Sin actividad registrada' : duration(item.activeSeconds) }}</td>
-                  <td class="re-num">{{ duration(item.clockSeconds) }}</td>
+                  <td class="re-num">
+                    {{ item.activeSeconds === 0 ? 'Sin actividad registrada' : duration(item.activeSeconds) }}
+                    <span class="re-clock" tabindex="0" role="note" [attr.aria-label]="clockText(item.clockSeconds)"
+                      [uiTooltip]="clockText(item.clockSeconds)">Reloj</span>
+                  </td>
                 </tr>
               }
             </tbody>

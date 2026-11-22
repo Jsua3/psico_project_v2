@@ -435,9 +435,19 @@ describe('pantalla Reportes (F7-3)', () => {
         await fixture.whenStable();
         fixture.detectChanges();
         const chart = host().querySelector('ui-barras');
-        expect(text(chart)).toContain('62,5 de 100');
-        expect(text(chart)).toContain('30 de 100');
+        // Es un porcentaje, no un conteo de personas: nunca «de 100».
+        expect(text(chart)).toContain('62,5 %');
+        expect(text(chart)).toContain('30 %');
+        expect(text(chart)).not.toContain('de 100');
+        expect(text(chart?.querySelector('.ui-barras__descripcion'))).toContain('El paso menos logrado es «Proteger», con 30 %.');
         expect(chart?.querySelector('.ui-barras__tinta--rayas')).not.toBeNull();
+      });
+
+      it('la descripción del gráfico de decisiones dice qué predomina y cuántas piden atención', async () => {
+        await withReport();
+        const description = text(host().querySelector('ui-barras.ui-barras--apilada .ui-barras__descripcion'));
+        expect(description).toMatch(/Predomina «[^»]+» con \d+\.|Empatan/);
+        expect(description).toMatch(/Piden atención \d+|Ninguna decisión es de riesgo/);
       });
 
       it('una tabla equivalente trae los mismos hitos con su cobertura en palabras y el porcentaje (o un guion)', async () => {

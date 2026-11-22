@@ -22,7 +22,8 @@ import { errorKindFromStatus, uiDataState } from '../../shared/ui/state/ui-data-
 import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
-import { attemptTone, coverageLabel, formatDuration, formatStart } from './reporte-estudiante.util';
+import { UiTooltip } from '../../shared/ui/tooltip/ui-tooltip';
+import { attemptTone, caseStatusText, coverageLabel, formatDuration, formatStart } from './reporte-estudiante.util';
 
 /** Cuántos intentos más trae «Ver más intentos»; el servidor da 50 por defecto y 200 como máximo por consulta. */
 const PAGE_SIZE = 50;
@@ -47,7 +48,7 @@ function positiveInt(value: string | null | undefined): number | null {
   selector: 'app-reporte-estudiante',
   imports: [
     RouterLink, UiBadge, UiButton, UiCard, UiEmptyState, UiErrorState, UiLink, UiPageActions, UiPageHeader, UiSection, UiSkeleton,
-    UiTable, UiTableRow, UiTableTable,
+    UiTable, UiTableRow, UiTableTable, UiTooltip,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './reporte-estudiante.component.html',
@@ -151,6 +152,16 @@ export class ReporteEstudianteComponent implements OnInit {
 
   protected label(status: string): string {
     return statusLabel(status);
+  }
+
+  /** Cómo va el caso, en palabras, antes de la tabla de sus intentos. */
+  protected caseStatus(attempts: readonly { ordinal: number; status: string }[]): string {
+    return caseStatusText(attempts);
+  }
+
+  /** El tiempo de reloj, auxiliar del tiempo activo: se dice completo, también cuando falta el dato. */
+  protected clockText(seconds: number | null): string {
+    return seconds === null || seconds === undefined ? 'Tiempo de reloj: sin dato' : `Tiempo de reloj: ${formatDuration(seconds)}`;
   }
 
   protected tone(status: string) {

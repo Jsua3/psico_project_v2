@@ -122,8 +122,8 @@
               </ul>
 
               @if (barrasHitos(sim).length) {
-                <ui-barras [datos]="barrasHitos(sim)" [total]="100" modo="lista"
-                  descripcion="Cada barra es el porcentaje del grupo que cumplió ese paso (de 100). Los pasos sin porcentaje disponible no aparecen en el gráfico." />
+                <ui-barras [datos]="barrasHitos(sim)" [total]="100" unidad="porcentaje" modo="lista"
+                  [descripcion]="descripcionHitos(sim)" />
               }
 
               <details class="rg-hitos-tabla">
@@ -157,7 +157,7 @@
           <ui-section title="¿Qué decisiones confunden al grupo?" [level]="3">
             @if (totalDecisiones(sim) > 0) {
               <ui-barras modo="apilada" [datos]="barrasDecisiones(sim)" [total]="totalDecisiones(sim)"
-                [descripcion]="'Reparto de ' + totalDecisiones(sim) + ' decisiones registradas en este corte.'" />
+                [descripcion]="descripcionDecisiones(sim)" />
             } @else {
               <p class="rg-hint">Aún no hay decisiones registradas en este corte.</p>
             }

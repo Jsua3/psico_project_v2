@@ -31,6 +31,7 @@ export interface UiBarrasFila {
 }
 
 const numero = new Intl.NumberFormat('es-CO');
+const decimal = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 1 });
 
 /**
  * La cantidad dicha con su denominador cuando lo hay: «3 de 9». Nunca un porcentaje suelto: con grupos de 9 a 30
@@ -42,7 +43,9 @@ export function textoCantidad(valor: number, total: number | null | undefined): 
 }
 
 /** Filas listas para pintar: tono y patrón resueltos, valores negativos o no numéricos a 0 y la proporción acotada. */
-export function filasDeBarras(datos: readonly UiBarrasDato[], modo: 'lista' | 'apilada', total: number | null): UiBarrasFila[] {
+export function filasDeBarras(
+  datos: readonly UiBarrasDato[], modo: 'lista' | 'apilada', total: number | null, unidad: 'cantidad' | 'porcentaje' = 'cantidad',
+): UiBarrasFila[] {
   const limpios = datos.map(dato => ({ ...dato, valor: Number.isFinite(dato.valor) ? Math.max(0, dato.valor) : 0 }));
   const suma = limpios.reduce((acumulado, dato) => acumulado + dato.valor, 0);
   const maximo = Math.max(0, ...limpios.map(dato => dato.valor));
@@ -56,7 +59,7 @@ export function filasDeBarras(datos: readonly UiBarrasDato[], modo: 'lista' | 'a
       tono,
       patron: dato.patron ?? PATRON_POR_TONO[tono],
       ratio: base > 0 ? Math.min(1, dato.valor / base) : 0,
-      texto: textoCantidad(dato.valor, total),
+      texto: unidad === 'porcentaje' ? `${decimal.format(dato.valor)} %` : textoCantidad(dato.valor, total),
     };
   });
 }
@@ -130,10 +133,15 @@ export class UiBarras {
   readonly modo = input<'lista' | 'apilada'>('lista');
   /** El denominador común (estudiantes del grupo, criterios de la rúbrica). Con él, cada cantidad se escribe «N de total». */
   readonly total = input<number | null>(null);
+  /**
+   * `porcentaje`: los valores ya son porcentajes (0 a 100) y se escriben «62,5 %», sin «de 100», que no es un número de
+   * personas. Con `total` en 100 las barras se miden contra la escala completa.
+   */
+  readonly unidad = input<'cantidad' | 'porcentaje'>('cantidad');
   /** Encabezado de la primera columna de la tabla para lectores de pantalla. */
   readonly etiquetaColumna = input('Categoría');
 
-  readonly filas = computed(() => filasDeBarras(this.datos(), this.modo(), this.total()));
+  readonly filas = computed(() => filasDeBarras(this.datos(), this.modo(), this.total(), this.unidad()));
 
   /** Tono y patrón de una barra o de su muestra en la leyenda (las clases fijas del elemento se conservan). */
   protected tinta(fila: UiBarrasFila): string {

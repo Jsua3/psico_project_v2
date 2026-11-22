@@ -1,6 +1,6 @@
 import { CoberturaReporte } from '../../core/models/sesion.model';
 import { UiBadgeTone } from '../../shared/ui/badge/ui-badge';
-import { plural } from '../../shared/ui/labels';
+import { plural, statusLabel } from '../../shared/ui/labels';
 
 /** «45 s», «10 min», «2 h 5 min»; `—` cuando no hay dato (un intento abierto no tiene tiempo de reloj). */
 export function formatDuration(seconds: number | null | undefined): string {
@@ -35,4 +35,19 @@ export function attemptTone(status: string): UiBadgeTone {
     case 'PAUSED': return 'warning';
     default: return 'neutral';
   }
+}
+
+/** Lo mínimo de un intento que hace falta para decir cómo va el caso. */
+export interface IntentoParaEstado { ordinal: number; status: string }
+
+/**
+ * El estado del caso en palabras, a partir de sus intentos: el del intento más reciente (el de mayor número) y cuántos
+ * se han terminado. «Finalizado» es el texto de `statusLabel`; no se inventa un estado que el servidor no dio.
+ */
+export function caseStatusText(attempts: readonly IntentoParaEstado[]): string {
+  if (!attempts.length) return 'Sin intentos en este corte.';
+  const latest = attempts.reduce((best, item) => (item.ordinal > best.ordinal ? item : best));
+  const done = attempts.filter(item => (item.status ?? '').toUpperCase() === 'COMPLETED').length;
+  const finished = done === 0 ? 'ninguno finalizado' : `${done} ${done === 1 ? 'finalizado' : 'finalizados'}`;
+  return `Último intento: ${statusLabel(latest.status).toLowerCase()}. ${plural(attempts.length, 'intento')} en este corte, ${finished}.`;
 }

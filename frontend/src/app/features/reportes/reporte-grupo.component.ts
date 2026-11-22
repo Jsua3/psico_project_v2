@@ -237,6 +237,37 @@ export class ReporteGrupoComponent {
     ];
   }
 
+  /**
+   * La lectura del gráfico de hitos en palabras: el paso menos logrado (con empates) y por qué no hay «de N». El servidor
+   * da solo el porcentaje (y lo oculta en grupos de menos de 20), no cuántas personas lo cumplieron.
+   */
+  descripcionHitos(sim: ReporteSimulacionGrupo): string {
+    const filas = this.barrasHitos(sim);
+    const base = 'Cada barra es el porcentaje del grupo que cumplió ese paso. El servidor no informa cuántas personas son. Los pasos sin porcentaje disponible no aparecen.';
+    if (!filas.length) return base;
+    const minimo = Math.min(...filas.map(fila => fila.valor));
+    const menos = filas.filter(fila => fila.valor === minimo).map(fila => `«${fila.etiqueta}»`);
+    const lectura = menos.length === 1
+      ? `El paso menos logrado es ${menos[0]}, con ${this.porcentaje(minimo)} %.`
+      : `Los pasos menos logrados, empatados con ${this.porcentaje(minimo)} %, son ${menos.join(', ')}.`;
+    return `${base} ${lectura}`;
+  }
+
+  /** La lectura del reparto de decisiones: qué clase predomina (con empates) y cuántas decisiones piden atención. */
+  descripcionDecisiones(sim: ReporteSimulacionGrupo): string {
+    const filas = this.barrasDecisiones(sim);
+    const total = this.totalDecisiones(sim);
+    const maximo = Math.max(...filas.map(fila => fila.valor));
+    const mayores = filas.filter(fila => fila.valor === maximo).map(fila => `«${fila.etiqueta}»`);
+    const predomina = mayores.length === 1 ? `Predomina ${mayores[0]} con ${maximo}.` : `Empatan ${mayores.join(' y ')} con ${maximo} cada una.`;
+    const valor = (etiqueta: string) => filas.find(fila => fila.etiqueta === etiqueta)?.valor ?? 0;
+    const atencion = valor('Con riesgo') + valor('Contraindicadas');
+    const piden = atencion === 0
+      ? 'Ninguna decisión es de riesgo ni contraindicada.'
+      : `Piden atención ${atencion} (${valor('Con riesgo')} con riesgo y ${valor('Contraindicadas')} contraindicadas).`;
+    return `Reparto de ${total} decisiones registradas en este corte. ${predomina} ${piden}`;
+  }
+
   totalDecisiones(sim: ReporteSimulacionGrupo): number {
     return this.barrasDecisiones(sim).reduce((total, fila) => total + fila.valor, 0);
   }
