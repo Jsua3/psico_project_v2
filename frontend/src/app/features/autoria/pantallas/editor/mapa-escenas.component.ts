@@ -6,14 +6,14 @@ import {
 
 import { esCampoDeTexto } from '../../marco/estudio/atajos';
 import { EstudioHerramientaComponent } from '../../marco/estudio/estudio-herramienta.component';
-import { EstudioRanuraDirective } from '../../marco/estudio/estudio.service';
+import { EstudioRanuraDirective, injectComandos } from '../../marco/estudio/estudio.service';
 import { rutaArte } from '../../modelo/biblioteca.service';
 import { NOMBRE_AVISO, type Aviso } from '../../modelo/caminos';
 import type { CasoBorrador, Escena } from '../../modelo/caso';
 import { escenasEnOrden } from '../../modelo/progreso';
 import { NOMBRE_INTENSIDAD, plural } from '../../modelo/textos';
 import { ALTO_ESCENA, ANCHO_ESCENA } from '../../modelo/trazado';
-import { type Camara, type Punto, centrarEn, encuadrarLegible, seVe, ventana, zoomEn } from './camara';
+import { type Camara, type Punto, centrarEn, encuadrar, encuadrarLegible, seVe, ventana, zoomEn } from './camara';
 import { caminoIluminado } from './iluminar';
 import { MinimapaComponent, type NodoMini } from './minimapa.component';
 import { type Flecha, trazo } from './trazo-flecha';
@@ -47,7 +47,7 @@ const PASOS_ZOOM = [0.3, 0.4, 0.5, 0.6, 0.75, 0.9, 1, 1.25, 1.5, 2];
  * salidas; no conoce el store. Su cámara (`camara.ts`) es un valor inmutable en una señal.
  *
  * - Cámara: Ctrl+rueda (o pellizco) acerca en el cursor; la rueda mueve; arrastrar el fondo, Espacio+arrastrar o el botón
- *   central mueven; «Ver todo» (F) encuadra con una cámara suave. Al abrirse, se ve el caso entero.
+ *   central mueven; «Ver todo» (F) encuadra con una cámara suave. Al abrirse, se centra el inicio con escala legible.
  * - Al pasar por una escena se ilumina el camino desde el inicio hasta ella y lo que sale de ella; lo demás se aparta.
  * - Minimapa en la esquina con la ventana visible; pulsarlo lleva la cámara ahí.
  * - Sus herramientas van a la barra del estudio (ranura `herramientas`); sin estudio, se pintan aquí.
@@ -198,6 +198,10 @@ export class MapaEscenasComponent {
   });
 
   constructor() {
+    injectComandos(() => [
+      { id: 'mapa:todo', grupo: 'Caminos', titulo: 'Ver todo el mapa', atajo: 'F', ejecutar: () => this.verTodo() },
+      { id: 'mapa:inicio', grupo: 'Caminos', titulo: 'Volver al inicio', ejecutar: () => this.volverAlInicio() },
+    ]);
     // La primera escena elegida (el inicio, al entrar) solo se marca; las siguientes («Llévame ahí») llevan el foco.
     let primera = true;
     effect(() => {
@@ -429,8 +433,14 @@ export class MapaEscenasComponent {
 
   /** «Ver todo el mapa» (F): el caso entero, sin pasar del 100 % ni bajar de la escala legible, con una cámara suave. */
   verTodo(): void {
+    this.camaraManual = true;
+    this.mover(encuadrar({ w: this.limites().ancho, h: this.limites().alto }, this.tamMarco()), true);
+  }
+
+  /** Recupera el encuadre legible del comienzo de la historia. */
+  volverAlInicio(): void {
     this.camaraManual = false;
-    this.mover(this.encuadreLegible(ZOOM_VER_TODO), true);
+    this.mover(this.encuadreLegible(ZOOM_AL_ABRIR), true);
   }
 
   /** El encuadre con un mínimo de escala, anclado en la escena de inicio (o en la primera) si el caso no cabe. */

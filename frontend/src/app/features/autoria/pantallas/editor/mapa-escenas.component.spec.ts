@@ -1,3 +1,4 @@
+import { type WritableSignal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
 import { universidad } from '../../testing/universidad';
@@ -26,6 +27,37 @@ const menuitems = () => [...document.querySelectorAll<HTMLElement>('[role="menui
 
 describe('MapaEscenasComponent', () => {
   afterEach(() => document.querySelectorAll('.cdk-overlay-container').forEach((o) => (o.innerHTML = '')));
+
+  // req: EDITOR-PRO punto 3 y 4: encuadre completo y regreso legible al inicio.
+  it('F y el bot?n encuadran todo; Volver al inicio recupera el encuadre legible', async () => {
+    const { fixture, caso, raiz } = await montar();
+    fixture.componentRef.setInput('caso', { ...caso, inicioId: caso.escenas[1].id, escenas: [
+      { ...caso.escenas[0], posicion: { x: 0, y: 0 } },
+      { ...caso.escenas[1], posicion: { x: 9000, y: 0 } },
+    ] });
+    await fixture.whenStable();
+    const estado = fixture.componentInstance as unknown as {
+      tamMarco: WritableSignal<{ w: number; h: number }>;
+      camara: WritableSignal<{ x: number; y: number; z: number }>;
+      limites: () => { ancho: number; alto: number };
+    };
+    estado.tamMarco.set({ w: 800, h: 600 });
+    const comprobarTodo = () => {
+      const c = estado.camara(), l = estado.limites();
+      expect(c.z).toBeLessThan(0.3);
+      expect(c.x).toBeGreaterThanOrEqual(16);
+      expect(c.x + l.ancho * c.z).toBeLessThanOrEqual(784);
+      expect(c.y).toBeGreaterThanOrEqual(16);
+      expect(c.y + l.alto * c.z).toBeLessThanOrEqual(584);
+    };
+    raiz.querySelector<HTMLButtonElement>('[aria-label="Ver todo el mapa"]')!.click();
+    comprobarTodo();
+    raiz.querySelector<HTMLButtonElement>('[aria-label="Volver al inicio"]')!.click();
+    expect(estado.camara().z).toBe(0.75);
+    expect(estado.camara().x).toBeLessThan(-5000);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', bubbles: true }));
+    comprobarTodo();
+  });
 
   it('pasar el cursor por una escena muestra la miniatura de su sala', async () => {
     const { fixture, raiz } = await montar();

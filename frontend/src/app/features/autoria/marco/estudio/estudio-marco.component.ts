@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, TemplateRef, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, TemplateRef, afterNextRender, computed, inject, input } from '@angular/core';
 
 import { type GrupoAtajos, esCampoDeTexto } from './atajos';
 import { EstudioAtajosComponent } from './estudio-atajos.component';
@@ -8,7 +8,7 @@ import { EstudioDivisorComponent } from './estudio-divisor.component';
 import { EstudioHerramientaComponent } from './estudio-herramienta.component';
 import { EstudioPaletaComponent } from './estudio-paleta.component';
 import { EstudioPanelComponent } from './estudio-panel.component';
-import { ANCHO_PANEL, EstudioService } from './estudio.service';
+import { ANCHO_PANEL, EstudioService, type Panel } from './estudio.service';
 
 /** Los atajos de todo el editor (la hoja «?» suma después los de la pantalla abierta, sacados de sus comandos). */
 const ATAJOS_GENERALES: GrupoAtajos[] = [
@@ -55,7 +55,7 @@ const ATAJOS_GENERALES: GrupoAtajos[] = [
     <!-- Oculto (\ o «Ocultar») el panel sigue vivo: las escenas conservan sus atajos (Alt+M, Alt+↓) y su desplazamiento. -->
     @if (exploradorDisponible()) {
       <app-estudio-panel class="panel panel--explorador" [titulo]="nombreExplorador()" lado="inicio" atajoOcultar="\\" [lleno]="true"
-                         [hidden]="!estudio.verExplorador()" (ocultar)="estudio.alternar('explorador', false)">
+                         [hidden]="!estudio.verExplorador()" (ocultar)="alternarPanel('explorador', false)">
         <ng-container [ngTemplateOutlet]="explorador()" />
       </app-estudio-panel>
       <app-estudio-divisor class="divisor divisor--explorador" etiqueta="Ancho del explorador" [valor]="estudio.anchoExplorador()"
@@ -63,8 +63,8 @@ const ATAJOS_GENERALES: GrupoAtajos[] = [
                            (cambio)="estudio.fijarAncho('explorador', $event)" (restablecer)="estudio.restablecerAncho('explorador')" />
     }
     <nav class="paneles-movil" aria-label="Paneles del editor">
-      @if (exploradorDisponible()) { <button type="button" (click)="estudio.alternar('explorador')" [attr.aria-pressed]="estudio.verExplorador()">Explorador</button> }
-      @if (inspectorDisponible()) { <button type="button" (click)="estudio.alternar('inspector')" [attr.aria-pressed]="estudio.verInspector()">Inspector</button> }
+      @if (exploradorDisponible()) { <button type="button" data-panel-control="explorador" (click)="alternarPanel('explorador')" [attr.aria-pressed]="estudio.verExplorador()">Explorador</button> }
+      @if (inspectorDisponible()) { <button type="button" data-panel-control="inspector" (click)="alternarPanel('inspector')" [attr.aria-pressed]="estudio.verInspector()">Inspector</button> }
     </nav>
     <div class="centro">
       @if (estudio.ranura('herramientas'); as herramientas) {
@@ -77,7 +77,7 @@ const ATAJOS_GENERALES: GrupoAtajos[] = [
                            [min]="limites.inspector.min" [max]="limites.inspector.max"
                            (cambio)="estudio.fijarAncho('inspector', $event)" (restablecer)="estudio.restablecerAncho('inspector')" />
       <app-estudio-panel class="panel panel--inspector" titulo="Inspector" lado="fin" atajoOcultar="\\"
-                         (ocultar)="estudio.alternar('inspector', false)">
+                         (ocultar)="alternarPanel('inspector', false)">
         <ng-container [ngTemplateOutlet]="estudio.ranura('inspector')" />
       </app-estudio-panel>
     }
@@ -86,12 +86,12 @@ const ATAJOS_GENERALES: GrupoAtajos[] = [
       <ng-container ngProjectAs="[estudioEstadoInicio]"><ng-content select="[estudioEstadoInicio]" /></ng-container>
       @if (estudio.ranura('estado'); as estado) { <ng-container [ngTemplateOutlet]="estado" /> }
       @if (exploradorDisponible()) {
-        <button type="button" estudioHerramienta="Explorador" globo="arriba" [activa]="estudio.verExplorador()" (click)="estudio.alternar('explorador')">
+        <button type="button" estudioHerramienta="Explorador" globo="arriba" [activa]="estudio.verExplorador()" data-panel-control="explorador" (click)="alternarPanel('explorador')">
           <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2" /><path d="M7.5 4v12" /></svg>
         </button>
       }
       @if (inspectorDisponible()) {
-        <button type="button" estudioHerramienta="Inspector" globo="arriba" [activa]="estudio.verInspector()" (click)="estudio.alternar('inspector')">
+        <button type="button" estudioHerramienta="Inspector" globo="arriba" [activa]="estudio.verInspector()" data-panel-control="inspector" (click)="alternarPanel('inspector')">
           <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2" /><path d="M12.5 4v12" /></svg>
         </button>
       }
@@ -181,7 +181,23 @@ export class EstudioMarcoComponent {
     return [...ATAJOS_GENERALES, ...propios.values()];
   });
 
+  private readonly raiz = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+  private readonly injector = inject(Injector);
   private origen: HTMLElement | null = null;
+
+  /** El control visible recupera el foco al cerrar; al abrir, entra en la cabecera del panel. */
+  protected alternarPanel(panel: Panel, ver = !this.estudio.ver(panel)): void {
+    this.estudio.alternar(panel, ver);
+    if (!ver) {
+      const escritorio = window.matchMedia?.('(min-width: 64rem)').matches ?? window.innerWidth >= 1024;
+      const zona = escritorio ? '.estado' : '.paneles-movil';
+      this.raiz.querySelector<HTMLButtonElement>(`${zona} [data-panel-control="${panel}"]`)?.focus();
+      return;
+    }
+    afterNextRender(() => {
+      if (this.estudio.ver(panel)) this.raiz.querySelector<HTMLButtonElement>(`.panel--${panel} .cab button`)?.focus();
+    }, { injector: this.injector });
+  }
 
   /**
    * Ctrl+K siempre (también desde un campo: es lo esperable en un editor). «?» y «\» solo fuera de los campos, sin

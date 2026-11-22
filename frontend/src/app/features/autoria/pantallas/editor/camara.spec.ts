@@ -25,6 +25,16 @@ describe('Caminos · la cámara del lienzo', () => {
     expect(encuadrarLegible({ w: 400, h: 200 }, { w: 1000, h: 600 }, { x: 0, y: 0 }, 0.75)).toEqual(encuadrar({ w: 400, h: 200 }, { w: 1000, h: 600 }));
   });
 
+  it('centra el inicio lejos de la izquierda y acota ambos extremos', () => {
+    const mundo = { w: 3000, h: 1000 }, vista = { w: 800, h: 600 };
+    const centro = encuadrarLegible(mundo, vista, { x: 1800, y: 500 }, 0.75);
+    expect(centro.x + 1800 * centro.z).toBe(400);
+    expect(encuadrarLegible(mundo, vista, { x: 2990, y: 500 }, 0.75).x).toBe(800 - 24 - 3000 * 0.75);
+    const todo = encuadrar({ w: 10000, h: 1000 }, vista);
+    expect(todo.z).toBeLessThan(0.3);
+    expect(seVe(todo, { x: 0, y: 0, w: 10000, h: 1000 }, vista)).toBe(true);
+  });
+
   it('acercar con el cursor deja quieto el punto que está bajo el cursor', () => {
     const c = { x: 10, y: 20, z: 1 };
     const ancla = { x: 300, y: 200 };

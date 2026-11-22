@@ -23,6 +23,9 @@
   <button type="button" estudioHerramienta="Ver todo el mapa" atajo="F" (click)="verTodo()">
     <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7V3h4M17 7V3h-4M3 13v4h4M17 13v4h-4" /><rect x="7" y="7.5" width="6" height="5" rx="1" /></svg>
   </button>
+  <button type="button" estudioHerramienta="Volver al inicio" (click)="volverAlInicio()">
+    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10 10 4l7 6M5 9v7h10V9M8 16v-4h4v4" /></svg>
+  </button>
   <span class="separador" aria-hidden="true"></span>
   <div class="teclas-ancla">
     <button type="button" estudioHerramienta="Teclas del mapa" aria-controls="mapa-ayuda" [attr.aria-expanded]="tecladoAbierto()"

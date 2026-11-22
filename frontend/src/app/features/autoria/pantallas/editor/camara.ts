@@ -19,7 +19,8 @@ export function acotarZoom(z: number): number {
 /** «Ver todo»: la escala con la que cabe el mundo con aire alrededor (sin agigantar un caso corto: tope 1) y centrado. */
 export function encuadrar(mundo: Tam, vista: Tam, aire = 48, tope = 1): Camara {
   if (!vista.w || !vista.h) return { x: 0, y: 0, z: 1 };
-  const z = acotarZoom(Math.min(tope, (vista.w - aire) / mundo.w, (vista.h - aire) / mundo.h));
+  const margen = Math.min(aire, vista.w / 2, vista.h / 2);
+  const z = Math.min(tope, (vista.w - margen) / mundo.w, (vista.h - margen) / mundo.h);
   return { x: Math.round((vista.w - mundo.w * z) / 2), y: Math.round((vista.h - mundo.h * z) / 2), z };
 }
 
@@ -32,7 +33,9 @@ export function encuadrarLegible(mundo: Tam, vista: Tam, ancla: Punto, minimo: n
   const todo = encuadrar(mundo, vista, aire);
   if (todo.z >= minimo || !vista.w || !vista.h) return todo;
   const z = minimo, borde = aire / 2;
-  const x = mundo.w * z <= vista.w - aire ? Math.round((vista.w - mundo.w * z) / 2) : borde;
+  const x = mundo.w * z <= vista.w - aire
+    ? Math.round((vista.w - mundo.w * z) / 2)
+    : Math.round(Math.min(borde, Math.max(vista.w - borde - mundo.w * z, vista.w / 2 - ancla.x * z)));
   const y = mundo.h * z <= vista.h - aire
     ? Math.round((vista.h - mundo.h * z) / 2)
     : Math.round(Math.min(borde, Math.max(vista.h - borde - mundo.h * z, vista.h / 2 - ancla.y * z)));

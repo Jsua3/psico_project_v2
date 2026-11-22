@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { type Comando, esCampoDeTexto, filtrarComandos, leerGuardado } from './atajos';
 import { EstudioDivisorComponent } from './estudio-divisor.component';
 import { atajoAria, EstudioHerramientaComponent } from './estudio-herramienta.component';
+import { EstudioMarcoComponent } from './estudio-marco.component';
 import { EstudioPaletaComponent } from './estudio-paleta.component';
 import { EstudioSeccionComponent } from './estudio-seccion.component';
 import { EstudioRanuraDirective, EstudioService } from './estudio.service';
@@ -171,4 +172,45 @@ describe('Primitivas del estudio en la pantalla', () => {
     expect(b.getAttribute('aria-keyshortcuts')).toBe('F');
     expect(b.getAttribute('aria-pressed')).toBe('true');
   });
+});
+
+@Component({
+  imports: [EstudioMarcoComponent, EstudioRanuraDirective],
+  providers: [EstudioService],
+  template: `<app-estudio-marco [exploradorPorDefecto]="explorador">
+    <ng-template estudioRanura="inspector"><button>Propiedades</button></ng-template>
+  </app-estudio-marco><ng-template #explorador><button>Escenas</button></ng-template>`,
+})
+class BancoMarco {}
+
+// req: EDITOR-PRO punto 1: el foco acompa?a la apertura y el cierre de los paneles.
+describe('EstudioMarco ? foco de los paneles', () => {
+  beforeEach(() => localStorage.clear());
+  for (const escritorio of [true, false]) {
+    for (const panel of ['explorador', 'inspector']) {
+      it(`${panel}: devuelve el foco al control visible y lo introduce al reabrir (${escritorio ? 'escritorio' : 'm?vil'})`, async () => {
+        const media = vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: escritorio, addListener: vi.fn(), removeListener: vi.fn() }));
+        const f = TestBed.createComponent(BancoMarco);
+        document.body.appendChild(f.nativeElement);
+        await f.whenStable();
+        const raiz = f.nativeElement as HTMLElement;
+        // jsdom no aplica las reglas @media: reproducimos qu? barra est? visible.
+        raiz.querySelector<HTMLElement>('.estado')!.style.display = escritorio ? 'flex' : 'none';
+        raiz.querySelector<HTMLElement>('.paneles-movil')!.style.display = escritorio ? 'none' : 'flex';
+        const cerrar = raiz.querySelector<HTMLButtonElement>(`.panel--${panel} .cab button`)!;
+        const abrir = raiz.querySelector<HTMLButtonElement>(`${escritorio ? '.estado' : '.paneles-movil'} [data-panel-control="${panel}"]`)!;
+        cerrar.focus();
+        expect(document.activeElement).toBe(cerrar);
+        cerrar.click();
+        await f.whenStable();
+        expect(document.activeElement).toBe(abrir);
+        abrir.click();
+        await f.whenStable();
+        expect(document.activeElement).toBe(raiz.querySelector(`.panel--${panel} .cab button`));
+        f.destroy();
+        raiz.remove();
+        media.unstubAllGlobals();
+      });
+    }
+  }
 });
