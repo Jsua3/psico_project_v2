@@ -17,6 +17,7 @@ import { UiControl, UiField } from '../../shared/ui/field/ui-field';
 import { TemaService } from '../../core/tema/tema.service';
 import { PublicBarComponent } from '../../shared/layout/public-bar.component';
 import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { UiCabeceraIlustrada } from '../../shared/ui/cabecera-ilustrada/ui-cabecera-ilustrada';
 
 type PasswordField = 'currentPassword' | 'newPassword';
 
@@ -36,7 +37,7 @@ function sameNewPassword(group: AbstractControl): ValidationErrors | null {
  */
 @Component({
   selector: 'app-change-password',
-  imports: [ReactiveFormsModule, RouterLink, NgTemplateOutlet, PublicBarComponent, UiButton, UiCard, UiControl, UiField, UiPageHeader],
+  imports: [ReactiveFormsModule, RouterLink, NgTemplateOutlet, PublicBarComponent, UiButton, UiCabeceraIlustrada, UiCard, UiControl, UiField, UiPageHeader],
   // Los eventos del formulario notifican a OnPush los cambios de validación.
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -52,8 +53,11 @@ function sameNewPassword(group: AbstractControl): ValidationErrors | null {
       </div>
     } @else {
       <!-- Dentro del portal el formulario va en una tarjeta: se lee como una sola pieza, como el vidrio del modo forzado. -->
-      <section class="cambio">
-        <ui-page-header eyebrow="Tu cuenta" [title]="title()" [description]="description()" volverA="/portal/dashboard" volverEtiqueta="Volver al inicio" />
+      <!-- Cabecera ilustrada (ronda 3): el cerrojo, el carné y el celular. Los doodles quedan en la banda de la cabecera,
+           nunca detrás del formulario. -->
+      <section class="cambio cambio--portal">
+        <ui-cabecera-ilustrada eyebrow="Tu cuenta" [title]="title()" [description]="description()" volverA="/portal/dashboard"
+          volverEtiqueta="Volver al inicio" escena="llave" />
         <ui-card class="cambio__tarjeta-portal">
           <ng-container [ngTemplateOutlet]="contenido" />
         </ui-card>
@@ -111,6 +115,8 @@ function sameNewPassword(group: AbstractControl): ValidationErrors | null {
       margin-inline: auto;
       padding: var(--ds-space-8) var(--ds-space-4);
     }
+    /* En el portal, algo más ancho que el vidrio del modo forzado: el título comparte la fila con la viñeta. */
+    .cambio--portal { max-width: 40rem; padding-top: 0; }
     .cambio-publico { min-height: 100vh; }
     .cambio--publico { padding-top: calc(var(--asb-alto-modulo-superior) + var(--ds-space-8)); }
     .cambio__tarjeta { display: grid; gap: var(--ds-space-5); padding: var(--ds-space-6); min-width: 0; }

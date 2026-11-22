@@ -1,4 +1,7 @@
-<ui-page-header [eyebrow]="isStudent ? copy.eyebrow : 'Catálogo'" [title]="titulo" />
+<!-- Cabecera ilustrada (ronda 3): la cartelera de avisos del campus, donde se anuncia lo que hay para practicar. Sin casos,
+     la escena pasa al vacío (una sola viñeta por pantalla). -->
+<ui-cabecera-ilustrada [eyebrow]="isStudent ? copy.eyebrow : 'Catálogo'" [title]="titulo"
+  [escena]="casesState() === 'empty' ? null : 'casos'" />
 
 <p class="ds-sr-only" role="status">{{ statusText() }}</p>
 
@@ -19,7 +22,7 @@
       <ui-error-state [kind]="casesErrorKind()" [message]="copy.errorCasos" (retry)="reintentarCasos()" />
     }
     @case ('empty') {
-      <ui-empty-state kind="first-use" figura="camila/bata" [title]="emptyCases.titulo" [description]="emptyCases.texto" />
+      <ui-vacio-ilustrado escena="casos" [titulo]="emptyCases.titulo" [frase]="emptyCases.texto" />
     }
     @case ('ready') {
       @if (isStudent && cards().length > 1) {

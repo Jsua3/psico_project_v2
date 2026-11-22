@@ -8,7 +8,7 @@ import { SimulationService } from '../../../core/api/simulation.service';
 import { AttemptCompletionReport, CaseBrief, DecisionReviewItem, OwnerEvaluation, StudentAttemptSummary } from '../../../core/models/simulation.model';
 import { UiButton } from '../../../shared/ui/button/ui-button';
 import { UiCard } from '../../../shared/ui/card/ui-card';
-import { UiPageHeader } from '../../../shared/ui/page-header/ui-page-header';
+import { UiCabeceraIlustrada } from '../../../shared/ui/cabecera-ilustrada/ui-cabecera-ilustrada';
 import { UiScopeNotice } from '../../../shared/ui/scope-notice/ui-scope-notice';
 import { UiSection } from '../../../shared/ui/section/ui-section';
 import { UiSkeleton } from '../../../shared/ui/skeleton/ui-skeleton';
@@ -52,7 +52,7 @@ function fechaEnPalabras(iso: string | null | undefined): string | null {
 @Component({
   selector: 'app-cierre-caso',
   imports: [
-    MatIconModule, RouterLink, UiButton, UiCard, UiErrorState, UiPageHeader, UiScopeNotice, UiSection, UiSkeleton,
+    MatIconModule, RouterLink, UiButton, UiCard, UiCabeceraIlustrada, UiErrorState, UiScopeNotice, UiSection, UiSkeleton,
     ValoracionDocenteComponent,
   ],
   templateUrl: './cierre-caso.component.html',

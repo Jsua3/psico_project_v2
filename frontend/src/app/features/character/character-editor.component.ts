@@ -8,7 +8,7 @@ import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiCard } from '../../shared/ui/card/ui-card';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { roleLabel } from '../../shared/ui/labels';
-import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { UiCabeceraIlustrada } from '../../shared/ui/cabecera-ilustrada/ui-cabecera-ilustrada';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { loadingPhase } from '../../shared/ui/skeleton/loading-phase';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
@@ -42,7 +42,7 @@ import { confirmLeaveEditor } from './leave-editor';
  */
 @Component({
   selector: 'app-character-editor',
-  imports: [KitFigureComponent, UiBadge, UiButton, UiCard, UiErrorState, UiPageHeader, UiSegmentado, UiSkeleton, UiTooltip],
+  imports: [KitFigureComponent, UiBadge, UiButton, UiCard, UiCabeceraIlustrada, UiErrorState, UiSegmentado, UiSkeleton, UiTooltip],
   templateUrl: './character-editor.component.html',
   styleUrl: './character-editor.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

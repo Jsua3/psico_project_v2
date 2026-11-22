@@ -11,7 +11,7 @@ import { UiBarraAcciones } from '../../shared/ui/barra-acciones/ui-barra-accione
 import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiCard } from '../../shared/ui/card/ui-card';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
-import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { UiCabeceraIlustrada } from '../../shared/ui/cabecera-ilustrada/ui-cabecera-ilustrada';
 import { UiPortadaCaso } from '../../shared/ui/portada-caso/ui-portada-caso';
 import { UiScopeNotice } from '../../shared/ui/scope-notice/ui-scope-notice';
 import { UiSection } from '../../shared/ui/section/ui-section';
@@ -70,7 +70,7 @@ function coincide(consulta: string, porDefecto: boolean): boolean {
   selector: 'app-case-brief',
   imports: [
     KitFigureComponent, MatIconModule, NgTemplateOutlet, RouterLink, UiBarraAcciones, UiButton, UiCard, UiErrorState,
-    UiPageHeader, UiPortadaCaso, UiScopeNotice, UiSection, UiSkeleton,
+    UiCabeceraIlustrada, UiPortadaCaso, UiScopeNotice, UiSection, UiSkeleton,
   ],
   templateUrl: './case-brief.component.html',
   styleUrl: './case-brief.component.scss',

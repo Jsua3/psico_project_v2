@@ -124,7 +124,9 @@ describe('InvitationsComponent', () => {
 
   it('sin invitaciones ni grupos: un vacío que explica de dónde vienen (no una lista vacía muda)', async () => {
     await render({ list: () => of([]) });
-    expect(host().querySelector('ui-empty-state')).not.toBeNull();
+    expect(host().querySelector('ui-vacio-ilustrado ui-vineta')?.getAttribute('data-escena')).toBe('invitacion');
+    // Una sola viñeta por pantalla: sin invitaciones, la escena pasa de la cabecera al vacío.
+    expect(host().querySelectorAll('ui-vineta')).toHaveLength(1);
     expect(text(host())).toContain('Aún no perteneces a ningún grupo');
     expect(text(host())).toContain('la invitación aparecerá aquí');
     expect(host().querySelectorAll('.inv-item')).toHaveLength(0);
@@ -176,7 +178,7 @@ describe('InvitationsComponent', () => {
     const list = vi.fn(() => throwError(() => new HttpErrorResponse({ status: 500 })));
     await render({ list });
     expect(host().querySelector('ui-error-state')).not.toBeNull();
-    expect(host().querySelector('ui-empty-state')).toBeNull();
+    expect(host().querySelector('ui-vacio-ilustrado')).toBeNull();
   });
 
   it('mientras carga: esqueleto y la región de estado lo dice', async () => {

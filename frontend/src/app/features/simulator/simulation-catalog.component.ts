@@ -12,12 +12,12 @@ import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiCard } from '../../shared/ui/card/ui-card';
 import { UiFiltros } from '../../shared/ui/filtros/ui-filtros';
 import { plural, statusLabel } from '../../shared/ui/labels';
-import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { UiCabeceraIlustrada } from '../../shared/ui/cabecera-ilustrada/ui-cabecera-ilustrada';
 import { UiPortadaCaso } from '../../shared/ui/portada-caso/ui-portada-caso';
 import { UiSegmentado, UiSegmento } from '../../shared/ui/segmentado/ui-segmentado';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { errorKindFromStatus, uiDataState } from '../../shared/ui/state/ui-data-state';
-import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
+import { UiVacioIlustrado } from '../../shared/ui/vacio-ilustrado/ui-vacio-ilustrado';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { UiTable, UiTableRow, UiTableTable } from '../../shared/ui/table/ui-table';
 import { UiTooltip } from '../../shared/ui/tooltip/ui-tooltip';
@@ -59,7 +59,7 @@ interface TarjetaCaso {
 @Component({
   selector: 'app-simulation-catalog',
   imports: [
-    UiBadge, UiButton, UiCard, UiEmptyState, UiErrorState, UiFiltros, UiPageHeader, UiPortadaCaso, UiSegmentado, UiSkeleton,
+    UiBadge, UiButton, UiCabeceraIlustrada, UiCard, UiErrorState, UiFiltros, UiPortadaCaso, UiVacioIlustrado, UiSegmentado, UiSkeleton,
     UiTable, UiTableRow, UiTableTable, UiTooltip,
   ],
   templateUrl: './simulation-catalog.component.html',

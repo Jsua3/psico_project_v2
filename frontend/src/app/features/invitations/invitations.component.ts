@@ -11,11 +11,11 @@ import { UiButton } from '../../shared/ui/button/ui-button';
 import { UiCard } from '../../shared/ui/card/ui-card';
 import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
 import { UiMenu, UiMenuItem } from '../../shared/ui/menu/ui-menu';
-import { UiPageHeader } from '../../shared/ui/page-header/ui-page-header';
+import { UiCabeceraIlustrada } from '../../shared/ui/cabecera-ilustrada/ui-cabecera-ilustrada';
 import { UiSection } from '../../shared/ui/section/ui-section';
 import { UiSkeleton } from '../../shared/ui/skeleton/ui-skeleton';
 import { errorKindFromStatus, uiDataState } from '../../shared/ui/state/ui-data-state';
-import { UiEmptyState } from '../../shared/ui/state/ui-empty-state';
+import { UiVacioIlustrado } from '../../shared/ui/vacio-ilustrado/ui-vacio-ilustrado';
 import { UiErrorState } from '../../shared/ui/state/ui-error-state';
 import { formatDate } from '../dashboard/student-dashboard.util';
 
@@ -47,10 +47,13 @@ const GRUPOS_COPY = {
  */
 @Component({
   selector: 'app-invitations',
-  imports: [UiButton, UiCard, UiEmptyState, UiErrorState, UiMenu, UiPageHeader, UiSection, UiSkeleton],
+  imports: [UiButton, UiCabeceraIlustrada, UiCard, UiErrorState, UiMenu, UiSection, UiSkeleton, UiVacioIlustrado],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <ui-page-header [eyebrow]="copy.eyebrow" [title]="copy.titulo" [description]="copy.descripcion" />
+    <!-- Cabecera ilustrada (ronda 3): el buzón de bienestar y el carné que da acceso. Sin invitaciones, la escena pasa al
+         vacío (una sola viñeta por pantalla). -->
+    <ui-cabecera-ilustrada [eyebrow]="copy.eyebrow" [title]="copy.titulo" [description]="copy.descripcion"
+      [escena]="state() === 'empty' ? null : 'invitacion'" />
 
     <p class="ds-sr-only" role="status">{{ statusText() }}</p>
 
@@ -66,7 +69,7 @@ const GRUPOS_COPY = {
         <ui-error-state [kind]="errorKind()" [status]="errorStatus()" [message]="copy.error" (retry)="load()" />
       }
       @case ('empty') {
-        <ui-empty-state kind="first-use" figura="camila/bata" [title]="copy.vacio.titulo" [description]="copy.vacio.texto" />
+        <ui-vacio-ilustrado escena="invitacion" [titulo]="copy.vacio.titulo" [frase]="copy.vacio.texto" />
       }
       @case ('ready') {
         <ui-section [title]="copy.pendientes.titulo">
