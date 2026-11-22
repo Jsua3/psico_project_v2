@@ -6,11 +6,11 @@ import { RubricAdmin, RubricService } from '../../core/api/rubric.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { SimulationService } from '../../core/api/simulation.service';
 import { NotificationService } from '../../core/notifications/notification.service';
-import { RubricsComponent } from './rubrics.component';
+import { RubricaEditorComponent } from './rubrica-editor.component';
 import type { Mock } from 'vitest';
 
 /**
- * Validar al enviar en el formulario de Rúbricas.
+ * Validar al enviar en el editor de una rúbrica (R1: el formulario vive en `RubricaEditorComponent`).
  *
  * No se renderiza el template: se instancia el componente con dobles de los
  * servicios y un host DOM mínimo (sin Material) para comprobar el foco.
@@ -28,7 +28,7 @@ const entrevista = {
 } as RubricAdmin;
 
 describe('rúbricas: validar al enviar (comportamiento)', () => {
-  let component: RubricsComponent;
+  let component: RubricaEditorComponent;
   let host: HTMLElement;
   let rubrics: { list: Mock; detail: Mock; create: Mock; update: Mock };
   let notify: { success: Mock; error: Mock; warning: Mock; info: Mock };
@@ -61,7 +61,7 @@ describe('rúbricas: validar al enviar (comportamiento)', () => {
         { provide: ElementRef, useValue: new ElementRef(host) },
       ],
     });
-    component = TestBed.runInInjectionContext(() => new RubricsComponent());
+    component = TestBed.runInInjectionContext(() => new RubricaEditorComponent());
   });
 
   afterEach(() => {
@@ -95,7 +95,6 @@ describe('rúbricas: validar al enviar (comportamiento)', () => {
       expect(component.criteria.touched).toBe(true);
       expect(criterion().get('title')?.touched).toBe(true);
       expect(criterion().get('weight')?.touched).toBe(true);
-      expect(criterion().get('displayOrder')?.touched).toBe(true);
     });
 
     it('con una rúbrica abierta y un criterio sin nombre tampoco actualiza', () => {
@@ -108,7 +107,8 @@ describe('rúbricas: validar al enviar (comportamiento)', () => {
       expect(criterion().get('title')?.touched).toBe(true);
     });
 
-    it('un peso fuera de 0 a 100 o un orden menor que 1 impiden guardar', () => {
+    // R1: el campo «Orden» ya no existe (el orden es la posición), así que solo el peso tiene rango.
+    it('un peso fuera de 0 a 100 impide guardar', () => {
       component.newRubric();
       fillValid();
       expect(component.form.valid).toBe(true);
@@ -120,10 +120,6 @@ describe('rúbricas: validar al enviar (comportamiento)', () => {
       criterion().patchValue({ weight: -1 });
       component.save();
       expect(criterion().get('weight')?.hasError('min')).toBe(true);
-
-      criterion().patchValue({ weight: 100, displayOrder: 0 });
-      component.save();
-      expect(criterion().get('displayOrder')?.hasError('min')).toBe(true);
 
       expect(rubrics.create).not.toHaveBeenCalled();
     });

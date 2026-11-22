@@ -141,6 +141,10 @@ export const routes: Routes = [
         path: 'rubricas',
         title: 'Rúbricas',
         canActivate: [roleGuard(...rolesFor('rubricas'))],
+        canDeactivate: [canLeaveGuard],
+        // R1: biblioteca y editor viven en la misma ruta (`?rubrica=`); la guardia de salida corre también al cambiar
+        // ese parámetro, para preguntar antes de dejar una rúbrica con cambios sin guardar.
+        runGuardsAndResolvers: 'paramsOrQueryParamsChange',
         loadComponent: () => import('./features/admin/rubrics.component').then(m => m.RubricsComponent)
       },
       {

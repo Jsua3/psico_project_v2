@@ -1,21 +1,23 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { provideZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { Router, provideRouter } from '@angular/router';
 import { Observable, Subject, of, throwError } from 'rxjs';
 
-import { HttpErrorResponse } from '@angular/common/http';
-
+import { LiveRegionAnnouncer } from '../../core/a11y/live-announcer.service';
 import { RubricAdmin, RubricService } from '../../core/api/rubric.service';
-import { AuthService } from '../../core/auth/auth.service';
 import { SimulationService } from '../../core/api/simulation.service';
+import { AuthService } from '../../core/auth/auth.service';
 import { NotificationService } from '../../core/notifications/notification.service';
-import { SimulationCaseSummary } from '../../core/models/simulation.model';
-import { RubricsComponent } from './rubrics.component';
+import { UiDialog } from '../../shared/ui/dialog/ui-dialog';
+import { RubricaEditorComponent } from './rubrica-editor.component';
+import { NuevaRubricaDialogo, NuevaRubricaEleccion, RubricsComponent } from './rubrics.component';
 
 /**
- * Pantalla Rúbricas en el sistema de la biblioteca (plan visual F7-5): campos `ui-field`, esqueleto, error con
- * «Reintentar», lista vacía con su acción, «Activar» con el motivo por el que no se puede (la ponderación debe sumar
- * 100 %), «Guardando…» mientras guarda y regiones con nombres distintos. La lógica de cada acción vive en las specs de
- * comportamiento (`rubrics.feedback.spec.ts`, `rubrics.validation.spec.ts`).
+ * Rúbricas (EDITOR.md §5.2, bloque R1): la biblioteca y el paso al editor por `?rubrica=`. Se conservan las reglas que
+ * ya estaban probadas en la pantalla anterior (F7-5): un solo h1, región de estado siempre presente, esqueleto, error con
+ * «Reintentar», vacío con su acción y filtro sin coincidencias. El comportamiento del formulario vive en
+ * `rubrica-editor.component.spec.ts` y en las specs de validación y avisos.
  */
 const rubric = (id: number, name: string, weights: number[], overrides: Partial<RubricAdmin> = {}): RubricAdmin => ({
   id, name, description: null, active: false, version: '1.0', isDefault: false,
@@ -26,168 +28,72 @@ const rubric = (id: number, name: string, weights: number[], overrides: Partial<
 
 const completa = rubric(4, 'Entrevista inicial', [60, 40], { active: true, isDefault: true });
 const incompleta = rubric(7, 'Observación de aula', [60, 30]);
-const caso = { caseVersionId: 3, code: 'CASO-3', title: 'Caso tres', semanticVersion: '1.2.0' } as SimulationCaseSummary;
 
 interface Api {
   list: () => Observable<RubricAdmin[]>;
-  detail: (id: number) => Observable<RubricAdmin>;
 }
 
-describe('pantalla Rúbricas (F7-5)', () => {
+describe('pantalla Rúbricas: biblioteca (R1)', () => {
   let fixture: ComponentFixture<RubricsComponent>;
   let service: Record<string, ReturnType<typeof vi.fn>>;
   let notify: Record<'success' | 'error' | 'warning' | 'info', ReturnType<typeof vi.fn>>;
+  let dialog: { open: ReturnType<typeof vi.fn>; consequence: ReturnType<typeof vi.fn> };
+  let eleccion: NuevaRubricaEleccion | undefined;
 
   const host = () => fixture.nativeElement as HTMLElement;
   const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
   const rows = () => [...host().querySelectorAll('.rb-row')];
   const component = () => fixture.componentInstance;
-  /** Un botón por su rótulo visible (sin la ligadura de su icono, que es decorativa). */
+  const router = () => TestBed.inject(Router);
   const buttonLabelled = (label: string) => [...host().querySelectorAll('button')]
     .find(button => text(button.querySelector('.ui-button__label')) === label) as HTMLButtonElement | undefined;
-  const reasonOf = (button: HTMLButtonElement | undefined) => {
-    const id = (button?.getAttribute('aria-describedby') ?? '').split(' ').find(Boolean);
-    return id ? text(host().querySelector(`#${id}`)) : '';
+  const settle = async () => {
+    await fixture.whenStable();
+    fixture.detectChanges();
   };
 
-  async function render(api: Partial<Api> = {}, { stable = true, role = 'ADMIN' } = {}) {
+  async function render(api: Partial<Api> = {}, { stable = true, role = 'ADMIN', userId = 1 } = {}) {
     service = {
       list: vi.fn(api.list ?? (() => of([completa, incompleta]))),
-      detail: vi.fn(api.detail ?? ((id: number) => of(id === 7 ? incompleta : completa))),
+      detail: vi.fn((id: number) => of(id === 7 ? incompleta : completa)),
       create: vi.fn(), update: vi.fn(), activate: vi.fn(), deactivate: vi.fn(), duplicate: vi.fn(), setDefault: vi.fn(),
-      assignToCaseVersion: vi.fn(),
+      assignToCaseVersion: vi.fn(), competencies: vi.fn(() => of([])),
+    };
+    eleccion = undefined;
+    dialog = {
+      open: vi.fn(() => ({ closed: of(eleccion) })),
+      consequence: vi.fn(async () => 'continue'),
     };
     TestBed.configureTestingModule({
       imports: [RubricsComponent],
       providers: [
         provideZonelessChangeDetection(),
+        provideRouter([]),
         { provide: RubricService, useValue: service },
-        { provide: AuthService, useValue: { hasRole: (...roles: string[]) => roles.includes(role) } },
-        { provide: SimulationService, useValue: { listCases: vi.fn(() => of([caso])) } },
+        {
+          provide: AuthService,
+          useValue: { hasRole: (...roles: string[]) => roles.includes(role), currentUser: () => ({ id: userId, role }) },
+        },
+        { provide: SimulationService, useValue: { listCases: vi.fn(() => of([])) } },
         { provide: NotificationService, useValue: notify = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() } },
+        { provide: UiDialog, useValue: dialog },
+        { provide: LiveRegionAnnouncer, useValue: { announce: vi.fn() } },
       ],
     });
     fixture = TestBed.createComponent(RubricsComponent);
-    if (stable) await fixture.whenStable();
+    if (stable) await settle();
     else fixture.detectChanges();
-    fixture.detectChanges();
+  }
+
+  /** Navega a `?…` como lo haría un enlace (la ruta raíz de la prueba es la de la pantalla). */
+  async function ir(url: string) {
+    await router().navigateByUrl(url);
+    await settle();
   }
 
   afterEach(() => {
     vi.useRealTimers();
     TestBed.resetTestingModule();
-  });
-
-  // E2-2: rúbricas con dueño. El docente edita solo las suyas (la global y las de otros son de solo lectura: 403 al
-  // guardar, «se duplica para personalizarla»), la de otro docente no existe para él (404) y solo el administrador fija
-  // la predeterminada. Antes la pantalla ofrecía todo a todos y cada 403 decía «No tienes permisos…».
-  // req: SIEP-CU-04, RNF-002
-  describe('rúbricas con dueño (E2-2)', () => {
-    const http = (status: number) => () => throwError(() => new HttpErrorResponse({ status, error: { success: false, message: 'x' } }));
-
-    it('solo el administrador ve «Predeterminada»', async () => {
-      await render();
-      expect(buttonLabelled('Predeterminada')).toBeDefined();
-      TestBed.resetTestingModule();
-      await render({}, { role: 'PROFESOR' });
-      expect(buttonLabelled('Predeterminada')).toBeUndefined();
-      expect(buttonLabelled('Duplicar')).toBeDefined();
-    });
-
-    it('guardar una rúbrica ajena (403) explica que es de solo lectura y ofrece duplicarla para personalizarla', async () => {
-      await render({}, { role: 'PROFESOR' });
-      service['update'].mockImplementation(http(403));
-      service['duplicate'].mockReturnValue(of(rubric(9, 'Copia de Entrevista inicial', [60, 40])));
-      buttonLabelled('Guardar')!.click();
-      await fixture.whenStable();
-      fixture.detectChanges();
-
-      expect(text(host().querySelector('.rb-readonly'))).toContain('Esta rúbrica es de solo lectura');
-      expect(notify.error).not.toHaveBeenCalledWith(expect.stringContaining('No tienes permisos'));
-      buttonLabelled('Duplicar para personalizar')!.click();
-      await fixture.whenStable();
-      expect(service['duplicate']).toHaveBeenCalledWith(4);
-    });
-
-    // Revisión de F7b: el aviso de solo lectura es de ESA rúbrica; al abrir otra, crear una nueva o duplicar no se queda.
-    it('tras un 403, abrir otra rúbrica o empezar una nueva retira el aviso de solo lectura', async () => {
-      await render({}, { role: 'PROFESOR' });
-      service['update'].mockImplementation(http(403));
-      buttonLabelled('Guardar')!.click();
-      await fixture.whenStable();
-      fixture.detectChanges();
-      expect(text(host().querySelector('.rb-readonly'))).toContain('Esta rúbrica es de solo lectura');
-
-      component().openRubric(7);
-      await fixture.whenStable();
-      fixture.detectChanges();
-      expect(host().querySelector('.rb-readonly')).toBeNull();
-      expect(text(host())).not.toContain('Esta rúbrica es de solo lectura');
-      expect(text(host().querySelector('[role="status"].ds-sr-only'))).not.toContain('solo lectura');
-
-      buttonLabelled('Guardar')!.click();
-      await fixture.whenStable();
-      fixture.detectChanges();
-      expect(text(host().querySelector('.rb-readonly'))).toContain('solo lectura');
-      component().newRubric();
-      fixture.detectChanges();
-      expect(host().querySelector('.rb-readonly')).toBeNull();
-    });
-
-    // «Duplicar para personalizar» es la salida que la propia pantalla recomienda tras el 403 de lo que se editó: la
-    // copia lleva LO ESCRITO, no la versión guardada de la ajena (que descartaba el trabajo del docente).
-    it('duplicar con cambios sin guardar crea la copia con lo que se escribió', async () => {
-      await render({}, { role: 'PROFESOR' });
-      component().form.patchValue({ name: 'Mi versión de la entrevista' });
-      component().form.markAsDirty();
-      service['update'].mockImplementation(http(403));
-      service['create'].mockReturnValue(of(rubric(9, 'Copia de Mi versión de la entrevista', [60, 40])));
-      buttonLabelled('Guardar')!.click();
-      await fixture.whenStable();
-      fixture.detectChanges();
-
-      buttonLabelled('Duplicar para personalizar')!.click();
-      await fixture.whenStable();
-      fixture.detectChanges();
-
-      expect(service['duplicate']).not.toHaveBeenCalled();
-      const sent = service['create'].mock.calls[0][0];
-      expect(sent.name).toBe('Copia de Mi versión de la entrevista');
-      expect(sent.criteria).toHaveLength(2);
-      expect(sent.criteria.every((criterion: { id?: number }) => criterion.id === undefined)).toBe(true);
-      expect(component().selected()?.id).toBe(9);
-      expect(host().querySelector('.rb-readonly')).toBeNull();
-    });
-
-    it('activar una ajena (403) también lo explica', async () => {
-      await render({}, { role: 'PROFESOR' });
-      service['deactivate'].mockImplementation(http(403));
-      buttonLabelled('Desactivar')!.click();
-      await fixture.whenStable();
-      fixture.detectChanges();
-      expect(text(host().querySelector('.rb-readonly'))).toContain('Esta rúbrica es de solo lectura');
-    });
-
-    it('asignar a un caso que no creó (403) dice que solo quien creó el caso puede asignarle una rúbrica', async () => {
-      await render({}, { role: 'PROFESOR' });
-      service['assignToCaseVersion'].mockImplementation(http(403));
-      component().selectCaseVersion('3');
-      fixture.detectChanges();
-      buttonLabelled('Asignar')!.click();
-      await fixture.whenStable();
-      fixture.detectChanges();
-      expect(notify.error).toHaveBeenCalledWith('Solo quien creó el caso puede asignarle una rúbrica.');
-    });
-
-    it('una rúbrica que ya no está disponible (404) lo dice y la lista se vuelve a pedir', async () => {
-      await render({}, { role: 'PROFESOR' });
-      service['update'].mockImplementation(http(404));
-      buttonLabelled('Guardar')!.click();
-      await fixture.whenStable();
-      fixture.detectChanges();
-      expect(text(host().querySelector('[role="status"].ds-sr-only'))).toBe('Esta rúbrica ya no está disponible.');
-      expect(service['list']).toHaveBeenCalledTimes(2);
-    });
   });
 
   // req: RNF-04, BLOQUE-H
@@ -200,33 +106,23 @@ describe('pantalla Rúbricas (F7-5)', () => {
       expect(buttonLabelled('Nueva rúbrica')).toBeDefined();
     });
 
-    it('con rúbricas: una fila por rúbrica con su estado en una insignia, y la primera abierta', async () => {
+    it('con rúbricas: una fila por rúbrica que se abre como enlace, con su estado en una insignia y su menú', async () => {
       await render();
       expect(rows()).toHaveLength(2);
       expect(text(rows()[0].querySelector('ui-badge'))).toBe('Predeterminada');
-      expect(text(rows()[1].querySelector('ui-badge'))).toBe('Inactiva');
+      expect(text(rows()[1].querySelector('ui-badge'))).toBe('Borrador');
       expect(text(rows()[1])).toContain('2 criterios · 90 %');
-      expect(rows()[0].getAttribute('aria-current')).toBe('true');
-      expect(rows()[1].getAttribute('aria-current')).toBeNull();
+      expect(rows()[1].querySelector('a.rb-row__abrir')!.getAttribute('href')).toBe('/?rubrica=7');
+      expect(rows()[1].querySelector('ui-menu')).not.toBeNull();
+      // Ninguna se abre sola: la biblioteca es su propio nivel.
+      expect(host().querySelector('app-rubrica-editor')).toBeNull();
     });
 
     it('en el primer instante de la carga (antes del esqueleto) no pinta «sin resultados» ni ningún vacío', async () => {
       const pending = new Subject<RubricAdmin[]>();
       await render({ list: () => pending }, { stable: false });
-
       expect(host().querySelector('.rb-list ui-empty-state')).toBeNull();
       expect(rows()).toHaveLength(0);
-    });
-
-    it('si no se puede abrir una rúbrica, el aviso queda junto al formulario y se anuncia en la región de estado', async () => {
-      let calls = 0;
-      await render({ detail: id => (++calls === 1 ? of(id === 7 ? incompleta : completa) : throwError(() => new Error('HTTP 500'))) });
-      (rows()[1] as HTMLButtonElement).click();
-      await fixture.whenStable();
-      fixture.detectChanges();
-
-      expect(text(host().querySelector('.rb-form .rb-message--error'))).toBe('No fue posible abrir la rúbrica.');
-      expect(text(host().querySelector('[role="status"].ds-sr-only'))).toBe('No fue posible abrir la rúbrica.');
     });
 
     it('mientras carga: esqueleto con aria-busy, el estado leído y ninguna fila', async () => {
@@ -248,28 +144,26 @@ describe('pantalla Rúbricas (F7-5)', () => {
       const errors = host().querySelectorAll('.rb-list ui-error-state');
       expect(errors).toHaveLength(1);
       expect(text(errors[0])).toContain('No fue posible cargar las rúbricas.');
+      expect(notify.error).not.toHaveBeenCalled();
 
       (errors[0].querySelector('button') as HTMLButtonElement).click();
-      await fixture.whenStable();
-      fixture.detectChanges();
+      await settle();
       expect(calls).toBe(2);
       expect(host().querySelector('.rb-list ui-error-state')).toBeNull();
+      expect(component().message()).toBe('');
       expect(rows()).toHaveLength(1);
     });
 
-    it('sin rúbricas: lista vacía con su acción «Nueva rúbrica», que abre el formulario en blanco', async () => {
+    it('sin rúbricas: lista vacía con su acción «Nueva rúbrica», que abre el diálogo de comienzos', async () => {
       await render({ list: () => of([]) });
       const empty = host().querySelector('.rb-list ui-empty-state')!;
       expect(text(empty)).toContain('Aún no hay rúbricas');
       const action = [...empty.querySelectorAll('button')].find(button => text(button.querySelector('.ui-button__label')) === 'Nueva rúbrica')!;
       action.click();
-      fixture.detectChanges();
-
-      expect(component().selected()).toBeNull();
-      expect(host().querySelectorAll('.criterion')).toHaveLength(1);
+      expect(dialog.open).toHaveBeenCalledWith(NuevaRubricaDialogo, { data: { rubricas: [] } });
     });
 
-    it('un filtro sin coincidencias dice «Sin resultados» y «Limpiar filtros» lo restablece', async () => {
+    it('un filtro sin coincidencias deja los controles, dice «No hay resultados» y «Limpiar filtros» lo restablece', async () => {
       await render();
       const search = host().querySelector('.rb-filters input[type="search"]') as HTMLInputElement;
       search.value = 'zzz';
@@ -277,126 +171,147 @@ describe('pantalla Rúbricas (F7-5)', () => {
       fixture.detectChanges();
 
       expect(rows()).toHaveLength(0);
-      const none = host().querySelector('.rb-list ui-empty-state')!;
-      expect(text(none)).toContain('No hay rúbricas con ese filtro');
-      (none.querySelector('button') as HTMLButtonElement).click();
+      const none = host().querySelectorAll('.rb-list ui-empty-state');
+      expect(none).toHaveLength(1);
+      expect(text(none[0])).toContain('No hay resultados');
+      expect(host().querySelector('.rb-filters input[type="search"]')).toBe(search);
+      (none[0].querySelector('button') as HTMLButtonElement).click();
       fixture.detectChanges();
       expect(search.value).toBe('');
       expect(rows()).toHaveLength(2);
     });
-  });
 
-  // req: RNF-04, BLOQUE-H
-  describe('acciones y regla del 100 %', () => {
-    it('con la ponderación en 100: «Activar» y «Predeterminada» disponibles y sin motivo', async () => {
+    it('el filtro de estado separa activas y borradores, con su cuenta en texto', async () => {
       await render();
-      for (const label of ['Activar', 'Predeterminada']) {
-        const button = buttonLabelled(label)!;
-        expect(button.getAttribute('aria-disabled'), label).toBeNull();
-      }
-      expect(host().querySelector('#rubric-weight-hint')).toBeNull();
-      expect(text(host().querySelector('.rb-weight'))).toContain('100 %');
-    });
-
-    it('con la ponderación distinta de 100: la pista se ve y los dos botones dicen POR QUÉ no se puede', async () => {
-      await render({ detail: () => of(incompleta) });
-      expect(text(host().querySelector('#rubric-weight-hint'))).toBe('Para activarla o hacerla predeterminada, la ponderación debe sumar 100 %.');
-      for (const label of ['Activar', 'Predeterminada']) {
-        const button = buttonLabelled(label)!;
-        expect(button.getAttribute('aria-disabled'), label).toBe('true');
-        expect(reasonOf(button), label).toBe('La ponderación debe sumar 100 %.');
-      }
-    });
-
-    it('sin una rúbrica abierta, los botones que la necesitan explican que hay que guardar primero', async () => {
-      await render({ list: () => of([]) });
-      component().newRubric();
+      const opciones = [...host().querySelectorAll('ui-segmentado [role="radio"]')];
+      expect(opciones.map(o => text(o))).toEqual(['Todas · 2', 'Activas · 1', 'Borradores · 1']);
+      (opciones[2] as HTMLButtonElement).click();
       fixture.detectChanges();
-      expect(buttonLabelled('Duplicar')!.getAttribute('aria-disabled')).toBe('true');
-      expect(reasonOf(buttonLabelled('Duplicar'))).toBe('Guarda la rúbrica primero.');
-      expect(reasonOf(buttonLabelled('Desactivar'))).toBe('Guarda la rúbrica primero.');
-    });
-
-    it('«Asignar» pide elegir una simulación y se habilita al elegirla', async () => {
-      await render();
-      expect(buttonLabelled('Asignar')!.getAttribute('aria-disabled')).toBe('true');
-      expect(reasonOf(buttonLabelled('Asignar'))).toBe('Elige una simulación publicada.');
-
-      const select = host().querySelector('.rb-assign select') as HTMLSelectElement;
-      select.value = '3';
-      select.dispatchEvent(new Event('change'));
-      fixture.detectChanges();
-      expect(buttonLabelled('Asignar')!.getAttribute('aria-disabled')).toBeNull();
-    });
-
-    it('mientras guarda el botón dice «Guardando…» y queda ocupado', async () => {
-      await render();
-      component().saving.set(true);
-      fixture.detectChanges();
-
-      const save = [...host().querySelectorAll('button[type="submit"]')][0] as HTMLButtonElement;
-      expect(text(save.querySelector('.ui-button__label'))).toBe('Guardando…');
-      expect(save.getAttribute('aria-disabled')).toBe('true');
-      expect(save.getAttribute('aria-busy')).toBe('true');
+      expect(rows().map(r => text(r.querySelector('.rb-row__nombre')))).toEqual(['Observación de aula']);
     });
   });
 
-  // Hallazgo de F9-10: la pantalla abre sola la primera rúbrica al cargar, y su detalle llega DESPUÉS. Quien pulsa
-  // «Nueva rúbrica» (o abre otra) en ese intervalo veía su formulario pisado por la primera y, al guardar, mandaba un PUT
-  // a una rúbrica que no es suya (403 «solo lectura»). Pasaba a veces en el e2e de teclado y le pasa a quien tiene red lenta.
-  // req: SIEP-CU-04, RNF-04
-  describe('un detalle que llega tarde no pisa lo que la persona ya eligió', () => {
-    it('«Nueva rúbrica» pulsada antes de que llegue el detalle de la primera conserva el formulario nuevo', async () => {
-      const firstDetail = new Subject<RubricAdmin>();
-      await render({ detail: () => firstDetail });
-      expect(service['detail']).toHaveBeenCalledWith(4);
-
-      component().newRubric();
-      component().form.patchValue({ name: 'La mía' });
-      firstDetail.next(completa);
-      fixture.detectChanges();
-
-      expect(component().selected()).toBeNull();
-      expect(component().form.get('name')?.value).toBe('La mía');
-    });
-
-    // Revisión de F9-10 (I-2): el mismo defecto un salto antes. Si lo que llega tarde es la LISTA, `load` abría la primera
-    // sobre el formulario nuevo (nada seleccionado = «abre la primera») y se perdía lo escrito.
-    it('«Nueva rúbrica» pulsada antes de que llegue la lista no abre la primera encima del formulario nuevo', async () => {
-      const list = new Subject<RubricAdmin[]>();
-      await render({ list: () => list }, { stable: false });
-
-      component().newRubric();
-      component().form.patchValue({ name: 'La mía' });
-      list.next([completa, incompleta]);
-      fixture.detectChanges();
-
-      expect(service['detail']).not.toHaveBeenCalled();
-      expect(component().selected()).toBeNull();
-      expect(component().form.get('name')?.value).toBe('La mía');
-    });
-
-    it('si la rúbrica abierta ya no existe (404), la lista que se vuelve a pedir abre la primera como siempre', async () => {
+  describe('grupos', () => {
+    it('sin `caseVersion` (servidor anterior) no agrupa', async () => {
       await render();
-      component().newRubric();
-      service['detail'].mockClear();
-
-      component()['explainError'](new HttpErrorResponse({ status: 404, error: { success: false, message: 'x' } }), 'x');
-      await fixture.whenStable();
-
-      expect(service['detail']).toHaveBeenCalledWith(4);
+      expect(host().querySelectorAll('.rb-grupo__titulo')).toHaveLength(0);
     });
 
-    it('abrir otra rúbrica antes de que llegue el detalle de la primera deja abierta la última que se pidió', async () => {
-      const firstDetail = new Subject<RubricAdmin>();
-      await render({ detail: (id: number) => (id === 4 ? firstDetail : of(incompleta)) });
+    it('con `caseVersion`: «Mis rúbricas», «De la institución» y «De un caso», cada una con lo suyo (docente)', async () => {
+      const mia = rubric(10, 'La mía', [100], { ownerId: 5, caseVersion: null });
+      const institucion = rubric(11, 'Institucional', [100], { ownerId: 1, caseVersion: null, editable: false });
+      const delCaso = rubric(12, 'Del caso', [100], {
+        ownerId: 5, caseVersion: { id: 3, title: 'Violencia familiar', semanticVersion: '2.1.0', status: 'PUBLISHED' },
+      });
+      await render({ list: () => of([institucion, delCaso, mia]) }, { role: 'PROFESOR', userId: 5 });
 
-      component().openRubric(7);
-      firstDetail.next(completa);
-      fixture.detectChanges();
+      const grupos = [...host().querySelectorAll('.rb-grupo')];
+      expect(grupos.map(g => text(g.querySelector('.rb-grupo__titulo')))).toEqual(['Mis rúbricas 1', 'De la institución 1', 'De un caso 1']);
+      expect(text(grupos[1].querySelector('.rb-row__nombre'))).toBe('Institucional');
+      expect(text(grupos[2].querySelector('.rb-row'))).toContain('Violencia familiar · v2.1.0');
+    });
+  });
 
-      expect(component().selected()?.id).toBe(7);
-      expect(component().form.get('name')?.value).toBe('Observación de aula');
+  describe('acciones de una fila', () => {
+    it('«Activar» con la ponderación distinta de 100 dice por qué en vez de llamar al servidor', async () => {
+      await render();
+      component().rowAction(incompleta, 'activar');
+      expect(service['activate']).not.toHaveBeenCalled();
+      expect(notify.warning).toHaveBeenCalledWith(expect.stringContaining('la ponderación debe sumar 100 %'));
+    });
+
+    it('el menú solo ofrece «Activar» o «Desactivar», y «Hacer predeterminada» solo al administrador', async () => {
+      await render();
+      const valores = (r: RubricAdmin) => component().rowItems(r).map(i => i.value);
+      expect(valores(completa)).toContain('desactivar');
+      expect(valores(completa)).not.toContain('activar');
+      expect(valores(incompleta)).toContain('activar');
+      expect(valores(incompleta)).toContain('predeterminada');
+      TestBed.resetTestingModule();
+      await render({}, { role: 'PROFESOR' });
+      expect(component().rowItems(incompleta).map(i => i.value)).not.toContain('predeterminada');
+    });
+
+    it('«Duplicar» crea la copia en el servidor y la abre en el editor', async () => {
+      await render();
+      service['duplicate'].mockReturnValue(of(rubric(9, 'Copia de Entrevista inicial', [60, 40])));
+      component().rowAction(completa, 'duplicar');
+      await settle();
+      expect(service['duplicate']).toHaveBeenCalledWith(4);
+      expect(notify.success).toHaveBeenCalledWith('Rúbrica duplicada.');
+      expect(router().url).toBe('/?rubrica=9');
+    });
+
+    it('una ajena (403) al desactivar dice que es de solo lectura, sin el aviso genérico de permisos', async () => {
+      await render();
+      service['deactivate'].mockReturnValue(throwError(() => new HttpErrorResponse({ status: 403, error: { message: 'x' } })));
+      component().rowAction(completa, 'desactivar');
+      expect(notify.error).toHaveBeenCalledWith('Esta rúbrica es de solo lectura: no la creaste tú. Duplícala para personalizarla.');
+    });
+  });
+
+  describe('«Nueva rúbrica» y el paso al editor', () => {
+    it('«Con las competencias del programa» abre el editor nuevo con esa plantilla', async () => {
+      await render();
+      eleccion = { comienzo: 'competencias' };
+      buttonLabelled('Nueva rúbrica')!.click();
+      await settle();
+      expect(router().url).toBe('/?rubrica=nueva&desde=competencias');
+      const editor = fixture.debugElement.query(el => el.componentInstance instanceof RubricaEditorComponent)!.componentInstance as RubricaEditorComponent;
+      expect(editor.rubricId()).toBeNull();
+      expect(editor.comienzo()).toBe('competencias');
+    });
+
+    it('«Copiar una rúbrica» la duplica y abre la copia', async () => {
+      await render();
+      service['duplicate'].mockReturnValue(of(rubric(9, 'Copia', [100])));
+      eleccion = { copiar: 7 };
+      buttonLabelled('Nueva rúbrica')!.click();
+      await settle();
+      expect(service['duplicate']).toHaveBeenCalledWith(7);
+      expect(router().url).toBe('/?rubrica=9');
+    });
+
+    it('con `?rubrica=<id>` se ve el editor de esa rúbrica, con su nombre como título y el regreso a la biblioteca', async () => {
+      await render();
+      await ir('/?rubrica=7');
+      expect(host().querySelector('.rb-list')).toBeNull();
+      expect(service['detail']).toHaveBeenCalledWith(7);
+      expect(host().querySelectorAll('h1')).toHaveLength(1);
+      expect(text(host().querySelector('h1'))).toBe('Observación de aula');
+      expect(text(host().querySelector('.ui-page-header__volver'))).toContain('Biblioteca de rúbricas');
+    });
+
+    it('guardar una rúbrica nueva lleva la dirección a su id y refresca la lista', async () => {
+      await render();
+      await ir('/?rubrica=nueva');
+      service['list'].mockClear();
+      component().alGuardar(rubric(15, 'Recién guardada', [100]));
+      await settle();
+      expect(router().url).toBe('/?rubrica=15');
+      expect(service['list']).toHaveBeenCalled();
+    });
+
+    it('una rúbrica que ya no existe (404) vuelve a la biblioteca, lo dice y pide la lista de nuevo', async () => {
+      await render();
+      await ir('/?rubrica=7');
+      service['list'].mockClear();
+      component().alPerderse();
+      await settle();
+      expect(router().url).toBe('/');
+      expect(notify.warning).toHaveBeenCalledWith('Esta rúbrica ya no está disponible.');
+      expect(text(host().querySelector('[role="status"].ds-sr-only'))).toBe('Esta rúbrica ya no está disponible.');
+      expect(service['list']).toHaveBeenCalledTimes(1);
+    });
+
+    it('salir pregunta al editor si hay cambios sin guardar', async () => {
+      await render();
+      expect(await component().canLeave()).toBe(true);
+      await ir('/?rubrica=7');
+      const editor = fixture.debugElement.query(el => el.componentInstance instanceof RubricaEditorComponent)!.componentInstance as RubricaEditorComponent;
+      editor.form.markAsDirty();
+      expect(await component().canLeave()).toBe(false);
+      expect(dialog.consequence).toHaveBeenCalled();
     });
   });
 
@@ -408,7 +323,7 @@ describe('pantalla Rúbricas (F7-5)', () => {
         const labelledBy = el.getAttribute('aria-labelledby');
         return labelledBy ? text(host().querySelector(`#${labelledBy}`)) : el.getAttribute('aria-label');
       });
-      expect(names.length).toBeGreaterThan(2);
+      expect(names.length).toBeGreaterThan(0);
       expect(new Set(names).size).toBe(names.length);
       expect(host().querySelector('mat-card, mat-form-field, mat-select, mat-progress-bar, .psy-button, .mat-mdc-button')).toBeNull();
     });
