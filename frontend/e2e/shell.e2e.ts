@@ -27,26 +27,26 @@ test.describe('@shell barra de vidrio del portal', () => {
     const bar = page.locator('header.cromo');
     await expect(bar).toBeVisible();
     await expect(bar.getByRole('navigation', { name: 'Navegación principal' })).toBeVisible();
-    await expect(bar.locator('.modulo-principal a.nav-enlace')).toHaveText(['Panel', 'Simulador', 'Invitaciones', 'Mi personaje']);
-    await bar.getByRole('link', { name: 'Simulador', exact: true }).click();
+    await expect(bar.locator('.modulo-principal a.nav-enlace')).toHaveText(['Inicio', 'Casos', 'Mi personaje', 'Grupos']);
+    await bar.getByRole('link', { name: 'Casos', exact: true }).click();
     await page.waitForURL(/\/portal\/simulador$/);
-    await expect(bar.getByRole('link', { name: 'Simulador', exact: true })).toHaveAttribute('aria-current', 'page');
-    await expect(bar.getByRole('link', { name: 'Panel', exact: true })).not.toHaveAttribute('aria-current', 'page');
+    await expect(bar.getByRole('link', { name: 'Casos', exact: true })).toHaveAttribute('aria-current', 'page');
+    await expect(bar.getByRole('link', { name: 'Inicio', exact: true })).not.toHaveAttribute('aria-current', 'page');
     await page.goto('/portal/jugar');
     await page.locator('canvas').first().waitFor({ state: 'visible', timeout: 30_000 });
     await expect(page.locator('header.cromo')).toHaveCount(0);
   });
 
-  test('docente: al desplazarse se pliegan Rúbricas, Grupos, Reportes y Editar casos, y vuelven con Tab', async ({ page }) => {
+  test('docente: al desplazarse se pliegan Reportes y Rúbricas, y vuelven con Tab', async ({ page }) => {
     await loginAs(page, 'profesor');
     const bar = page.locator('header.cromo');
     await expect(bar).toHaveAttribute('data-estado', 'inicial');
     await scrollDown(page);
     await expect(bar).toHaveAttribute('data-estado', 'scroll');
     const folded = bar.locator('a.control-plegable');
-    await expect(folded).toHaveText(['Rúbricas', 'Grupos', 'Reportes', 'Editar casos']);
+    await expect(folded).toHaveText(['Reportes', 'Rúbricas']);
     for (const link of await folded.all()) await expect(link).toBeHidden();
-    await expect(bar.getByRole('link', { name: 'Trazabilidad', exact: true })).toBeVisible();
+    await expect(bar.getByRole('link', { name: 'Revisión', exact: true })).toBeVisible();
 
     // Con Tab el foco entra a la barra y la despliega (data-modalidad="teclado" + :focus-within).
     for (let i = 0; i < 12; i += 1) {
@@ -57,22 +57,23 @@ test.describe('@shell barra de vidrio del portal', () => {
     for (const link of await folded.all()) await expect(link).toBeVisible();
   });
 
-  test('docente: tras un clic en la barra y con el ratón fuera, Tab desde «Trazabilidad» llega a «Rúbricas» plegada', async ({ page }) => {
+  test('docente: tras un clic en la barra y con el ratón fuera, Tab desde «Grupos» llega a «Reportes» plegada', async ({ page }) => {
     // Revisión de F3 (I-1): la modalidad se escribía en el DOM después de que Tab moviera el foco, así que el Tab que
     // sigue a un clic se saltaba los plegados (ocultos con modalidad «puntero»).
     await loginAs(page, 'profesor');
     const bar = page.locator('header.cromo');
-    await page.goto('/portal/docente/trazabilidad');
+    await page.goto('/portal/grupos');
     await scrollDown(page);
     await expect(bar).toHaveAttribute('data-estado', 'scroll');
-    const trace = bar.getByRole('link', { name: 'Trazabilidad', exact: true });
+    // «Grupos» es el último destino a la vista del docente; el que le sigue, «Reportes», está plegado.
+    const trace = bar.getByRole('link', { name: 'Grupos', exact: true });
     await trace.click();
     await page.mouse.move(700, 600); // fuera de la barra: vence la gracia y se repliega
     await expect(bar).toHaveAttribute('data-estado', 'scroll');
     await expect(bar).toHaveAttribute('data-modalidad', 'puntero');
     await expect(trace).toBeFocused();
     // El ocultado de los plegados llega con el retraso de su transición (620 ms): Tab cuando ya están ocultos.
-    const rubrics = bar.getByRole('link', { name: 'Rúbricas', exact: true });
+    const rubrics = bar.getByRole('link', { name: 'Reportes', exact: true });
     await expect(rubrics).toBeHidden();
     await page.keyboard.press('Tab');
     await expect(rubrics).toBeFocused();
@@ -85,19 +86,34 @@ test.describe('@shell barra de vidrio del portal', () => {
     page.on('console', message => { if (message.type() === 'error' && /NG0\d+/.test(message.text())) errors.push(message.text()); });
     page.on('pageerror', error => { if (/NG0\d+/.test(error.message)) errors.push(error.message); });
     await loginAs(page, 'profesor');
-    await page.locator('header.cromo').getByRole('link', { name: 'Trazabilidad', exact: true }).click();
+    await page.locator('header.cromo').getByRole('link', { name: 'Revisión', exact: true }).click();
     await page.waitForURL(/\/portal\/docente\/trazabilidad$/);
     expect(errors).toEqual([]);
   });
 
-  test('la cuenta muestra nombre y rol, y su menú cierra la sesión', async ({ page }) => {
+  test('la cuenta muestra nombre y rol, su menú lleva a «Cambiar contraseña» y cierra la sesión', async ({ page }) => {
     await loginAs(page, 'profesor');
     const bar = page.locator('header.cromo');
     await expect(bar.locator('.cuenta-chip__rol')).toHaveText('Docente');
     await expect(bar.locator('.cuenta-chip__nombre')).not.toBeEmpty();
     await bar.getByRole('button', { name: 'Cuenta' }).click();
+    await page.getByRole('menuitem', { name: 'Cambiar contraseña' }).click();
+    await page.waitForURL(/\/portal\/cuenta\/contrasena$/);
+    await bar.getByRole('button', { name: 'Cuenta' }).click();
     await page.getByRole('menuitem', { name: 'Cerrar sesión' }).click();
     await page.waitForURL(/\/login/, { timeout: 15_000 });
+  });
+
+  test('la cápsula de tema de la barra cambia la piel del portal, en su contenedor y no en body ni en html', async ({ page }) => {
+    await loginAs(page, 'estudiante');
+    const shell = page.locator('app-shell');
+    const capsula = page.locator('header.cromo .modulo-cuenta app-tema-selector');
+    await capsula.hover();
+    await capsula.getByRole('radio', { name: 'Claro' }).click();
+    await expect(shell).toHaveAttribute('data-skin', 'portal');
+    await capsula.getByRole('radio', { name: 'Oscuro' }).click();
+    await expect(shell).toHaveAttribute('data-skin', 'game');
+    expect(await page.evaluate(() => [document.body.dataset['skin'] ?? null, document.documentElement.dataset['skin'] ?? null])).toEqual([null, null]);
   });
 });
 
@@ -109,9 +125,9 @@ test.describe('@shell colores forzados: el destino actual se distingue sin color
     await loginAs(page, 'profesor');
     const principal = page.locator('header.cromo .modulo-principal');
     const current = principal.locator('a[aria-current="page"]');
-    await expect(current).toHaveText('Panel');
+    await expect(current).toHaveText('Inicio');
     expect(await current.evaluate(el => getComputedStyle(el).textDecorationLine)).toContain('underline');
-    const other = principal.getByRole('link', { name: 'Simulador', exact: true });
+    const other = principal.getByRole('link', { name: 'Revisión', exact: true });
     expect(await other.evaluate(el => getComputedStyle(el).textDecorationLine)).not.toContain('underline');
 
     await page.setViewportSize({ width: 390, height: 844 });
@@ -140,13 +156,13 @@ test.describe('@shell barra móvil: arriba marca y cuenta, abajo las pestañas',
     await expect(top).toBeVisible();
     await expect(bottom).toBeVisible();
     await expect(page.locator('header.cromo .modulo-principal')).toBeHidden();
-    await expect(bottom.locator('.pestana__rotulo')).toHaveText(['Panel', 'Simulador', 'Trazabilidad', 'Más']);
+    await expect(bottom.locator('.pestana__rotulo')).toHaveText(['Inicio', 'Revisión', 'Casos', 'Grupos', 'Más']);
     for (const tab of await bottom.locator('.pestana').all()) {
       const box = (await tab.boundingBox())!;
       expect(box.height).toBeGreaterThanOrEqual(44);
       expect(box.width).toBeGreaterThanOrEqual(44);
     }
-    await expect(bottom.getByRole('link', { name: 'Panel', exact: true })).toHaveAttribute('aria-current', 'page');
+    await expect(bottom.getByRole('link', { name: 'Inicio', exact: true })).toHaveAttribute('aria-current', 'page');
 
     const more = bottom.getByRole('button', { name: 'Más' });
     await more.tap();
@@ -154,8 +170,8 @@ test.describe('@shell barra móvil: arriba marca y cuenta, abajo las pestañas',
     await expect(sheet).toBeVisible();
     await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]'))).toBe(true);
     // Nombres accesibles (el icono es decorativo; su ligadura no forma parte del nombre).
-    await expect(sheet.getByRole('link')).toHaveCount(4);
-    for (const name of ['Rúbricas', 'Grupos', 'Reportes', 'Editar casos']) await expect(sheet.getByRole('link', { name, exact: true })).toBeVisible();
+    await expect(sheet.getByRole('link')).toHaveCount(2);
+    for (const name of ['Reportes', 'Rúbricas']) await expect(sheet.getByRole('link', { name, exact: true })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(sheet).toBeHidden();
     await expect(more).toBeFocused();
@@ -171,7 +187,7 @@ test.describe('@shell barra móvil: arriba marca y cuenta, abajo las pestañas',
     await loginAs(page, 'estudiante');
     const bar = page.locator('header.cromo');
     const bottom = page.getByRole('navigation', { name: 'Navegación principal' });
-    await expect(bottom.locator('.pestana__rotulo')).toHaveText(['Panel', 'Simulador', 'Invitaciones', 'Mi personaje']);
+    await expect(bottom.locator('.pestana__rotulo')).toHaveText(['Inicio', 'Casos', 'Personaje', 'Grupos']);
     await expect(bottom.getByRole('button', { name: 'Más' })).toHaveCount(0);
 
     // Al final de la página, el área de contenido de main (sin su relleno) termina por encima de la barra inferior.

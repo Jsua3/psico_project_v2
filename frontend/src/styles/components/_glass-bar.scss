@@ -1103,3 +1103,115 @@ $corte-tope: 82.499rem;
       visibility 0s linear 0s;
   }
 }
+
+// 11. LA BARRA DEL PORTAL (rediseño 2026-11-21, DISENO §3.1; `header.barra-portal` de shell.component.ts). La misma
+// barra modular para los tres roles, con la marca completa de Metafrónesis (la de la barra pública: SIEP vive en los
+// títulos y textos), la cápsula de tema en el módulo de cuenta y las insignias de pendientes. Todo acotado a
+// .barra-portal: la barra pública, la del editor y el banco /dev/barra no cambian.
+
+.cromo.barra-portal .barra-marca {
+  --marca-alto: 1.75rem;
+}
+
+// Franja estrecha (64rem a 82,5rem): el docente tiene seis destinos y la rejilla deja de centrar; la palabra cede y
+// queda el isotipo, como hacía el logo doble (D10 de la receta). En el teléfono la banda sí tiene sitio para la marca
+// completa (marca, tema y cuenta caben a 360 px) y la marca se queda: el usuario pidió en la portada que no cediera al
+// isotipo. Solo por debajo de 22,5rem (320 px) cede, por ancho y no por recorte.
+@media (min-width: 64rem) and (max-width: $corte-tope), (max-width: 22.499rem) {
+  .cromo.barra-portal .barra-marca .marca__palabra {
+    display: none;
+  }
+}
+
+// La cápsula de tema en el módulo de cuenta, delante de la ficha. 46 px y no 44 por el mismo motivo que en la barra
+// pública (la barra cae en medios píxeles y un canto del objetivo quedaba fuera); el margen negativo devuelve los 2 px.
+// Abierta, la cápsula crece DENTRO del módulo (tema-selector, ancla «fin»): abre su sitio a la izquierda, el módulo
+// crece con ella y su vidrio la cubre; la ficha y el menú de cuenta no se mueven ni quedan tapados.
+.cromo.barra-portal .modulo-cuenta {
+  gap: 0.375rem;
+}
+
+.cromo.barra-portal .modulo-cuenta > .tema {
+  --_fg: var(--asb-cromo-tinta);
+
+  inline-size: 2.875rem;
+  block-size: 2.875rem;
+  margin-block: -0.0625rem;
+  border-radius: 0.875rem;
+}
+
+// Teléfono: la banda es una fila (marca a la izquierda, cuenta a la derecha) y abierta la cápsula pide 92 px más. Sin
+// esto el módulo de cuenta, que encoge, empujaba el menú fuera de la pantalla (medido a 390 px: hasta 433 px). La cuenta
+// no encoge; la marca sí, y mientras se elige el tema su palabra se funde y deja ver solo el isotipo (el enlace
+// conserva su nombre accesible). Al plegarse la palabra vuelve.
+@media (max-width: 63.999rem) {
+  .cromo.barra-portal .modulo-cuenta {
+    flex: none;
+  }
+
+  .cromo.barra-portal .modulo-logo {
+    min-width: 0;
+  }
+
+  .cromo.barra-portal .barra-marca .marca__palabra {
+    transition: opacity var(--ds-dur-fade) var(--ds-ease-out);
+  }
+
+  .cromo.barra-portal .bandeja:has(.modulo-cuenta > .tema.abierto) .barra-marca .marca__palabra {
+    opacity: 0;
+  }
+}
+
+// Insignia de pendientes tras la etiqueta del destino (DISENO §2.5, C15). Píldora violeta de la piel con su tinta
+// «sobre primario» (AA en las dos pieles); cifras tabulares para que «9» y «12» no bailen.
+.cromo.barra-portal .nav-enlace__cuenta {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: 1.25rem;
+  block-size: 1.25rem;
+  margin-inline-start: 0.125rem;
+  padding-inline: 0.375rem;
+  border-radius: 999px;
+  background-color: var(--ds-primary);
+  color: var(--ds-on-primary);
+  font-size: var(--ds-type-caption-size);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1;
+}
+
+// En las pestañas la insignia cuelga de la esquina del icono, como en iOS; un filo del color de la barra la separa
+// del dibujo. «Más» lleva solo un punto (el número exacto está dentro de la hoja).
+@media (max-width: 63.999rem) {
+  :where(.cromo) .pestana__cuenta {
+    position: absolute;
+    inset-block-start: -0.3125rem;
+    inset-inline-start: calc(50% + 0.25rem);
+    display: inline-grid;
+    place-items: center;
+    min-inline-size: 1.125rem;
+    block-size: 1.125rem;
+    padding-inline: 0.3125rem;
+    border-radius: 999px;
+    background-color: var(--ds-primary);
+    box-shadow: 0 0 0 2px var(--ds-surface-1);
+    color: var(--ds-on-primary);
+    font-size: var(--ds-type-caption-size);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  :where(.cromo) .pestana__cuenta--punto {
+    inset-block-start: -0.125rem;
+    min-inline-size: 0.625rem;
+    block-size: 0.625rem;
+    padding: 0;
+  }
+}
+
+@media (forced-colors: active) {
+  .cromo.barra-portal .nav-enlace__cuenta,
+  :where(.cromo) .pestana__cuenta {
+    border: 1px solid CanvasText;
+  }
+}

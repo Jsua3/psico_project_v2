@@ -7,6 +7,7 @@ import { filter, map } from 'rxjs/operators';
 
 import { UiDialog, UiDialogFrame } from '../ui/dialog/ui-dialog';
 import { UiGlassBar } from '../ui/glass-bar/ui-glass-bar';
+import { textoInsignia, textoInsigniaAccesible } from './nav-badges.service';
 
 /** Un destino de la barra inferior: ruta de la app (`route`) o ancla de la página (`href`). */
 export interface BottomTab {
@@ -15,6 +16,10 @@ export interface BottomTab {
   icon: string;
   route?: string;
   href?: string;
+  /** Rótulo de la pestaña si `label` no cabe a 390 px (DISENO §3.3: «Mi personaje» → «Personaje»). */
+  etiquetaCorta?: string;
+  /** Pendientes del destino (NavBadgesService); 0 o ausente: sin insignia. */
+  cuenta?: number;
 }
 
 /** Como mucho cinco pestañas (references/movil.md §3): con más destinos, la quinta es «Más». */
@@ -39,6 +44,10 @@ const pathOf = (url: string) => url.split(/[?#;]/, 1)[0];
               <a class="hoja-mas__enlace" [routerLink]="tab.route" routerLinkActive="hoja-mas__enlace--activa"
                 ariaCurrentWhenActive="page" (click)="ref.close()">
                 <mat-icon aria-hidden="true">{{ tab.icon }}</mat-icon><span>{{ tab.label }}</span>
+                @if (tab.cuenta) {
+                  <span class="hoja-mas__cuenta" aria-hidden="true">{{ insignia(tab.cuenta) }}</span>
+                  <span class="ds-sr-only">{{ insigniaAccesible(tab.cuenta) }}</span>
+                }
               </a>
             } @else {
               <a class="hoja-mas__enlace" [href]="tab.href" (click)="ref.close()">
@@ -64,15 +73,31 @@ const pathOf = (url: string) => url.split(/[?#;]/, 1)[0];
       text-decoration: none;
     }
     .hoja-mas__enlace:active { background-color: var(--ds-primary-subtle); }
+    /* La insignia al final de la fila, como en los ajustes de iOS. */
+    .hoja-mas__cuenta {
+      margin-inline-start: auto;
+      min-inline-size: 1.5rem;
+      padding: 0.125rem 0.5rem;
+      border-radius: 999px;
+      background-color: var(--ds-primary);
+      color: var(--ds-on-primary);
+      font-size: var(--ds-type-caption-size);
+      font-weight: 600;
+      line-height: 1.4;
+      text-align: center;
+    }
     .hoja-mas__enlace[aria-current='page'] { color: var(--ds-primary); font-weight: 600; }
     @media (forced-colors: active) {
       .hoja-mas__enlace[aria-current='page'] { text-decoration-line: underline; text-decoration-thickness: 2px; }
+      .hoja-mas__cuenta { border: 1px solid CanvasText; }
     }
   `],
 })
 export class MoreSheetComponent {
   protected readonly ref = inject(DialogRef);
   protected readonly tabs = inject<BottomTab[]>(DIALOG_DATA);
+  protected readonly insignia = textoInsignia;
+  protected readonly insigniaAccesible = textoInsigniaAccesible;
 }
 
 /**
@@ -92,13 +117,15 @@ export class MoreSheetComponent {
       @for (tab of visible(); track tab.id) {
         @if (tab.route) {
           <a class="pestana ds-motion" [routerLink]="tab.route" routerLinkActive="pestana--activa" ariaCurrentWhenActive="page">
-            <span class="pestana__icono"><mat-icon aria-hidden="true">{{ tab.icon }}</mat-icon></span>
-            <span class="pestana__rotulo ds-motion"><span>{{ tab.label }}</span></span>
+            <span class="pestana__icono"><mat-icon aria-hidden="true">{{ tab.icon }}</mat-icon>@if (tab.cuenta) {<span class="pestana__cuenta" aria-hidden="true">{{ insignia(tab.cuenta) }}</span>}</span>
+            <span class="pestana__rotulo ds-motion"><span>{{ tab.etiquetaCorta ?? tab.label }}</span></span>
+            @if (tab.cuenta) {<span class="ds-sr-only">{{ insigniaAccesible(tab.cuenta) }}</span>}
           </a>
         } @else {
           <a class="pestana ds-motion" [href]="tab.href">
-            <span class="pestana__icono"><mat-icon aria-hidden="true">{{ tab.icon }}</mat-icon></span>
-            <span class="pestana__rotulo ds-motion"><span>{{ tab.label }}</span></span>
+            <span class="pestana__icono"><mat-icon aria-hidden="true">{{ tab.icon }}</mat-icon>@if (tab.cuenta) {<span class="pestana__cuenta" aria-hidden="true">{{ insignia(tab.cuenta) }}</span>}</span>
+            <span class="pestana__rotulo ds-motion"><span>{{ tab.etiquetaCorta ?? tab.label }}</span></span>
+            @if (tab.cuenta) {<span class="ds-sr-only">{{ insigniaAccesible(tab.cuenta) }}</span>}
           </a>
         }
       }
@@ -106,8 +133,9 @@ export class MoreSheetComponent {
         <!-- Si la página actual está en la hoja, «Más» lo dice: aria-current="true" (actual dentro del conjunto). -->
         <button class="pestana ds-motion" type="button" aria-haspopup="dialog" [attr.aria-current]="moreIsCurrent() ? 'true' : null"
           (click)="openMore()">
-          <span class="pestana__icono"><mat-icon aria-hidden="true">menu</mat-icon></span>
+          <span class="pestana__icono"><mat-icon aria-hidden="true">menu</mat-icon>@if (morePending()) {<span class="pestana__cuenta pestana__cuenta--punto" aria-hidden="true"></span>}</span>
           <span class="pestana__rotulo ds-motion"><span>Más</span></span>
+          @if (morePending()) {<span class="ds-sr-only"> (hay pendientes)</span>}
         </button>
       }
     </div>
@@ -138,6 +166,11 @@ export class BottomTabsComponent {
     const path = this.path();
     return this.overflow().some(tab => !!tab.route && (path === tab.route || path.startsWith(`${tab.route}/`)));
   });
+
+  /** Algún destino de «Más» tiene pendientes: «Más» lleva un punto (el número exacto está dentro de la hoja). */
+  protected readonly morePending = computed(() => this.overflow().some(tab => (tab.cuenta ?? 0) > 0));
+  protected readonly insignia = textoInsignia;
+  protected readonly insigniaAccesible = textoInsigniaAccesible;
 
   protected openMore(): void {
     this.dialog.sheet(MoreSheetComponent, { side: 'bottom', data: [...this.overflow()] });

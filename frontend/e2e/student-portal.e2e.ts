@@ -219,14 +219,14 @@ test.describe('@estudiante personaje', () => {
   test('salir con cambios sin guardar pregunta: «Seguir editando» se queda y «Salir sin guardar» sale', async ({ page }) => {
     await openEditor(page);
     await page.locator('fieldset').filter({ hasText: 'Elenco' }).locator('input[type="radio"]').nth(2).check({ force: true });
-    await page.locator('header.cromo').getByRole('link', { name: 'Panel', exact: true }).click();
+    await page.locator('header.cromo').getByRole('link', { name: 'Inicio', exact: true }).click();
     const dialog = page.getByRole('alertdialog', { name: 'Tienes cambios sin guardar' });
     await expect(dialog).toBeVisible();
     await dialog.getByRole('button', { name: 'Seguir editando' }).click();
     await expect(dialog).toBeHidden();
     await expect(page).toHaveURL(/\/portal\/personaje$/);
 
-    await page.locator('header.cromo').getByRole('link', { name: 'Panel', exact: true }).click();
+    await page.locator('header.cromo').getByRole('link', { name: 'Inicio', exact: true }).click();
     await page.getByRole('alertdialog', { name: 'Tienes cambios sin guardar' }).getByRole('button', { name: 'Salir sin guardar' }).click();
     await page.waitForURL(/\/portal\/dashboard$/);
   });

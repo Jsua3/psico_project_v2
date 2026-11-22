@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-import { NAV_ITEMS, navItemsFor, rolesFor } from './nav-items';
+import { NAV_ITEMS, navItemsFor, ordenPara, rolesFor } from './nav-items';
 
 const REPO_ROOT = join(__dirname, '..', '..', '..', '..', '..');
 
@@ -16,22 +16,36 @@ describe('NAV_ITEMS', () => {
   const folded = (role: 'ESTUDIANTE' | 'PROFESOR' | 'ADMIN') =>
     navItemsFor(role).filter(item => item.fold.includes(role)).map(item => item.label);
 
-  // req: SIEP-RF-04 (E2-10: la bandeja de invitaciones del estudiante, decisión del usuario 2026-10-14)
-  it('el estudiante ve Panel, Simulador, Invitaciones y Mi personaje, y no pliega nada', () => {
-    expect(visible('ESTUDIANTE')).toEqual(['Panel', 'Simulador', 'Invitaciones', 'Mi personaje']);
+  // req: SIEP-RF-04 (E2-10: la bandeja del estudiante; rediseño 2026-11-21, DISENO §3.2: se llama «Grupos»)
+  it('el estudiante ve Inicio, Casos, Mi personaje y Grupos, y no pliega nada', () => {
+    expect(visible('ESTUDIANTE')).toEqual(['Inicio', 'Casos', 'Mi personaje', 'Grupos']);
     expect(folded('ESTUDIANTE')).toEqual([]);
   });
 
-  // req: RF-05, CU-01 (E2-4: el profesor autora con propiedad; F8-0 le abre «Editar casos»)
-  it('el docente ve 7 destinos y pliega Rúbricas, Grupos, Reportes y Editar casos', () => {
-    expect(visible('PROFESOR')).toEqual(['Panel', 'Simulador', 'Trazabilidad', 'Rúbricas', 'Grupos', 'Reportes', 'Editar casos']);
-    expect(folded('PROFESOR')).toEqual(['Rúbricas', 'Grupos', 'Reportes', 'Editar casos']);
+  // req: RF-05, CU-01 (E2-4: el profesor autora con propiedad). ED-5: el docente no juega, «Simulador» sale de su menú.
+  it('el docente ve Inicio, Revisión, Casos, Grupos, Reportes y Rúbricas, y pliega Reportes y Rúbricas', () => {
+    expect(visible('PROFESOR')).toEqual(['Inicio', 'Revisión', 'Casos', 'Grupos', 'Reportes', 'Rúbricas']);
+    expect(folded('PROFESOR')).toEqual(['Reportes', 'Rúbricas']);
   });
 
-  // req: ED-5 (E2: el ADMIN no juega; su avatar solo existía para jugar)
-  it('el administrador ve 6 destinos, sin «Mi personaje», y pliega Rúbricas y Usuarios', () => {
-    expect(visible('ADMIN')).toEqual(['Panel', 'Simulador', 'Trazabilidad', 'Rúbricas', 'Editar casos', 'Usuarios']);
-    expect(folded('ADMIN')).toEqual(['Rúbricas', 'Usuarios']);
+  // req: ED-5 (E2: el ADMIN no juega). DISENO §3.2: «Usuarios» es su tarea principal y deja de plegarse.
+  it('el administrador ve Inicio, Usuarios, Casos, Revisión y Rúbricas; pliega Revisión y Rúbricas, nunca Usuarios', () => {
+    expect(visible('ADMIN')).toEqual(['Inicio', 'Usuarios', 'Casos', 'Revisión', 'Rúbricas']);
+    expect(folded('ADMIN')).toEqual(['Revisión', 'Rúbricas']);
+    expect(navItemsFor('ADMIN').find(item => item.id === 'usuarios')!.fold).toEqual([]);
+  });
+
+  it('las etiquetas no usan la jerga de antes (Panel, Simulador, Trazabilidad, Invitaciones, Editar casos)', () => {
+    for (const viejo of ['Panel', 'Simulador', 'Trazabilidad', 'Invitaciones', 'Editar casos']) {
+      expect(NAV_ITEMS.some(item => item.label === viejo), viejo).toBe(false);
+    }
+  });
+
+  it('«Mi personaje» trae una etiqueta corta para la pestaña del teléfono; ninguna etiqueta corta es más larga que la suya', () => {
+    expect(NAV_ITEMS.find(item => item.id === 'personaje')!.etiquetaCorta).toBe('Personaje');
+    for (const item of NAV_ITEMS.filter(entry => entry.etiquetaCorta)) {
+      expect(item.etiquetaCorta!.length, item.id).toBeLessThan(item.label.length);
+    }
   });
 
   it('sin rol no hay destinos', () => {
@@ -40,7 +54,7 @@ describe('NAV_ITEMS', () => {
   });
 
   it('el destino principal de cada rol nunca se pliega (antes era la «acción principal» del menú lateral, T15.4)', () => {
-    const principal = { ESTUDIANTE: '/portal/simulador', PROFESOR: '/portal/docente/trazabilidad', ADMIN: '/portal/casos' } as const;
+    const principal = { ESTUDIANTE: '/portal/simulador', PROFESOR: '/portal/docente/trazabilidad', ADMIN: '/portal/admin/usuarios' } as const;
     for (const [role, route] of Object.entries(principal) as Array<[keyof typeof principal, string]>) {
       const item = navItemsFor(role).find(entry => entry.route === route);
       expect(item, `${role} → ${route}`).toBeDefined();
@@ -101,5 +115,12 @@ describe('NAV_ITEMS', () => {
     expect(new Set(NAV_ITEMS.map(item => item.route)).size).toBe(NAV_ITEMS.length);
     const orders = NAV_ITEMS.map(item => item.order);
     expect(orders).toEqual([...orders].sort((a, b) => a - b));
+  });
+
+  it('dentro de cada rol no hay dos destinos en la misma posición (el orden nunca depende del azar del sort)', () => {
+    for (const role of ['ESTUDIANTE', 'PROFESOR', 'ADMIN'] as const) {
+      const posiciones = navItemsFor(role).map(item => ordenPara(item, role));
+      expect(new Set(posiciones).size, role).toBe(posiciones.length);
+    }
   });
 });

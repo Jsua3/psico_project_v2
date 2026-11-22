@@ -5,10 +5,12 @@ import { Router, provideRouter } from '@angular/router';
 
 import { AuthService } from '../../core/auth/auth.service';
 import { User } from '../../core/models/user.model';
+import { TemaService } from '../../core/tema/tema.service';
 import { UiDialog } from '../ui/dialog/ui-dialog';
 import { UiMenu } from '../ui/menu/ui-menu';
 import { BottomTab } from './bottom-tabs.component';
-import { ShellComponent } from './shell.component';
+import { NavBadgesService } from './nav-badges.service';
+import { RUTA_CAMBIAR_CONTRASENA, ShellComponent } from './shell.component';
 
 @Component({ template: '<p>pantalla</p>' })
 class Screen {}
@@ -57,6 +59,7 @@ describe('ShellComponent: barra de vidrio en el portal', () => {
               { path: 'simulador/:id', component: Screen, data: { chrome: 'hidden' } },
               { path: 'jugar', component: Screen, data: { chrome: 'hidden' } },
               { path: 'casos/nuevo', component: Screen, data: { chrome: 'propio' } },
+              { path: 'cuenta/contrasena', component: Screen },
             ],
           },
         ]),
@@ -75,65 +78,158 @@ describe('ShellComponent: barra de vidrio en el portal', () => {
     expect(header!.querySelector('nav.bandeja')!.getAttribute('aria-label')).toBe('Navegación principal');
   });
 
-  it('el estudiante ve Panel, Simulador, Invitaciones y Mi personaje, sin plegables, y ningún «Continuar simulación» (T15.4)', () => {
-    expect(labels()).toEqual(['Panel', 'Simulador', 'Invitaciones', 'Mi personaje']);
+  it('el estudiante ve Inicio, Casos, Mi personaje y Grupos, sin plegables, y ningún «Continuar simulación» (T15.4)', () => {
+    expect(labels()).toEqual(['Inicio', 'Casos', 'Mi personaje', 'Grupos']);
     expect(folded()).toEqual([]);
     expect(host().textContent).not.toContain('Continuar simulación');
   });
 
-  it('el docente pliega Rúbricas, Grupos, Reportes y Editar casos; su destino principal (Trazabilidad) queda a la vista', async () => {
+  it('el docente pliega Reportes y Rúbricas; Revisión, Casos y Grupos quedan a la vista (DISENO §3.2)', async () => {
     currentUser.set(user('PROFESOR'));
     await fixture.whenStable();
-    expect(labels()).toEqual(['Panel', 'Simulador', 'Trazabilidad', 'Rúbricas', 'Grupos', 'Reportes', 'Editar casos']);
-    expect(folded()).toEqual(['Rúbricas', 'Grupos', 'Reportes', 'Editar casos']);
+    expect(labels()).toEqual(['Inicio', 'Revisión', 'Casos', 'Grupos', 'Reportes', 'Rúbricas']);
+    expect(folded()).toEqual(['Reportes', 'Rúbricas']);
   });
 
   it('cambiar de sesión sin recargar actualiza destinos y plegados (Review Focus 3)', async () => {
     currentUser.set(user('ADMIN'));
     await fixture.whenStable();
-    // ED-5 (E2): el administrador ya no tiene «Mi personaje» (no juega).
-    expect(folded()).toEqual(['Rúbricas', 'Usuarios']);
+    // ED-5 (E2): el administrador no tiene «Mi personaje» (no juega). «Usuarios» ya no se pliega: es su tarea principal.
+    expect(labels()).toEqual(['Inicio', 'Usuarios', 'Casos', 'Revisión', 'Rúbricas']);
+    expect(folded()).toEqual(['Revisión', 'Rúbricas']);
     currentUser.set(user('ESTUDIANTE'));
     await fixture.whenStable();
-    expect(labels()).toEqual(['Panel', 'Simulador', 'Invitaciones', 'Mi personaje']);
+    expect(labels()).toEqual(['Inicio', 'Casos', 'Mi personaje', 'Grupos']);
     expect(folded()).toEqual([]);
   });
 
   it('el destino activo lleva aria-current="page" y solo él', async () => {
     await go('/portal/simulador');
     const current = links().filter(link => link.getAttribute('aria-current') === 'page');
-    expect(current.map(link => link.textContent!.trim())).toEqual(['Simulador']);
+    expect(current.map(link => link.textContent!.trim())).toEqual(['Casos']);
   });
 
   it('debajo de 64rem la navegación principal es la barra inferior (hija directa del header): los destinos que no se pliegan son pestañas', async () => {
-    expect(tabLabels()).toEqual(['Panel', 'Simulador', 'Invitaciones', 'Mi personaje']);
+    // «Mi personaje» usa su etiqueta corta en la pestaña: a 390 px no se parte en dos líneas.
+    expect(tabLabels()).toEqual(['Inicio', 'Casos', 'Personaje', 'Grupos']);
     currentUser.set(user('ADMIN'));
     await fixture.whenStable();
-    expect(tabLabels()).toEqual(['Panel', 'Simulador', 'Trazabilidad', 'Editar casos', 'Más']);
+    expect(tabLabels()).toEqual(['Inicio', 'Usuarios', 'Casos', 'Más']);
   });
 
-  it('los destinos que se pliegan en escritorio van a la hoja «Más» (docente: Rúbricas, Grupos, Reportes y Editar casos)', async () => {
+  it('los destinos que se pliegan en escritorio van a la hoja «Más» (docente: Reportes y Rúbricas)', async () => {
     currentUser.set(user('PROFESOR'));
     await fixture.whenStable();
-    expect(tabLabels()).toEqual(['Panel', 'Simulador', 'Trazabilidad', 'Más']);
+    expect(tabLabels()).toEqual(['Inicio', 'Revisión', 'Casos', 'Grupos', 'Más']);
     tabs().at(-1)!.click();
-    expect(sheet.mock.calls[0][1].data.map((tab: BottomTab) => tab.label)).toEqual(['Rúbricas', 'Grupos', 'Reportes', 'Editar casos']);
+    expect(sheet.mock.calls[0][1].data.map((tab: BottomTab) => tab.label)).toEqual(['Reportes', 'Rúbricas']);
   });
 
-  it('la cuenta muestra nombre y rol humanizado, y su menú se llama «Cuenta»', async () => {
+  it('el administrador lleva Revisión y Rúbricas a «Más»', async () => {
+    currentUser.set(user('ADMIN'));
+    await fixture.whenStable();
+    tabs().at(-1)!.click();
+    expect(sheet.mock.calls[0][1].data.map((tab: BottomTab) => tab.label)).toEqual(['Revisión', 'Rúbricas']);
+  });
+
+  it('la cuenta muestra nombre y rol humanizado; su menú dice quién soy, ofrece «Cambiar contraseña» y «Cerrar sesión»', async () => {
     currentUser.set(user('PROFESOR'));
     await fixture.whenStable();
     expect(host().querySelector('.cuenta-chip__nombre')!.textContent!.trim()).toBe('Ana María Rodríguez');
     expect(host().querySelector('.cuenta-chip__rol')!.textContent!.trim()).toBe('Docente');
     const menu = fixture.debugElement.query(By.directive(UiMenu)).componentInstance as UiMenu;
     expect(menu.label()).toBe('Cuenta');
-    expect(menu.items().map(item => item.label)).toEqual(['Cerrar sesión']);
+    expect(menu.items().map(item => item.label)).toEqual(['Ana María Rodríguez · Docente', 'Cambiar contraseña', 'Cerrar sesión']);
+    // La fila de identidad no hace nada (en el teléfono es el único sitio donde se lee el rol).
+    expect(menu.items()[0].disabled).toBe(true);
+    expect(menu.items().at(-1)!.tone).toBe('danger');
+  });
+
+  it('«Cambiar contraseña» del menú de cuenta lleva a la página voluntaria del portal (DP-22)', async () => {
+    const menu = fixture.debugElement.query(By.directive(UiMenu)).componentInstance as UiMenu;
+    menu.itemSelected.emit('contrasena');
+    await fixture.whenStable();
+    expect(router.url).toBe(RUTA_CAMBIAR_CONTRASENA);
+    expect(logout).not.toHaveBeenCalled();
   });
 
   it('«Cerrar sesión» del menú de cuenta cierra la sesión', () => {
     const menu = fixture.debugElement.query(By.directive(UiMenu)).componentInstance as UiMenu;
     menu.itemSelected.emit('salir');
     expect(logout).toHaveBeenCalledTimes(1);
+  });
+
+  it('la fila de identidad no navega ni cierra la sesión', async () => {
+    const menu = fixture.debugElement.query(By.directive(UiMenu)).componentInstance as UiMenu;
+    menu.itemSelected.emit('identidad');
+    await fixture.whenStable();
+    expect(router.url).toBe('/portal/dashboard');
+    expect(logout).not.toHaveBeenCalled();
+  });
+
+  // req: DP-02, REGLA-010 (la piel vive en el contenedor del shell, nunca en body ni en html)
+  describe('piel del portal', () => {
+    const tema = () => TestBed.inject(TemaService);
+    const pieles = () => [document.body.getAttribute('data-skin'), document.documentElement.getAttribute('data-skin')];
+
+    afterEach(() => tema().fijar('sistema'));
+
+    it('app-shell lleva .portal y la piel del tema elegido; body y html no llevan ninguna', async () => {
+      tema().fijar('claro');
+      await fixture.whenStable();
+      expect(host().classList).toContain('portal');
+      expect(host().getAttribute('data-skin')).toBe('portal');
+      tema().fijar('oscuro');
+      await fixture.whenStable();
+      expect(host().getAttribute('data-skin')).toBe('game');
+      expect(pieles()).toEqual([null, null]);
+      expect(document.body.classList).not.toContain('portal');
+      expect(document.documentElement.classList).not.toContain('portal');
+    });
+
+    it('elegir otra opción en la cápsula de tema de la barra cambia la piel del shell', async () => {
+      tema().fijar('claro');
+      await fixture.whenStable();
+      const oscuro = host().querySelector<HTMLButtonElement>('.modulo-cuenta app-tema-selector [role="radio"][aria-label="Oscuro"]')!;
+      expect(oscuro).not.toBeNull();
+      // Plegada, el primer toque abre la cápsula y el segundo elige (como en la portada).
+      oscuro.click();
+      await fixture.whenStable();
+      oscuro.click();
+      await fixture.whenStable();
+      expect(host().getAttribute('data-skin')).toBe('game');
+      expect(pieles()).toEqual([null, null]);
+    });
+
+    it('en el editor de casos (chrome: propio) la piel se queda clara aunque el tema sea oscuro (EDITOR.md decide su tema)', async () => {
+      tema().fijar('oscuro');
+      await go('/portal/casos/nuevo');
+      expect(host().getAttribute('data-skin')).toBe('portal');
+      await go('/portal/dashboard');
+      expect(host().getAttribute('data-skin')).toBe('game');
+    });
+  });
+
+  // req: DISENO §2.5 C15 (insignias de pendientes)
+  describe('insignias de pendientes', () => {
+    it('un destino con pendientes muestra la cifra (decorativa) y su texto accesible; la pestaña también', async () => {
+      TestBed.inject(NavBadgesService).fijar('invitaciones', 2);
+      await fixture.whenStable();
+      const grupos = links().find(link => link.getAttribute('href') === '/portal/invitaciones')!;
+      expect(grupos.querySelector('.nav-enlace__cuenta')!.textContent).toBe('2');
+      expect(grupos.querySelector('.nav-enlace__cuenta')!.getAttribute('aria-hidden')).toBe('true');
+      expect(grupos.querySelector('.ds-sr-only')!.textContent).toBe(' (2 pendientes)');
+      const pestana = tabs().find(tab => tab.getAttribute('href') === '/portal/invitaciones')!;
+      expect(pestana.querySelector('.pestana__cuenta')!.textContent).toBe('2');
+    });
+
+    it('al cambiar de persona sin recargar, las insignias de la anterior no se ven (D-16)', async () => {
+      TestBed.inject(NavBadgesService).fijar('invitaciones', 2);
+      await fixture.whenStable();
+      currentUser.set({ ...user('ESTUDIANTE'), id: 2 });
+      await fixture.whenStable();
+      expect(host().querySelector('.nav-enlace__cuenta')).toBeNull();
+    });
   });
 
   it('el <main> es el destino de «Saltar al contenido principal» (#main-content, enfocable por script) y la barra trae «Saltar a la navegación»', () => {
